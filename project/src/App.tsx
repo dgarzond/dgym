@@ -5,6 +5,7 @@ import { WorkoutDetail } from './components/WorkoutDetail';
 import { ExerciseScreen } from './components/ExerciseScreen';
 import { ChatBot } from './components/ChatBot';
 import type { Workout, Exercise, Set } from './types';
+import { defaultWorkouts } from './types';
 
 function App() {
   const [workouts, setWorkouts] = useState<Workout[]>(defaultWorkouts);
