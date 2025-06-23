@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Plus, Calendar, Dumbbell } from 'lucide-react';
+import { Dumbbell, Plus, Calendar, MessageSquare } from 'lucide-react';
 import { WorkoutCard } from './components/WorkoutCard';
 import { WorkoutDetail } from './components/WorkoutDetail';
 import { ExerciseScreen } from './components/ExerciseScreen';
+import { ChatBot } from './components/ChatBot';
 import type { Workout, Exercise, Set } from './types';
-import { defaultWorkouts } from './types';
 
 function App() {
   const [workouts, setWorkouts] = useState<Workout[]>(defaultWorkouts);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [currentExercise, setCurrentExercise] = useState<number | null>(null);
+  const [showChatBot, setShowChatBot] = useState(false); // State to control ChatBot visibility
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
@@ -81,6 +82,10 @@ function App() {
     }
   };
 
+  const handleWorkoutGenerated = (newWorkout: Workout) => {
+    setWorkouts([...workouts, newWorkout]);
+  };
+
   if (selectedWorkout && currentExercise !== null) {
     const exercise = selectedWorkout.exercises[currentExercise];
     return (
@@ -118,6 +123,13 @@ function App() {
               <Plus className="h-5 w-5 mr-2" />
               New Workout
             </button>
+            <button
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ml-2"
+              onClick={() => setShowChatBot(true)}
+            >
+              <MessageSquare className="h-5 w-5 mr-2" />
+              ChatBot
+            </button>
           </div>
         </div>
       </header>
@@ -150,6 +162,13 @@ function App() {
           </div>
         )}
       </main>
+
+      {showChatBot && (
+        <ChatBot
+          onWorkoutGenerated={handleWorkoutGenerated}
+          onClose={() => setShowChatBot(false)}
+        />
+      )}
     </div>
   );
 }
