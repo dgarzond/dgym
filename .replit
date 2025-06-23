@@ -11,3 +11,18 @@ run = ["sh", "-c", "npm run dev"]
 localPort = 5173
 externalPort = 5000
 exposeLocalhost = true
+
+[workflows]
+
+[[workflows.workflow]]
+name = "Build and Preview"
+author = 42167165
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd project && npm run build"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd project && npm run preview"
