@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, X, MessageSquare, Download, Loader } from 'lucide-react';
 import type { Workout } from '../types';
@@ -81,7 +80,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
     if (!input.trim() || isLoading) return;
 
     const currentInput = input.trim();
-    
+
     // Check if user wants to clear chat history
     if (currentInput.toLowerCase().includes('clear history') || 
         currentInput.toLowerCase().includes('clear chat') ||
@@ -145,7 +144,7 @@ If a user asks you to create a workout plan, end your response by telling them t
       }
 
       const data = await response.json();
-      
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -170,7 +169,7 @@ If a user asks you to create a workout plan, end your response by telling them t
 
   const generateMockResponse = (userInput: string): string => {
     const lowerInput = userInput.toLowerCase();
-    
+
     if (lowerInput.includes('beginner') || lowerInput.includes('start')) {
       return `Great! For beginners, I recommend starting with a full-body workout 3 times per week. Here's a sample workout plan:
 
@@ -183,11 +182,11 @@ If a user asks you to create a workout plan, end your response by telling them t
 
 Would you like me to create this workout plan for your tracker? Just say "create workout" and I'll add it to your app!`;
     }
-    
+
     if (lowerInput.includes('create workout') || lowerInput.includes('add workout')) {
       return `Perfect! I'll create a workout plan for you. Click the "Import Workout" button below to add it to your tracker.`;
     }
-    
+
     if (lowerInput.includes('push') || lowerInput.includes('chest')) {
       return `Excellent choice! Push workouts focus on chest, shoulders, and triceps. Here's a solid push day routine:
 
@@ -201,7 +200,7 @@ Would you like me to create this workout plan for your tracker? Just say "create
 
 Ready to add this to your tracker?`;
     }
-    
+
     return `That's interesting! Based on what you've told me, I can help create a personalized workout plan. Could you tell me more about:
 
 - Your current fitness level (beginner, intermediate, advanced)
@@ -214,58 +213,152 @@ This will help me create the perfect workout plan for you!`;
   };
 
   const handleImportWorkout = () => {
-    const sampleWorkout: Workout = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      name: 'AI Generated Push Workout',
-      exercises: [
-        {
-          id: '1',
-          name: 'Bench Press',
-          sets: 4,
-          reps: 10,
-          weight: 60,
-          weightUnit: 'kg',
-          completed: false,
-          setDetails: Array(4).fill(null).map((_, i) => ({
-            id: `bench-${i + 1}`,
-            completed: false,
-            weightUnit: 'kg' as const
-          }))
-        },
-        {
-          id: '2',
-          name: 'Overhead Press',
-          sets: 3,
-          reps: 10,
-          weight: 40,
-          weightUnit: 'kg',
-          completed: false,
-          setDetails: Array(3).fill(null).map((_, i) => ({
-            id: `overhead-${i + 1}`,
-            completed: false,
-            weightUnit: 'kg' as const
-          }))
-        },
-        {
-          id: '3',
-          name: 'Lateral Raises',
-          sets: 3,
-          reps: 15,
-          weight: 10,
-          weightUnit: 'kg',
-          completed: false,
-          setDetails: Array(3).fill(null).map((_, i) => ({
-            id: `lateral-${i + 1}`,
-            completed: false,
-            weightUnit: 'kg' as const
-          }))
-        }
-      ]
-    };
+    if (!messages.length) return;
 
-    onWorkoutGenerated(sampleWorkout);
-    onClose();
+    const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
+    if (!lastAssistantMessage) return;
+
+    const workoutText = lastAssistantMessage.content;
+
+    // Check if this is a multi-day routine
+    const dayMatches = workoutText.match(/\*\*Day\s+(\d+):\*\*/gi);
+
+    if (dayMatches && dayMatches.length > 1) {
+      // Handle multi-day routine
+      const days = workoutText.split(/\*\*Day\s+\d+:\*\*/i);
+      days.shift(); // Remove the first empty element
+
+      const generatedWorkouts: Workout[] = [];
+
+      dayMatches.forEach((dayMatch, dayIndex) => {
+        const dayNumber = dayMatch.match(/\d+/)?.[0] || (dayIndex + 1).toString();
+        const dayContent = days[dayIndex] || '';
+
+        // Extract duration from the day content
+        let duration = '45-60 minutes'; // default
+        const durationMatch = dayContent.match(/(\d+[-–]\d+|\d+)\s*(?:minutes?|mins?|hours?)/i);
+        if (durationMatch) {
+          duration = durationMatch[0];
+        } else {
+          // Estimate duration based on content
+          const exerciseCount = (dayContent.match(/\d+\s*sets?\s*(?:of|x)\s*\d+/gi) || []).length;
+          if (exerciseCount > 8) duration = '60-75 minutes';
+          else if (exerciseCount > 5) duration = '45-60 minutes';
+          else duration = '30-45 minutes';
+        }
+
+        const exercises = extractExercisesFromText(dayContent, dayIndex);
+
+        if (exercises.length > 0) {
+          const workoutName = `Day ${dayNumber} - AI Routine (${duration})`;
+
+          const newWorkout: Workout = {
+            id: `workout-day${dayNumber}-${Date.now()}-${dayIndex}`,
+            date: new Date(Date.now() + dayIndex * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Each day gets a different date
+            name: workoutName,
+            exercises,
+            completed: false
+          };
+
+          generatedWorkouts.push(newWorkout);
+        }
+      });
+
+      if (generatedWorkouts.length > 0) {
+        generatedWorkouts.forEach(workout => onWorkoutGenerated(workout));
+        alert(`¡${generatedWorkouts.length} rutinas importadas exitosamente!`);
+      } else {
+        alert('No se pudieron extraer ejercicios de la rutina multi-día.');
+      }
+    } else {
+      // Handle single-day routine (existing logic)
+      const exercises = extractExercisesFromText(workoutText, 0);
+
+      if (exercises.length === 0) {
+        alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya sets y repeticiones.');
+        return;
+      }
+
+      // Extract workout name
+      let workoutName = 'AI Generated Workout';
+      const nameMatch = workoutText.match(/(?:Here's a|Here is a)\s+([^.!?\n]+)/i);
+      if (nameMatch) {
+        workoutName = nameMatch[1].trim();
+      }
+
+      // Estimate duration
+      const exerciseCount = exercises.length;
+      let duration = '30-45 minutes';
+      if (exerciseCount > 8) duration = '60-75 minutes';
+      else if (exerciseCount > 5) duration = '45-60 minutes';
+
+      workoutName += ` (${duration})`;
+
+      const newWorkout: Workout = {
+        id: `workout-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        name: workoutName,
+        exercises,
+        completed: false
+      };
+
+      onWorkoutGenerated(newWorkout);
+      alert(`¡Rutina "${workoutName}" importada con ${exercises.length} ejercicios!`);
+    }
+  };
+
+  const extractExercisesFromText = (text: string, dayIndex: number): Exercise[] => {
+    const exercises: Exercise[] = [];
+
+    // Multiple patterns to catch different exercise formats
+    const exercisePatterns = [
+      // Pattern for "Exercise name: 3 sets of 12 reps" or "Exercise name: 3 sets x 12 reps"
+      /(?:^\s*[-•]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*reps?(?:\s*@\s*(\d+)\s*(?:lbs?|kg))?/gmi,
+      // Pattern for "- Exercise name: 3 sets of 12 reps"
+      /(?:^\s*[-•]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*-\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*reps?/gmi,
+      // Pattern for "Exercise name: 3 x 12"
+      /(?:^\s*[-•]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*[x×]\s*(\d+)(?:\s*@\s*(\d+)\s*(?:lbs?|kg))?/gmi,
+      // Pattern for time-based exercises like "Planks: 3 sets of 30 seconds"
+      /(?:^\s*[-•]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*seconds?/gmi
+    ];
+
+    for (const pattern of exercisePatterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const [, name, sets, reps, weight] = match;
+        if (name && sets && reps) {
+          const exerciseId = `ex-day${dayIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const exerciseWeight = weight ? parseInt(weight) : 0;
+          const exerciseSets = parseInt(sets);
+          const exerciseReps = parseInt(reps);
+
+          // Skip if exercise already exists (avoid duplicates)
+          if (exercises.some(ex => ex.name.toLowerCase().includes(name.toLowerCase().substring(0, 10)))) {
+            continue;
+          }
+
+          exercises.push({
+            id: exerciseId,
+            name: name.trim().replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').replace(/^[-•]\s*/, ''),
+            sets: exerciseSets,
+            reps: exerciseReps,
+            weight: exerciseWeight,
+            weightUnit: 'lbs',
+            completed: false,
+            setDetails: Array(exerciseSets).fill(null).map((_, i) => ({
+              id: `${exerciseId}-set-${i + 1}`,
+              reps: exerciseReps,
+              weight: exerciseWeight,
+              completed: false,
+              weightUnit: 'lbs' as const
+            })),
+            restTime: exerciseReps <= 5 ? 120 : (exerciseReps <= 8 ? 90 : 60) // More rest for lower reps (strength training)
+          });
+        }
+      }
+    }
+
+    return exercises;
   };
 
   if (showApiKeyInput) {
@@ -357,7 +450,7 @@ This will help me create the perfect workout plan for you!`;
               </div>
             </div>
           ))}
-          
+
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-gray-100 rounded-lg p-3 flex items-center">
@@ -366,7 +459,7 @@ This will help me create the perfect workout plan for you!`;
               </div>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -387,7 +480,7 @@ This will help me create the perfect workout plan for you!`;
               Clear History
             </button>
           </div>
-          
+
           <form onSubmit={sendMessage} className="flex gap-2 items-end">
             <textarea
               value={input}
