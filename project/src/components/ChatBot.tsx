@@ -330,95 +330,128 @@ This will help me create the perfect workout plan for you!`;
       /(?:^\s*[-•]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)(?:\s*(?:reps?|repetitions?))?$/gmi
     ];
 
-    // First, let's extract all exercises with structured formats
-    for (const pattern of exercisePatterns) {
-      let match;
-      const patternIndex = exercisePatterns.indexOf(pattern);
+    // Clean the text and extract all exercise lines
+    const lines = text.split('\n');
+    const exerciseLines: string[] = [];
+
+    // Filter lines that contain exercises (skip section headers and empty lines)
+    for (const line of lines) {
+      const trimmed = line.trim();
       
-      while ((match = pattern.exec(text)) !== null) {
-        let name, sets, reps, weight, duration;
+      // Skip empty lines, section headers, and non-exercise content
+      if (!trimmed || 
+          trimmed.length < 5 ||
+          trimmed.match(/^\*\*\d+\.\s*(warm[- ]?up|wod|cardio|stretch|cool[- ]?down).*\*\*$/i) ||
+          trimmed.match(/^\d+\.\s*(warm[- ]?up|wod|cardio|stretch|cool[- ]?down)/i) ||
+          trimmed.toLowerCase().includes('focus on') ||
+          trimmed.toLowerCase().includes('minutes of light cardio') && !trimmed.includes(':') ||
+          trimmed.toLowerCase().includes('cool down with') ||
+          trimmed.toLowerCase().includes('foam rolling for')) {
+        continue;
+      }
+
+      // Include lines that look like exercises
+      if (trimmed.includes(':') || 
+          trimmed.match(/^\s*[-•]\s*[A-Za-z]/) ||
+          trimmed.match(/\d+\s*(?:sets?|reps?|minutes?|seconds?)/) ||
+          trimmed.match(/[A-Za-z].*\d+/)) {
+        exerciseLines.push(trimmed);
+      }
+    }
+
+    // Process each exercise line
+    for (const line of exerciseLines) {
+      let foundMatch = false;
+
+      for (const pattern of exercisePatterns) {
+        pattern.lastIndex = 0; // Reset regex
+        const match = pattern.exec(line);
         
-        if (patternIndex <= 3) {
-          // Standard set/rep patterns
-          [, name, sets, reps, weight] = match;
-          sets = parseInt(sets) || 1;
-          reps = parseInt(reps) || 10;
-        } else if (patternIndex === 4) {
-          // Simple rep pattern like "Leg swings: 10 reps"
-          [, name, reps] = match;
-          sets = 1;
-          reps = parseInt(reps) || 10;
-        } else if (patternIndex === 5) {
-          // Time-based pattern like "Hip flexor stretch: 30 seconds"
-          [, name, duration] = match;
-          sets = 1;
-          reps = parseInt(duration) || 30;
-        } else if (patternIndex === 6) {
-          // Cardio pattern like "20 minutes of low-impact cardio"
-          [, duration, name] = match;
-          sets = 1;
-          reps = parseInt(duration) || 20;
-        } else if (patternIndex === 7) {
-          // Simple number pattern
-          [, name, reps] = match;
-          sets = 1;
-          reps = parseInt(reps) || 10;
-        }
-
-        if (name && (sets || reps)) {
-          const cleanName = name.trim()
-            .replace(/^\d+\.\s*/, '')
-            .replace(/\*\*/g, '')
-            .replace(/^[-•]\s*/, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-
-          // Skip very short names or common words that aren't exercises
-          if (cleanName.length < 3 || 
-              cleanName.toLowerCase().includes('warm') ||
-              cleanName.toLowerCase().includes('cool') ||
-              cleanName.toLowerCase().includes('stretch:') ||
-              cleanName.toLowerCase().includes('wod:') ||
-              cleanName.toLowerCase().includes('cardio:')) {
-            continue;
+        if (match) {
+          foundMatch = true;
+          const patternIndex = exercisePatterns.indexOf(pattern);
+          let name, sets, reps, weight, duration;
+          
+          if (patternIndex <= 3) {
+            // Standard set/rep patterns
+            [, name, sets, reps, weight] = match;
+            sets = parseInt(sets) || 1;
+            reps = parseInt(reps) || 10;
+          } else if (patternIndex === 4) {
+            // Simple rep pattern like "Leg swings: 10 reps"
+            [, name, reps] = match;
+            sets = 1;
+            reps = parseInt(reps) || 10;
+          } else if (patternIndex === 5) {
+            // Time-based pattern like "Hip flexor stretch: 30 seconds"
+            [, name, duration] = match;
+            sets = 1;
+            reps = parseInt(duration) || 30;
+          } else if (patternIndex === 6) {
+            // Cardio pattern like "20 minutes of low-impact cardio"
+            [, duration, name] = match;
+            sets = 1;
+            reps = parseInt(duration) || 20;
+          } else if (patternIndex === 7) {
+            // Simple number pattern
+            [, name, reps] = match;
+            sets = 1;
+            reps = parseInt(reps) || 10;
           }
 
-          // Skip if exercise already exists (avoid duplicates)
-          if (exercises.some(ex => 
-            ex.name.toLowerCase().includes(cleanName.toLowerCase().substring(0, Math.min(10, cleanName.length))) ||
-            cleanName.toLowerCase().includes(ex.name.toLowerCase().substring(0, Math.min(10, ex.name.length)))
-          )) {
-            continue;
-          }
+          if (name && (sets || reps)) {
+            const cleanName = name.trim()
+              .replace(/^\d+\.\s*/, '')
+              .replace(/\*\*/g, '')
+              .replace(/^[-•]\s*/, '')
+              .replace(/\s+/g, ' ')
+              .trim();
 
-          const exerciseId = `ex-day${dayIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const exerciseWeight = weight ? parseInt(weight) : 0;
-          const exerciseSets = sets || 1;
-          const exerciseReps = reps || 10;
+            // Skip very short names
+            if (cleanName.length < 3) {
+              continue;
+            }
 
-          // Determine if this is a time-based exercise
-          const isTimeBased = cleanName.toLowerCase().includes('plank') ||
-                             cleanName.toLowerCase().includes('stretch') ||
-                             cleanName.toLowerCase().includes('cardio') ||
-                             patternIndex === 5 || patternIndex === 6;
+            // Skip if exercise already exists (avoid duplicates)
+            if (exercises.some(ex => 
+              ex.name.toLowerCase().includes(cleanName.toLowerCase().substring(0, Math.min(10, cleanName.length))) ||
+              cleanName.toLowerCase().includes(ex.name.toLowerCase().substring(0, Math.min(10, ex.name.length)))
+            )) {
+              continue;
+            }
 
-          exercises.push({
-            id: exerciseId,
-            name: cleanName,
-            sets: exerciseSets,
-            reps: exerciseReps,
-            weight: exerciseWeight,
-            weightUnit: 'lbs',
-            completed: false,
-            setDetails: Array(exerciseSets).fill(null).map((_, i) => ({
-              id: `${exerciseId}-set-${i + 1}`,
+            const exerciseId = `ex-day${dayIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const exerciseWeight = weight ? parseInt(weight) : 0;
+            const exerciseSets = sets || 1;
+            const exerciseReps = reps || 10;
+
+            // Determine if this is a time-based exercise
+            const isTimeBased = cleanName.toLowerCase().includes('plank') ||
+                               cleanName.toLowerCase().includes('stretch') ||
+                               cleanName.toLowerCase().includes('cardio') ||
+                               cleanName.toLowerCase().includes('seconds') ||
+                               cleanName.toLowerCase().includes('minutes') ||
+                               patternIndex === 5 || patternIndex === 6;
+
+            exercises.push({
+              id: exerciseId,
+              name: cleanName,
+              sets: exerciseSets,
               reps: exerciseReps,
               weight: exerciseWeight,
+              weightUnit: 'lbs',
               completed: false,
-              weightUnit: 'lbs' as const
-            })),
-            restTime: isTimeBased ? 30 : (exerciseReps <= 5 ? 120 : (exerciseReps <= 8 ? 90 : 60))
-          });
+              setDetails: Array(exerciseSets).fill(null).map((_, i) => ({
+                id: `${exerciseId}-set-${i + 1}`,
+                reps: exerciseReps,
+                weight: exerciseWeight,
+                completed: false,
+                weightUnit: 'lbs' as const
+              })),
+              restTime: isTimeBased ? 30 : (exerciseReps <= 5 ? 120 : (exerciseReps <= 8 ? 90 : 60))
+            });
+          }
+          break; // Exit pattern loop once we find a match
         }
       }
     }
