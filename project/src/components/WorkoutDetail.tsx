@@ -15,25 +15,28 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
   const handleSetComplete = (exerciseId: string, setId: string, setData?: Partial<Set>) => {
     const updatedWorkout = {
       ...workout,
-      exercises: workout.exercises.map(exercise => {
-        if (exercise.id === exerciseId) {
-          return {
-            ...exercise,
-            setDetails: exercise.setDetails.map(set => {
-              if (set.id === setId) {
-                return {
-                  ...set,
-                  ...setData,
-                  completed: !set.completed,
-                };
-              }
-              return set;
-            }),
-            completed: exercise.setDetails.every(set => set.completed),
-          };
-        }
-        return exercise;
-      }),
+      exerciseTypes: workout.exerciseTypes.map(exerciseType => ({
+        ...exerciseType,
+        exercises: exerciseType.exercises.map(exercise => {
+          if (exercise.id === exerciseId) {
+            return {
+              ...exercise,
+              setDetails: exercise.setDetails.map(set => {
+                if (set.id === setId) {
+                  return {
+                    ...set,
+                    ...setData,
+                    completed: !set.completed,
+                  };
+                }
+                return set;
+              }),
+              completed: exercise.setDetails.every(set => set.completed),
+            };
+          }
+          return exercise;
+        })
+      }))
     };
     onUpdateWorkout(updatedWorkout);
   };
@@ -68,75 +71,90 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
         </p>
 
         <div className="space-y-8">
-          {workout.exercises.map((exercise) => (
-            <div key={exercise.id} className="bg-gray-50 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-800">
-                  {exercise.name}
+          {workout.exerciseTypes.map((exerciseType) => (
+            <div key={exerciseType.id} className="bg-white rounded-lg shadow-lg p-6">
+              <div className="mb-6 border-b pb-4">
+                <h2 className="text-2xl font-bold text-blue-600">
+                  {exerciseType.nameSpanish}
                 </h2>
-                <button
-                  onClick={() => setActiveExercise(activeExercise === exercise.id ? null : exercise.id)}
-                  className="text-gray-500 hover:text-blue-600"
-                >
-                  <Edit2 className="w-5 h-5" />
-                </button>
+                <p className="text-gray-500 text-sm mt-1">
+                  Duración estimada: {exerciseType.duration}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {exercise.setDetails.map((set, index) => (
-                  <div
-                    key={set.id}
-                    className="bg-white rounded-lg p-4 shadow-sm border border-gray-100"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-gray-700">Set {index + 1}</span>
+              <div className="space-y-6">
+                {exerciseType.exercises.map((exercise) => (
+                  <div key={exercise.id} className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800">
+                        {exercise.name}
+                      </h3>
                       <button
-                        onClick={() => handleSetComplete(exercise.id, set.id)}
-                        className="text-gray-400 hover:text-blue-600"
+                        onClick={() => setActiveExercise(activeExercise === exercise.id ? null : exercise.id)}
+                        className="text-gray-500 hover:text-blue-600"
                       >
-                        {set.completed ? (
-                          <CheckCircle className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <Circle className="w-5 h-5" />
-                        )}
+                        <Edit2 className="w-5 h-5" />
                       </button>
                     </div>
 
-                    {activeExercise === exercise.id && (
-                      <div className="space-y-2 mt-3">
-                        <div>
-                          <label className="text-sm text-gray-600">Actual Reps</label>
-                          <input
-                            type="number"
-                            value={set.actualReps || exercise.reps}
-                            onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
-                              actualReps: parseInt(e.target.value)
-                            })}
-                            className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Actual Weight (lbs)</label>
-                          <input
-                            type="number"
-                            value={set.actualWeight || exercise.weight}
-                            onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
-                              actualWeight: parseInt(e.target.value)
-                            })}
-                            className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
-                          />
-                        </div>
-                      </div>
-                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {exercise.setDetails.map((set, index) => (
+                        <div
+                          key={set.id}
+                          className="bg-white rounded-lg p-4 shadow-sm border border-gray-100"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium text-gray-700">Set {index + 1}</span>
+                            <button
+                              onClick={() => handleSetComplete(exercise.id, set.id)}
+                              className="text-gray-400 hover:text-blue-600"
+                            >
+                              {set.completed ? (
+                                <CheckCircle className="w-5 h-5 text-green-500" />
+                              ) : (
+                                <Circle className="w-5 h-5" />
+                              )}
+                            </button>
+                          </div>
 
-                    <div className="mt-2 text-sm text-gray-600">
-                      Target: {exercise.reps} reps @ {exercise.weight}lbs
+                          {activeExercise === exercise.id && (
+                            <div className="space-y-2 mt-3">
+                              <div>
+                                <label className="text-sm text-gray-600">Repeticiones actuales</label>
+                                <input
+                                  type="number"
+                                  value={set.actualReps || exercise.reps}
+                                  onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
+                                    actualReps: parseInt(e.target.value)
+                                  })}
+                                  className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-sm text-gray-600">Peso actual ({exercise.weightUnit})</label>
+                                <input
+                                  type="number"
+                                  value={set.actualWeight || exercise.weight}
+                                  onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
+                                    actualWeight: parseInt(e.target.value)
+                                  })}
+                                  className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mt-2 text-sm text-gray-600">
+                            Objetivo: {exercise.reps} reps @ {exercise.weight}{exercise.weightUnit}
+                          </div>
+                          {set.completed && (set.actualReps || set.actualWeight) && (
+                            <div className="mt-1 text-sm text-green-600">
+                              Actual: {set.actualReps || exercise.reps} reps @ {set.actualWeight || exercise.weight}{exercise.weightUnit}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {set.completed && (set.actualReps || set.actualWeight) && (
-                      <div className="mt-1 text-sm text-green-600">
-                        Actual: {set.actualReps || exercise.reps} reps @ {set.actualWeight || exercise.weight}lbs
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

@@ -212,6 +212,24 @@ Ready to add this to your tracker?`;
 This will help me create the perfect workout plan for you!`;
   };
 
+  // Helper function to group exercises by type
+  const groupExercisesByType = (exercises: Exercise[]) => {
+    const exerciseTypes: { [key: string]: any } = {};
+
+    exercises.forEach(exercise => {
+      const typeId = exercise.type.id;
+      if (!exerciseTypes[typeId]) {
+        exerciseTypes[typeId] = {
+          ...exercise.type,
+          exercises: []
+        };
+      }
+      exerciseTypes[typeId].exercises.push(exercise);
+    });
+
+    return Object.values(exerciseTypes);
+  };
+
   const handleImportWorkout = () => {
     if (!messages.length) return;
 
@@ -248,15 +266,16 @@ This will help me create the perfect workout plan for you!`;
         }
 
         const exercises = extractExercisesFromText(dayContent, dayIndex);
+        const exerciseTypes = groupExercisesByType(exercises);
 
-        if (exercises.length > 0) {
+        if (exerciseTypes.length > 0) {
           const workoutName = `Day ${dayNumber} - AI Routine (${duration})`;
 
           const newWorkout: Workout = {
             id: `workout-day${dayNumber}-${Date.now()}-${dayIndex}`,
             date: new Date(Date.now() + dayIndex * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Each day gets a different date
             name: workoutName,
-            exercises,
+            exerciseTypes,
             completed: false
           };
 
@@ -273,8 +292,9 @@ This will help me create the perfect workout plan for you!`;
     } else {
       // Handle single-day routine (existing logic)
       const exercises = extractExercisesFromText(workoutText, 0);
+      const exerciseTypes = groupExercisesByType(exercises);
 
-      if (exercises.length === 0) {
+      if (exerciseTypes.length === 0) {
         alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya sets y repeticiones.');
         return;
       }
@@ -298,7 +318,7 @@ This will help me create the perfect workout plan for you!`;
         id: `workout-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
         name: workoutName,
-        exercises,
+        exerciseTypes,
         completed: false
       };
 
@@ -432,30 +452,45 @@ This will help me create the perfect workout plan for you!`;
             const exerciseSets = Math.max(1, sets || 1);
             const exerciseReps = Math.max(1, reps || 10);
 
+            // Determine exercise type based on name
+            const lowerName = cleanName.toLowerCase();
+            let exerciseType;
+            if (lowerName.includes('calentamiento') || lowerName.includes('warm') || lowerName.includes('rollo') || lowerName.includes('círculo') || lowerName.includes('rotacion')) {
+              exerciseType = { id: 'warmup', name: 'Warm-up', nameSpanish: 'Calentamiento', duration: '5-10 min' };
+            } else if (lowerName.includes('cardio') || lowerName.includes('caminata') || lowerName.includes('bicicleta') || lowerName.includes('correr')) {
+              exerciseType = { id: 'cardio', name: 'Cardio', nameSpanish: 'Cardio', duration: '15-25 min' };
+            } else if (lowerName.includes('estiramiento') || lowerName.includes('stretch') || lowerName.includes('flexibilidad')) {
+              exerciseType = { id: 'stretching', name: 'Stretching', nameSpanish: 'Estiramiento', duration: '5-10 min' };
+            } else {
+              exerciseType = { id: 'power', name: 'Power', nameSpanish: 'Fuerza', duration: '20-30 min' };
+            }
+
             // Determine if this is a time-based exercise
             const isTimeBased = cleanName.toLowerCase().includes('plank') ||
                                cleanName.toLowerCase().includes('stretch') ||
                                cleanName.toLowerCase().includes('cardio') ||
-                               cleanName.toLowerCase().includes('hold') ||
-                               i === 2 || i === 4 || i === 5;
+                               cleanName.toLowerCase().includes('hold');
 
-            exercises.push({
+            const exercise: Exercise = {
               id: exerciseId,
               name: cleanName,
               sets: exerciseSets,
               reps: exerciseReps,
               weight: exerciseWeight,
-              weightUnit: 'lbs',
+              weightUnit: 'kg',
               completed: false,
+              type: exerciseType,
               setDetails: Array(exerciseSets).fill(null).map((_, setIndex) => ({
                 id: `${exerciseId}-set-${setIndex + 1}`,
                 reps: exerciseReps,
                 weight: exerciseWeight,
                 completed: false,
-                weightUnit: 'lbs' as const
+                weightUnit: 'kg' as const
               })),
-              restTime: isTimeBased ? 30 : (exerciseReps <= 5 ? 120 : (exerciseReps <= 8 ? 90 : 60))
-            });
+              restTime: isTimeBased ? 0 : (exerciseSets > 1 ? 60 : 30)
+            };
+
+            exercises.push(exercise);
           }
           break;
         }
