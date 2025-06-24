@@ -16,14 +16,29 @@ interface ChatBotProps {
 }
 
 export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: "Hi! I'm your AI fitness coach. I'll help you create a personalized workout plan. Tell me about your fitness goals, experience level, available equipment, and any preferences you have!",
-      timestamp: new Date(),
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // Load messages from localStorage or use default
+    const savedMessages = localStorage.getItem('chatBotMessages');
+    if (savedMessages) {
+      try {
+        const parsed = JSON.parse(savedMessages);
+        return parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+      }
     }
-  ]);
+    return [
+      {
+        id: '1',
+        role: 'assistant',
+        content: "Hi! I'm your AI fitness coach. I'll help you create a personalized workout plan. Tell me about your fitness goals, experience level, available equipment, and any preferences you have!",
+        timestamp: new Date(),
+      }
+    ];
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState('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');
@@ -38,6 +53,22 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    // Save messages to localStorage whenever they change
+    localStorage.setItem('chatBotMessages', JSON.stringify(messages));
+  }, [messages]);
+
+  const clearChatHistory = () => {
+    const initialMessage = {
+      id: '1',
+      role: 'assistant' as const,
+      content: "Hi! I'm your AI fitness coach. I'll help you create a personalized workout plan. Tell me about your fitness goals, experience level, available equipment, and any preferences you have!",
+      timestamp: new Date(),
+    };
+    setMessages([initialMessage]);
+    localStorage.setItem('chatBotMessages', JSON.stringify([initialMessage]));
+  };
+
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (apiKey.trim()) {
@@ -49,15 +80,25 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const currentInput = input.trim();
+    
+    // Check if user wants to clear chat history
+    if (currentInput.toLowerCase().includes('clear history') || 
+        currentInput.toLowerCase().includes('clear chat') ||
+        currentInput.toLowerCase().includes('reset chat')) {
+      clearChatHistory();
+      setInput('');
+      return;
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: currentInput,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
@@ -338,7 +379,14 @@ This will help me create the perfect workout plan for you!`;
               <Download className="w-4 h-4 mr-1" />
               Import Workout
             </button>
-          </div>
+            <button
+              onClick={clearChatHistory}
+              className="flex items-center px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+            >
+              <X className="w-4 h-4 mr-1" />
+              Clear History
+            </button>
+          </div></div>
           
           <form onSubmit={sendMessage} className="flex gap-2 items-end">
             <textarea
