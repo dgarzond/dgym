@@ -24,17 +24,39 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   const [expandedWorkouts, setExpandedWorkouts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Load weekly plans from localStorage
+    // Load weekly plans from localStorage with data migration
     const savedPlans = localStorage.getItem('weeklyPlans');
     if (savedPlans) {
       const plans = JSON.parse(savedPlans).map((plan: any) => ({
         ...plan,
         weekStart: new Date(plan.weekStart),
         createdAt: new Date(plan.createdAt),
-        workouts: plan.workouts.map((workout: any) => ({
-          ...workout,
-          date: workout.date
-        }))
+        workouts: plan.workouts.map((workout: any) => {
+          // Migrate old structure to new structure
+          if (workout.exercises && !workout.exerciseTypes) {
+            // Convert old exercises array to new exerciseTypes structure
+            const exerciseTypes: ExerciseType[] = [
+              {
+                id: 'migrated',
+                name: 'Mixed Exercises',
+                nameSpanish: 'Ejercicios Mixtos',
+                duration: '30-45 min',
+                exercises: workout.exercises || []
+              }
+            ];
+            return {
+              ...workout,
+              exerciseTypes,
+              date: workout.date
+            };
+          }
+          // Return workout with new structure
+          return {
+            ...workout,
+            exerciseTypes: workout.exerciseTypes || [],
+            date: workout.date
+          };
+        })
       }));
       setWeeklyPlans(plans);
     }
@@ -133,6 +155,12 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     const nextWeek = new Date(currentWeek);
     nextWeek.setDate(nextWeek.getDate() + 7);
     setCurrentWeek(nextWeek);
+  };
+
+  const clearCorruptedData = () => {
+    localStorage.removeItem('weeklyPlans');
+    setWeeklyPlans([]);
+    window.location.reload();
   };
 
   const currentPlan = getCurrentWeekPlan();
@@ -275,11 +303,20 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       </div>
 
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-800">
-          <strong>Estructura jerárquica:</strong> Cada entrenamiento está organizado en <strong>tipos de ejercicio</strong> (Calentamiento, Fuerza, Cardio, Estiramiento) que contienen <strong>ejercicios específicos</strong>. 
-          Esta estructura permite una mejor organización y visualización del plan de entrenamiento.
-          {weekExpired && " ¡Tu semana actual ha terminado - es hora de planificar la próxima semana!"}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-blue-800">
+            <strong>Estructura jerárquica:</strong> Cada entrenamiento está organizado en <strong>tipos de ejercicio</strong> (Calentamiento, Fuerza, Cardio, Estiramiento) que contienen <strong>ejercicios específicos</strong>. 
+            Esta estructura permite una mejor organización y visualización del plan de entrenamiento.
+            {weekExpired && " ¡Tu semana actual ha terminado - es hora de planificar la próxima semana!"}
+          </p>
+          <button
+            onClick={clearCorruptedData}
+            className="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
+            title="Limpiar datos corruptos si hay errores"
+          >
+            Reset Data
+          </button>
+        </div>
       </div>
 
       {showChatBot && (
