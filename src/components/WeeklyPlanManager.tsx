@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock } from 'lucide-react';
+import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Workout } from '../types';
 import { ChatBot } from './ChatBot';
 
@@ -16,10 +17,17 @@ interface WeeklyPlanManagerProps {
   onAddWorkout: (workout: Workout) => void;
 }
 
+interface WorkoutSection {
+  name: string;
+  exercises: string[];
+  duration?: string;
+}
+
 export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerProps) {
   const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
   const [showChatBot, setShowChatBot] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<Date>(getStartOfWeek(new Date()));
+  const [expandedWorkouts, setExpandedWorkouts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Load weekly plans from localStorage
@@ -71,6 +79,79 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     const currentPlan = getCurrentWeekPlan();
     if (!currentPlan) return true;
     return isWeekExpired(currentPlan.weekStart);
+  };
+
+  const parseWorkoutSections = (workout: Workout): WorkoutSection[] => {
+    const sections: WorkoutSection[] = [];
+    const exercises = workout.exercises;
+    
+    // Group exercises by section based on exercise names and patterns
+    const warmupExercises: string[] = [];
+    const powerExercises: string[] = [];
+    const cardioExercises: string[] = [];
+    const stretchExercises: string[] = [];
+    
+    exercises.forEach(exercise => {
+      const name = exercise.name.toLowerCase();
+      const formattedExercise = `${exercise.name}: ${exercise.sets} sets of ${exercise.reps} reps`;
+      
+      if (name.includes('warm') || name.includes('circle') || name.includes('swing') || 
+          name.includes('rotation') || name.includes('stretch') && !name.includes('static')) {
+        warmupExercises.push(formattedExercise);
+      } else if (name.includes('cardio') || name.includes('bike') || name.includes('treadmill') || 
+                 name.includes('elliptical') || name.includes('swimming') || name.includes('walk')) {
+        cardioExercises.push(formattedExercise);
+      } else if (name.includes('stretch') || name.includes('cool') || name.includes('foam')) {
+        stretchExercises.push(formattedExercise);
+      } else {
+        powerExercises.push(formattedExercise);
+      }
+    });
+
+    if (warmupExercises.length > 0) {
+      sections.push({ name: 'Warm-up', exercises: warmupExercises, duration: '5-10 min' });
+    }
+    
+    if (powerExercises.length > 0) {
+      sections.push({ name: 'Power', exercises: powerExercises, duration: '20-30 min' });
+    }
+    
+    if (cardioExercises.length > 0) {
+      sections.push({ name: 'Cardio', exercises: cardioExercises, duration: '15-25 min' });
+    }
+    
+    if (stretchExercises.length > 0) {
+      sections.push({ name: 'Stretch', exercises: stretchExercises, duration: '5-10 min' });
+    }
+
+    return sections;
+  };
+
+  const calculateWorkoutDuration = (sections: WorkoutSection[]): string => {
+    let minDuration = 0;
+    let maxDuration = 0;
+    
+    sections.forEach(section => {
+      if (section.duration) {
+        const match = section.duration.match(/(\d+)-(\d+)/);
+        if (match) {
+          minDuration += parseInt(match[1]);
+          maxDuration += parseInt(match[2]);
+        }
+      }
+    });
+    
+    return `${minDuration}-${maxDuration} min`;
+  };
+
+  const toggleWorkoutExpansion = (workoutId: string) => {
+    const newExpanded = new Set(expandedWorkouts);
+    if (newExpanded.has(workoutId)) {
+      newExpanded.delete(workoutId);
+    } else {
+      newExpanded.add(workoutId);
+    }
+    setExpandedWorkouts(newExpanded);
   };
 
   const handleWorkoutGenerated = (workout: Workout) => {
@@ -161,12 +242,61 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
               <p className="text-sm text-gray-600">
                 {currentPlan.workouts.length} workout(s) planned
               </p>
-              <div className="space-y-1">
-                {currentPlan.workouts.map((workout, index) => (
-                  <div key={workout.id} className="text-xs text-gray-500 bg-white rounded px-2 py-1">
-                    {index + 1}. {workout.name}
-                  </div>
-                ))}
+              <div className="space-y-2">
+                {currentPlan.workouts.map((workout, index) => {
+                  const sections = parseWorkoutSections(workout);
+                  const duration = calculateWorkoutDuration(sections);
+                  const isExpanded = expandedWorkouts.has(workout.id);
+                  
+                  return (
+                    <div key={workout.id} className="bg-white rounded border">
+                      <div 
+                        className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-50"
+                        onClick={() => toggleWorkoutExpansion(workout.id)}
+                      >
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-800">
+                            Day {index + 1}: {workout.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {sections.length} sections • {duration}
+                          </div>
+                        </div>
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
+                      
+                      {isExpanded && (
+                        <div className="border-t bg-gray-50 p-3">
+                          {sections.map((section, sectionIndex) => (
+                            <div key={sectionIndex} className="mb-3 last:mb-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 className="text-xs font-semibold text-blue-600 uppercase">
+                                  {section.name}
+                                </h4>
+                                {section.duration && (
+                                  <span className="text-xs text-gray-500">
+                                    {section.duration}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-1">
+                                {section.exercises.map((exercise, exerciseIndex) => (
+                                  <div key={exerciseIndex} className="text-xs text-gray-600 pl-2">
+                                    • {exercise}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -201,7 +331,8 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-800">
           <strong>How it works:</strong> Chat with our AI coach to get personalized workout plans. 
-          Each week, you can create a new plan based on your progress and goals. 
+          Each workout is organized into sections: Warm-up, Power, Cardio, and Stretch with estimated durations. 
+          Click on any workout to see the detailed breakdown by section.
           {weekExpired && " Your current week has ended - time to plan for the next week!"}
         </p>
       </div>
