@@ -95,28 +95,39 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       const name = exercise.name.toLowerCase();
       const formattedExercise = `${exercise.name}: ${exercise.sets} sets of ${exercise.reps} reps`;
       
-      // Warm-up section (English and Spanish)
-      if (name.includes('warm') || name.includes('calentamiento') || name.includes('circle') || 
-          name.includes('swing') || name.includes('rotation') || name.includes('rotación') ||
-          name.includes('círculo') || name.includes('balanceo') || 
-          (name.includes('stretch') && !name.includes('static'))) {
+      // Warm-up section (English and Spanish) - more specific patterns
+      if (name.includes('warm') || name.includes('calentamiento') || 
+          name.includes('rollo de espalda') || name.includes('back roll') ||
+          name.includes('círculo') || name.includes('circle') ||
+          name.includes('rotación') || name.includes('rotation') ||
+          name.includes('balanceo') || name.includes('swing') ||
+          name.includes('lunges laterales') || name.includes('lateral lunge') ||
+          name.includes('estiramiento de flexores') || name.includes('hip flexor stretch') ||
+          (name.includes('stretch') && name.includes('flexor'))) {
         warmupExercises.push(formattedExercise);
       } 
-      // Cardio section (English and Spanish)
-      else if (name.includes('cardio') || name.includes('cardiovascular') || name.includes('bike') || 
-               name.includes('bicicleta') || name.includes('treadmill') || name.includes('cinta') ||
-               name.includes('elliptical') || name.includes('elíptica') || name.includes('swimming') || 
-               name.includes('natación') || name.includes('walk') || name.includes('caminar') ||
-               name.includes('correr') || name.includes('running')) {
+      // Cardio section (English and Spanish) - more specific patterns
+      else if (name.includes('cardio') || name.includes('cardiovascular') || 
+               name.includes('bike') || name.includes('bicicleta') || 
+               name.includes('treadmill') || name.includes('cinta') ||
+               name.includes('elliptical') || name.includes('elíptica') || 
+               name.includes('swimming') || name.includes('natación') || 
+               name.includes('caminata') || name.includes('walk') || 
+               name.includes('correr') || name.includes('running') ||
+               name.includes('minutos de cardio') || name.includes('minutes of cardio') ||
+               name.includes('bajo impacto') || name.includes('low impact')) {
         cardioExercises.push(formattedExercise);
       } 
-      // Stretch section (English and Spanish)
-      else if (name.includes('stretch') || name.includes('estiramiento') || name.includes('cool') || 
-               name.includes('enfriamiento') || name.includes('foam') || name.includes('rodillo') ||
-               name.includes('relajación') || name.includes('flexibilidad')) {
+      // Stretch section (English and Spanish) - more specific patterns
+      else if (name.includes('estiramiento') || name.includes('stretch') || 
+               name.includes('cool') || name.includes('enfriamiento') || 
+               name.includes('foam') || name.includes('rodillo') ||
+               name.includes('relajación') || name.includes('flexibilidad') ||
+               name.includes('estiramientos enfocados') || name.includes('focused stretch') ||
+               name.includes('espalda baja') || name.includes('lower back')) {
         stretchExercises.push(formattedExercise);
       } 
-      // Power section (everything else)
+      // Power section (strength exercises)
       else {
         powerExercises.push(formattedExercise);
       }
