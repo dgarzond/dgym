@@ -1,7 +1,4 @@
-` tags.
 
-```
-<replit_final_file>
 import React, { useState, useEffect } from 'react';
 import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Workout, ExerciseType } from '../types';
