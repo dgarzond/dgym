@@ -93,20 +93,24 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     
     exercises.forEach(exercise => {
       const name = exercise.name.toLowerCase();
-      const formattedExercise = `${exercise.name}: ${exercise.sets} sets of ${exercise.reps} reps`;
+      const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Bodyweight)';
+      const formattedExercise = `${exercise.name}: ${exercise.sets} sets of ${exercise.reps} reps${weightInfo}`;
       
-      // Warm-up section (English and Spanish) - more specific patterns
+      // Warm-up section - specific patterns for warm-up exercises
       if (name.includes('warm') || name.includes('calentamiento') || 
           name.includes('rollo de espalda') || name.includes('back roll') ||
           name.includes('círculo') || name.includes('circle') ||
           name.includes('rotación') || name.includes('rotation') ||
+          name.includes('rotaciones de hombros') || name.includes('shoulder rotation') ||
           name.includes('balanceo') || name.includes('swing') ||
           name.includes('lunges laterales') || name.includes('lateral lunge') ||
-          name.includes('estiramiento de flexores') || name.includes('hip flexor stretch') ||
-          (name.includes('stretch') && name.includes('flexor'))) {
+          name.includes('círculos de brazos') || name.includes('arm circles') ||
+          // Include specific warm-up exercises from defaults
+          name === 'rollo de espalda' || name === 'círculos de brazos' || 
+          name === 'rotaciones de hombros' || name === 'lunges laterales') {
         warmupExercises.push(formattedExercise);
       } 
-      // Cardio section (English and Spanish) - more specific patterns
+      // Cardio section - specific patterns for cardio exercises
       else if (name.includes('cardio') || name.includes('cardiovascular') || 
                name.includes('bike') || name.includes('bicicleta') || 
                name.includes('treadmill') || name.includes('cinta') ||
@@ -115,19 +119,28 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                name.includes('caminata') || name.includes('walk') || 
                name.includes('correr') || name.includes('running') ||
                name.includes('minutos de cardio') || name.includes('minutes of cardio') ||
-               name.includes('bajo impacto') || name.includes('low impact')) {
+               name.includes('bajo impacto') || name.includes('low impact') ||
+               name.includes('bicicleta estática') || name.includes('stationary bike') ||
+               name.includes('caminata intensa') || name.includes('brisk walk')) {
         cardioExercises.push(formattedExercise);
       } 
-      // Stretch section (English and Spanish) - more specific patterns
+      // Stretch section - specific patterns for stretching exercises
       else if (name.includes('estiramiento') || name.includes('stretch') || 
                name.includes('cool') || name.includes('enfriamiento') || 
                name.includes('foam') || name.includes('rodillo') ||
                name.includes('relajación') || name.includes('flexibilidad') ||
                name.includes('estiramientos enfocados') || name.includes('focused stretch') ||
-               name.includes('espalda baja') || name.includes('lower back')) {
+               name.includes('espalda baja') || name.includes('lower back') ||
+               name.includes('flexores de cadera') || name.includes('hip flexor') ||
+               name.includes('pecho y hombros') || name.includes('chest and shoulders') ||
+               // Include specific stretching exercises from defaults
+               name.includes('estiramiento de flexores de cadera') ||
+               name.includes('estiramientos enfocados en el pecho y hombros') ||
+               name.includes('estiramientos enfocados en piernas') ||
+               name.includes('estiramiento de espalda baja')) {
         stretchExercises.push(formattedExercise);
       } 
-      // Power section (strength exercises)
+      // Power section (strength exercises) - everything else including specific strength movements
       else {
         powerExercises.push(formattedExercise);
       }
@@ -138,7 +151,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     }
     
     if (powerExercises.length > 0) {
-      sections.push({ name: 'Fuerza', exercises: powerExercises, duration: '20-30 min' });
+      sections.push({ name: 'Power', exercises: powerExercises, duration: '20-30 min' });
     }
     
     if (cardioExercises.length > 0) {
