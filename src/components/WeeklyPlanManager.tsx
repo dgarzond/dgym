@@ -1,7 +1,10 @@
+` tags.
 
+```
+<replit_final_file>
 import React, { useState, useEffect } from 'react';
 import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
-import type { Workout } from '../types';
+import type { Workout, ExerciseType } from '../types';
 import { ChatBot } from './ChatBot';
 
 interface WeeklyPlan {
@@ -15,12 +18,6 @@ interface WeeklyPlan {
 interface WeeklyPlanManagerProps {
   workouts: Workout[];
   onAddWorkout: (workout: Workout) => void;
-}
-
-interface WorkoutSection {
-  name: string;
-  exercises: string[];
-  duration?: string;
 }
 
 export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerProps) {
@@ -81,91 +78,18 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     return isWeekExpired(currentPlan.weekStart);
   };
 
-  const parseWorkoutSections = (workout: Workout): WorkoutSection[] => {
-    const sections: WorkoutSection[] = [];
-    const exercises = workout.exercises;
-    
-    // Group exercises by section based on exercise names and patterns
-    const warmupExercises: string[] = [];
-    const powerExercises: string[] = [];
-    const cardioExercises: string[] = [];
-    const stretchExercises: string[] = [];
-    
-    exercises.forEach(exercise => {
-      const name = exercise.name.toLowerCase();
-      const formattedExercise = `${exercise.name}: ${exercise.sets} sets of ${exercise.reps} reps`;
-      
-      // Warm-up section (English and Spanish) - more specific patterns
-      if (name.includes('warm') || name.includes('calentamiento') || 
-          name.includes('rollo de espalda') || name.includes('back roll') ||
-          name.includes('círculo') || name.includes('circle') ||
-          name.includes('rotación') || name.includes('rotation') ||
-          name.includes('balanceo') || name.includes('swing') ||
-          name.includes('lunges laterales') || name.includes('lateral lunge') ||
-          name.includes('estiramiento de flexores') || name.includes('hip flexor stretch') ||
-          (name.includes('stretch') && name.includes('flexor'))) {
-        warmupExercises.push(formattedExercise);
-      } 
-      // Cardio section (English and Spanish) - more specific patterns
-      else if (name.includes('cardio') || name.includes('cardiovascular') || 
-               name.includes('bike') || name.includes('bicicleta') || 
-               name.includes('treadmill') || name.includes('cinta') ||
-               name.includes('elliptical') || name.includes('elíptica') || 
-               name.includes('swimming') || name.includes('natación') || 
-               name.includes('caminata') || name.includes('walk') || 
-               name.includes('correr') || name.includes('running') ||
-               name.includes('minutos de cardio') || name.includes('minutes of cardio') ||
-               name.includes('bajo impacto') || name.includes('low impact')) {
-        cardioExercises.push(formattedExercise);
-      } 
-      // Stretch section (English and Spanish) - more specific patterns
-      else if (name.includes('estiramiento') || name.includes('stretch') || 
-               name.includes('cool') || name.includes('enfriamiento') || 
-               name.includes('foam') || name.includes('rodillo') ||
-               name.includes('relajación') || name.includes('flexibilidad') ||
-               name.includes('estiramientos enfocados') || name.includes('focused stretch') ||
-               name.includes('espalda baja') || name.includes('lower back')) {
-        stretchExercises.push(formattedExercise);
-      } 
-      // Power section (strength exercises)
-      else {
-        powerExercises.push(formattedExercise);
-      }
-    });
-
-    if (warmupExercises.length > 0) {
-      sections.push({ name: 'Calentamiento', exercises: warmupExercises, duration: '5-10 min' });
-    }
-    
-    if (powerExercises.length > 0) {
-      sections.push({ name: 'Fuerza', exercises: powerExercises, duration: '20-30 min' });
-    }
-    
-    if (cardioExercises.length > 0) {
-      sections.push({ name: 'Cardio', exercises: cardioExercises, duration: '15-25 min' });
-    }
-    
-    if (stretchExercises.length > 0) {
-      sections.push({ name: 'Estiramiento', exercises: stretchExercises, duration: '5-10 min' });
-    }
-
-    return sections;
-  };
-
-  const calculateWorkoutDuration = (sections: WorkoutSection[]): string => {
+  const calculateWorkoutDuration = (exerciseTypes: ExerciseType[]): string => {
     let minDuration = 0;
     let maxDuration = 0;
-    
-    sections.forEach(section => {
-      if (section.duration) {
-        const match = section.duration.match(/(\d+)-(\d+)/);
-        if (match) {
-          minDuration += parseInt(match[1]);
-          maxDuration += parseInt(match[2]);
-        }
+
+    exerciseTypes.forEach(type => {
+      const match = type.duration.match(/(\d+)-(\d+)/);
+      if (match) {
+        minDuration += parseInt(match[1]);
+        maxDuration += parseInt(match[2]);
       }
     });
-    
+
     return `${minDuration}-${maxDuration} min`;
   };
 
@@ -181,7 +105,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
   const handleWorkoutGenerated = (workout: Workout) => {
     const currentPlan = getCurrentWeekPlan();
-    
+
     if (currentPlan) {
       // Add to existing plan
       const updatedPlan = {
@@ -204,7 +128,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       };
       setWeeklyPlans(plans => [...plans, newPlan]);
     }
-    
+
     onAddWorkout(workout);
   };
 
@@ -251,7 +175,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
           <p className="text-sm text-gray-600 mb-3">
             {currentWeek.toLocaleDateString()} - {getEndOfWeek(currentWeek).toLocaleDateString()}
           </p>
-          
+
           {currentPlan ? (
             <div className="space-y-2">
               <div className="flex items-center">
@@ -269,10 +193,9 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
               </p>
               <div className="space-y-2">
                 {currentPlan.workouts.map((workout, index) => {
-                  const sections = parseWorkoutSections(workout);
-                  const duration = calculateWorkoutDuration(sections);
+                  const duration = calculateWorkoutDuration(workout.exerciseTypes || []);
                   const isExpanded = expandedWorkouts.has(workout.id);
-                  
+
                   return (
                     <div key={workout.id} className="bg-white rounded border">
                       <div 
@@ -284,7 +207,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                             Day {index + 1}: {workout.name}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {sections.length} sections • {duration}
+                            {(workout.exerciseTypes || []).length} tipos • {duration}
                           </div>
                         </div>
                         {isExpanded ? (
@@ -293,27 +216,28 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                           <ChevronDown className="w-4 h-4 text-gray-400" />
                         )}
                       </div>
-                      
+
                       {isExpanded && (
                         <div className="border-t bg-gray-50 p-3">
-                          {sections.map((section, sectionIndex) => (
-                            <div key={sectionIndex} className="mb-3 last:mb-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <h4 className="text-xs font-semibold text-blue-600 uppercase">
-                                  {section.name}
+                          {(workout.exerciseTypes || []).map((exerciseType, typeIndex) => (
+                            <div key={typeIndex} className="mb-4 last:mb-0">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-sm font-bold text-blue-600 uppercase">
+                                  {exerciseType.nameSpanish}
                                 </h4>
-                                {section.duration && (
-                                  <span className="text-xs text-gray-500">
-                                    {section.duration}
-                                  </span>
-                                )}
+                                <span className="text-xs text-gray-500">
+                                  {exerciseType.duration}
+                                </span>
                               </div>
-                              <div className="space-y-1">
-                                {section.exercises.map((exercise, exerciseIndex) => (
-                                  <div key={exerciseIndex} className="text-xs text-gray-600 pl-2">
-                                    • {exercise}
-                                  </div>
-                                ))}
+                              <div className="space-y-1 pl-2">
+                                {(exerciseType.exercises || []).map((exercise, exerciseIndex) => {
+                                  const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Peso corporal)';
+                                  return (
+                                    <div key={exerciseIndex} className="text-xs text-gray-600">
+                                      • {exercise.name}: {exercise.sets} sets x {exercise.reps} reps{weightInfo}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           ))}
@@ -355,9 +279,8 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>Cómo funciona:</strong> Chatea con nuestro entrenador AI para obtener planes de entrenamiento personalizados. 
-          Cada entrenamiento está organizado en secciones: Calentamiento, Fuerza, Cardio, y Estiramiento con duraciones estimadas. 
-          Haz clic en cualquier entrenamiento para ver el desglose detallado por sección.
+          <strong>Estructura jerárquica:</strong> Cada entrenamiento está organizado en <strong>tipos de ejercicio</strong> (Calentamiento, Fuerza, Cardio, Estiramiento) que contienen <strong>ejercicios específicos</strong>. 
+          Esta estructura permite una mejor organización y visualización del plan de entrenamiento.
           {weekExpired && " ¡Tu semana actual ha terminado - es hora de planificar la próxima semana!"}
         </p>
       </div>
