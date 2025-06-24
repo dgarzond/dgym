@@ -95,25 +95,39 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       const name = exercise.name.toLowerCase();
       const formattedExercise = `${exercise.name}: ${exercise.sets} sets of ${exercise.reps} reps`;
       
-      if (name.includes('warm') || name.includes('circle') || name.includes('swing') || 
-          name.includes('rotation') || name.includes('stretch') && !name.includes('static')) {
+      // Warm-up section (English and Spanish)
+      if (name.includes('warm') || name.includes('calentamiento') || name.includes('circle') || 
+          name.includes('swing') || name.includes('rotation') || name.includes('rotación') ||
+          name.includes('círculo') || name.includes('balanceo') || 
+          (name.includes('stretch') && !name.includes('static'))) {
         warmupExercises.push(formattedExercise);
-      } else if (name.includes('cardio') || name.includes('bike') || name.includes('treadmill') || 
-                 name.includes('elliptical') || name.includes('swimming') || name.includes('walk')) {
+      } 
+      // Cardio section (English and Spanish)
+      else if (name.includes('cardio') || name.includes('cardiovascular') || name.includes('bike') || 
+               name.includes('bicicleta') || name.includes('treadmill') || name.includes('cinta') ||
+               name.includes('elliptical') || name.includes('elíptica') || name.includes('swimming') || 
+               name.includes('natación') || name.includes('walk') || name.includes('caminar') ||
+               name.includes('correr') || name.includes('running')) {
         cardioExercises.push(formattedExercise);
-      } else if (name.includes('stretch') || name.includes('cool') || name.includes('foam')) {
+      } 
+      // Stretch section (English and Spanish)
+      else if (name.includes('stretch') || name.includes('estiramiento') || name.includes('cool') || 
+               name.includes('enfriamiento') || name.includes('foam') || name.includes('rodillo') ||
+               name.includes('relajación') || name.includes('flexibilidad')) {
         stretchExercises.push(formattedExercise);
-      } else {
+      } 
+      // Power section (everything else)
+      else {
         powerExercises.push(formattedExercise);
       }
     });
 
     if (warmupExercises.length > 0) {
-      sections.push({ name: 'Warm-up', exercises: warmupExercises, duration: '5-10 min' });
+      sections.push({ name: 'Calentamiento', exercises: warmupExercises, duration: '5-10 min' });
     }
     
     if (powerExercises.length > 0) {
-      sections.push({ name: 'Power', exercises: powerExercises, duration: '20-30 min' });
+      sections.push({ name: 'Fuerza', exercises: powerExercises, duration: '20-30 min' });
     }
     
     if (cardioExercises.length > 0) {
@@ -121,7 +135,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     }
     
     if (stretchExercises.length > 0) {
-      sections.push({ name: 'Stretch', exercises: stretchExercises, duration: '5-10 min' });
+      sections.push({ name: 'Estiramiento', exercises: stretchExercises, duration: '5-10 min' });
     }
 
     return sections;
@@ -330,10 +344,10 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-800">
-          <strong>How it works:</strong> Chat with our AI coach to get personalized workout plans. 
-          Each workout is organized into sections: Warm-up, Power, Cardio, and Stretch with estimated durations. 
-          Click on any workout to see the detailed breakdown by section.
-          {weekExpired && " Your current week has ended - time to plan for the next week!"}
+          <strong>Cómo funciona:</strong> Chatea con nuestro entrenador AI para obtener planes de entrenamiento personalizados. 
+          Cada entrenamiento está organizado en secciones: Calentamiento, Fuerza, Cardio, y Estiramiento con duraciones estimadas. 
+          Haz clic en cualquier entrenamiento para ver el desglose detallado por sección.
+          {weekExpired && " ¡Tu semana actual ha terminado - es hora de planificar la próxima semana!"}
         </p>
       </div>
 
