@@ -11,8 +11,10 @@ interface WorkoutCardProps {
 }
 
 export function WorkoutCard({ workout, onEdit, onDelete, onToggleExercise, onStartExercise }: WorkoutCardProps) {
-  const completedExercises = workout.exercises.filter(ex => ex.completed).length;
-  const progress = (completedExercises / workout.exercises.length) * 100;
+  const allExercises = workout.exerciseTypes.flatMap(type => type.exercises);
+  const completedExercises = allExercises.filter(ex => ex.completed).length;
+  const totalExercises = allExercises.length;
+  const progress = (completedExercises / totalExercises) * 100;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-4">
@@ -36,16 +38,16 @@ export function WorkoutCard({ workout, onEdit, onDelete, onToggleExercise, onSta
           </button>
         </div>
       </div>
-      
+
       <div className="mb-4 bg-gray-200 rounded-full h-2">
         <div 
           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
           style={{ width: `${progress}%` }}
         />
       </div>
-      
+
       <div className="space-y-3">
-        {workout.exercises.map((exercise) => (
+        {allExercises.slice(0, 3).map((exercise, index) => (
           <div 
             key={exercise.id} 
             className="flex items-center justify-between py-2 border-b border-gray-100"
@@ -70,15 +72,20 @@ export function WorkoutCard({ workout, onEdit, onDelete, onToggleExercise, onSta
             </span>
           </div>
         ))}
+          {allExercises.length > 3 && (
+            <div className="text-xs text-gray-400">
+              +{allExercises.length - 3} more exercises
+            </div>
+          )}
       </div>
-      
+
       <div className="mt-4 flex justify-between items-center">
         <span className="text-gray-500">
           {new Date(workout.date).toLocaleDateString()}
         </span>
         <div className="flex items-center space-x-4">
           <span className="text-blue-600 font-medium">
-            {completedExercises} of {workout.exercises.length} completed
+            {completedExercises} of {totalExercises} completed
           </span>
           <button
             onClick={onStartExercise}

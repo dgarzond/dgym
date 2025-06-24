@@ -1,8 +1,10 @@
+
 import React, { useState } from 'react';
 import { Dumbbell, Plus, Calendar, MessageSquare } from 'lucide-react';
 import { WorkoutCard } from './components/WorkoutCard';
 import { WorkoutDetail } from './components/WorkoutDetail';
 import { ExerciseScreen } from './components/ExerciseScreen';
+import { WeeklyPlanManager } from './components/WeeklyPlanManager';
 import { ChatBot } from './components/ChatBot';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
@@ -11,7 +13,7 @@ function App() {
   const [workouts, setWorkouts] = useState<Workout[]>(defaultWorkouts);
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [currentExercise, setCurrentExercise] = useState<number | null>(null);
-  const [showChatBot, setShowChatBot] = useState(false); // State to control ChatBot visibility
+  const [showChatBot, setShowChatBot] = useState(false);
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
@@ -26,20 +28,23 @@ function App() {
       if (workout.id === workoutId) {
         return {
           ...workout,
-          exercises: workout.exercises.map(exercise => {
-            if (exercise.id === exerciseId) {
-              const allSetsCompleted = exercise.setDetails.every(set => set.completed);
-              return { 
-                ...exercise, 
-                completed: !allSetsCompleted,
-                setDetails: exercise.setDetails.map(set => ({
-                  ...set,
-                  completed: !allSetsCompleted
-                }))
-              };
-            }
-            return exercise;
-          }),
+          exerciseTypes: workout.exerciseTypes.map(exerciseType => ({
+            ...exerciseType,
+            exercises: exerciseType.exercises.map(exercise => {
+              if (exercise.id === exerciseId) {
+                const allSetsCompleted = exercise.setDetails.every(set => set.completed);
+                return { 
+                  ...exercise, 
+                  completed: !allSetsCompleted,
+                  setDetails: exercise.setDetails.map(set => ({
+                    ...set,
+                    completed: !allSetsCompleted
+                  }))
+                };
+              }
+              return exercise;
+            })
+          }))
         };
       }
       return workout;
@@ -62,11 +67,14 @@ function App() {
     if (selectedWorkout) {
       const updatedWorkout = {
         ...selectedWorkout,
-        exercises: selectedWorkout.exercises.map(exercise => 
-          exercise.id === exerciseId
-            ? { ...exercise, setDetails, completed: true }
-            : exercise
-        ),
+        exerciseTypes: selectedWorkout.exerciseTypes.map(exerciseType => ({
+          ...exerciseType,
+          exercises: exerciseType.exercises.map(exercise => 
+            exercise.id === exerciseId
+              ? { ...exercise, setDetails, completed: true }
+              : exercise
+          )
+        }))
       };
       handleUpdateWorkout(updatedWorkout);
     }
@@ -74,7 +82,8 @@ function App() {
 
   const handleNextExercise = () => {
     if (selectedWorkout && currentExercise !== null) {
-      if (currentExercise < selectedWorkout.exercises.length - 1) {
+      const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises);
+      if (currentExercise < allExercises.length - 1) {
         setCurrentExercise(currentExercise + 1);
       } else {
         setCurrentExercise(null);
@@ -83,19 +92,20 @@ function App() {
     }
   };
 
-  const handleWorkoutGenerated = (newWorkout: Workout) => {
+  const handleAddWorkout = (newWorkout: Workout) => {
     setWorkouts([...workouts, newWorkout]);
   };
 
   if (selectedWorkout && currentExercise !== null) {
-    const exercise = selectedWorkout.exercises[currentExercise];
+    const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises);
+    const exercise = allExercises[currentExercise];
     return (
       <ExerciseScreen
         exercise={exercise}
         onComplete={handleExerciseComplete}
         onBack={() => setCurrentExercise(null)}
         onNext={handleNextExercise}
-        isLast={currentExercise === selectedWorkout.exercises.length - 1}
+        isLast={currentExercise === allExercises.length - 1}
       />
     );
   }
@@ -120,22 +130,30 @@ function App() {
               <Dumbbell className="h-8 w-8 text-blue-600" />
               <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
             </div>
-            <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-              <Plus className="h-5 w-5 mr-2" />
-              New Workout
-            </button>
-            <button
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 ml-2"
-              onClick={() => setShowChatBot(true)}
-            >
-              <MessageSquare className="h-5 w-5 mr-2" />
-              ChatBot
-            </button>
+            <div className="flex space-x-2">
+              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <Plus className="h-5 w-5 mr-2" />
+                New Workout
+              </button>
+              <button
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                onClick={() => setShowChatBot(true)}
+              >
+                <MessageSquare className="h-5 w-5 mr-2" />
+                ChatBot
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Weekly Plan Manager Component */}
+        <WeeklyPlanManager 
+          workouts={workouts}
+          onAddWorkout={handleAddWorkout}
+        />
+
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Your Workouts</h2>
           <div className="flex items-center text-gray-500">
@@ -166,7 +184,7 @@ function App() {
 
       {showChatBot && (
         <ChatBot
-          onWorkoutGenerated={handleWorkoutGenerated}
+          onWorkoutGenerated={handleAddWorkout}
           onClose={() => setShowChatBot(false)}
         />
       )}
