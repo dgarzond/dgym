@@ -57,17 +57,58 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsLoading(true);
 
     try {
-      // Simulate API call - replace with actual OpenAI API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences. 
+
+When creating workout plans, structure them clearly with:
+- Exercise name
+- Sets and reps
+- Weight recommendations (if applicable)
+- Rest time between sets
+
+Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level (beginner, intermediate, advanced).
+
+If a user asks you to create a workout plan, end your response by telling them they can click the "Import Workout" button to add it to their fitness tracker.`
+            },
+            ...messages.map(msg => ({
+              role: msg.role,
+              content: msg.content
+            })),
+            {
+              role: 'user',
+              content: currentInput
+            }
+          ],
+          max_tokens: 500,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: generateMockResponse(input),
+        content: data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.",
         timestamp: new Date(),
       };
 
@@ -77,7 +118,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: "I'm sorry, I encountered an error. Please try again.",
+        content: `I'm sorry, I encountered an error connecting to OpenAI. Please check your API key and try again. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -313,7 +354,6 @@ This will help me create the perfect workout plan for you!`;
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[40px] max-h-[120px] overflow-y-auto"
               disabled={isLoading}
               style={{
-                height: 'auto',
                 minHeight: '40px',
                 maxHeight: '120px',
                 height: Math.min(120, Math.max(40, input.split('\n').length * 20 + 20)) + 'px'
