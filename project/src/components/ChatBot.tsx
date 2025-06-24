@@ -469,20 +469,23 @@ This will help me create the perfect workout plan for you!`;
             const isTimeBased = cleanName.toLowerCase().includes('plank') ||
                                cleanName.toLowerCase().includes('stretch') ||
                                cleanName.toLowerCase().includes('cardio') ||
-                               cleanName.toLowerCase().includes('hold');
+                               cleanName.toLowerCase().includes('hold') ||
+                               cleanName.toLowerCase().includes('minutos') ||
+                               cleanName.toLowerCase().includes('segundos');
 
             const exercise: Exercise = {
               id: exerciseId,
               name: cleanName,
               sets: exerciseSets,
-              reps: exerciseReps,
+              ...(isTimeBased ? { duration: exerciseReps } : { reps: exerciseReps }),
+              exerciseSubType: isTimeBased ? 'duration' : 'reps',
               weight: exerciseWeight,
               weightUnit: 'kg',
               completed: false,
               type: exerciseType,
               setDetails: Array(exerciseSets).fill(null).map((_, setIndex) => ({
                 id: `${exerciseId}-set-${setIndex + 1}`,
-                reps: exerciseReps,
+                ...(isTimeBased ? { duration: exerciseReps } : { reps: exerciseReps }),
                 weight: exerciseWeight,
                 completed: false,
                 weightUnit: 'kg' as const

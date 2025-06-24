@@ -1,10 +1,13 @@
 
+
 export interface Set {
   id?: string;
-  reps: number;
+  reps?: number; // Optional for duration-based exercises
+  duration?: number; // Duration in seconds for time-based exercises
   weight: number;
   completed: boolean;
   actualReps?: number;
+  actualDuration?: number; // Actual duration for time-based exercises
   actualWeight?: number;
   weightUnit?: 'kg' | 'lbs';
 }
@@ -13,7 +16,9 @@ export interface Exercise {
   id: string;
   name: string;
   sets: number;
-  reps: number;
+  reps?: number; // Optional for duration-based exercises
+  duration?: number; // Duration in seconds for time-based exercises
+  exerciseSubType: 'reps' | 'duration'; // New field to specify sub-type
   weight: number;
   weightUnit: 'kg' | 'lbs';
   completed: boolean;
@@ -84,6 +89,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Rollo de espalda',
             sets: 2,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
@@ -102,6 +108,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Círculos de brazos',
             sets: 2,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
@@ -120,6 +127,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Rotaciones de hombros',
             sets: 2,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
@@ -143,6 +151,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Bench Press',
             sets: 3,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 60,
             weightUnit: 'kg',
             completed: false,
@@ -161,6 +170,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Squats con barra',
             sets: 3,
             reps: 12,
+            exerciseSubType: 'reps',
             weight: 50,
             weightUnit: 'kg',
             completed: false,
@@ -179,6 +189,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Pull-ups asistidos',
             sets: 3,
             reps: 8,
+            exerciseSubType: 'reps',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
@@ -196,14 +207,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e7',
             name: 'Planks con elevación',
             sets: 3,
-            reps: 30,
+            duration: 30,
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.POWER,
             setDetails: Array(3).fill(null).map((_, i) => ({
               id: `power4-${i + 1}`,
-              reps: 30,
+              duration: 30,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -219,14 +231,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e8',
             name: '20 minutos de cardio de bajo impacto (bicicleta estática)',
             sets: 1,
-            reps: 20,
+            duration: 1200, // 20 minutes in seconds
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.CARDIO,
             setDetails: [{
               id: 'cardio1-1',
-              reps: 20,
+              duration: 1200,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -242,14 +255,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e9',
             name: 'Estiramiento de flexores de cadera',
             sets: 2,
-            reps: 30,
+            duration: 30,
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.STRETCHING,
             setDetails: Array(2).fill(null).map((_, i) => ({
               id: `stretch1-${i + 1}`,
-              reps: 30,
+              duration: 30,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -260,14 +274,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e10',
             name: 'Estiramientos enfocados en el pecho y hombros',
             sets: 2,
-            reps: 30,
+            duration: 30,
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.STRETCHING,
             setDetails: Array(2).fill(null).map((_, i) => ({
               id: `stretch2-${i + 1}`,
-              reps: 30,
+              duration: 30,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -292,6 +307,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Lunges laterales',
             sets: 2,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
@@ -310,6 +326,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Rollo de espalda',
             sets: 2,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
@@ -333,6 +350,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Deadlift',
             sets: 3,
             reps: 5,
+            exerciseSubType: 'reps',
             weight: 100,
             weightUnit: 'kg',
             completed: false,
@@ -351,6 +369,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Shoulder Press',
             sets: 3,
             reps: 8,
+            exerciseSubType: 'reps',
             weight: 40,
             weightUnit: 'kg',
             completed: false,
@@ -369,6 +388,7 @@ export const defaultWorkouts: Workout[] = [
             name: 'Bent-over Rows',
             sets: 3,
             reps: 10,
+            exerciseSubType: 'reps',
             weight: 45,
             weightUnit: 'kg',
             completed: false,
@@ -391,14 +411,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e16',
             name: '15 minutos de caminata intensa',
             sets: 1,
-            reps: 15,
+            duration: 900, // 15 minutes in seconds
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.CARDIO,
             setDetails: [{
               id: 'cardio2-1',
-              reps: 15,
+              duration: 900,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -414,14 +435,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e17',
             name: 'Estiramientos enfocados en piernas',
             sets: 2,
-            reps: 30,
+            duration: 30,
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.STRETCHING,
             setDetails: Array(2).fill(null).map((_, i) => ({
               id: `stretch3-${i + 1}`,
-              reps: 30,
+              duration: 30,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -432,14 +454,15 @@ export const defaultWorkouts: Workout[] = [
             id: 'e18',
             name: 'Estiramiento de espalda baja',
             sets: 2,
-            reps: 30,
+            duration: 30,
+            exerciseSubType: 'duration',
             weight: 0,
             weightUnit: 'kg',
             completed: false,
             type: EXERCISE_TYPES.STRETCHING,
             setDetails: Array(2).fill(null).map((_, i) => ({
               id: `stretch4-${i + 1}`,
-              reps: 30,
+              duration: 30,
               weight: 0,
               completed: false,
               weightUnit: 'kg'
@@ -452,3 +475,4 @@ export const defaultWorkouts: Workout[] = [
     completed: false
   }
 ];
+

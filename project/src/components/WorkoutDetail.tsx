@@ -119,17 +119,31 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
 
                           {activeExercise === exercise.id && (
                             <div className="space-y-2 mt-3">
-                              <div>
-                                <label className="text-sm text-gray-600">Repeticiones actuales</label>
-                                <input
-                                  type="number"
-                                  value={set.actualReps || exercise.reps}
-                                  onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
-                                    actualReps: parseInt(e.target.value)
-                                  })}
-                                  className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
-                                />
-                              </div>
+                              {exercise.exerciseSubType === 'duration' ? (
+                                <div>
+                                  <label className="text-sm text-gray-600">Duración actual (segundos)</label>
+                                  <input
+                                    type="number"
+                                    value={set.actualDuration || exercise.duration}
+                                    onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
+                                      actualDuration: parseInt(e.target.value)
+                                    })}
+                                    className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className="text-sm text-gray-600">Repeticiones actuales</label>
+                                  <input
+                                    type="number"
+                                    value={set.actualReps || exercise.reps}
+                                    onChange={(e) => handleSetDataUpdate(exercise.id, set.id, {
+                                      actualReps: parseInt(e.target.value)
+                                    })}
+                                    className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
+                                  />
+                                </div>
+                              )}
                               <div>
                                 <label className="text-sm text-gray-600">Peso actual ({exercise.weightUnit})</label>
                                 <input
@@ -145,11 +159,19 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
                           )}
 
                           <div className="mt-2 text-sm text-gray-600">
-                            Objetivo: {exercise.reps} reps @ {exercise.weight}{exercise.weightUnit}
+                            {exercise.exerciseSubType === 'duration' ? (
+                              <>Objetivo: {exercise.duration}s @ {exercise.weight}{exercise.weightUnit}</>
+                            ) : (
+                              <>Objetivo: {exercise.reps} reps @ {exercise.weight}{exercise.weightUnit}</>
+                            )}
                           </div>
-                          {set.completed && (set.actualReps || set.actualWeight) && (
+                          {set.completed && (
                             <div className="mt-1 text-sm text-green-600">
-                              Actual: {set.actualReps || exercise.reps} reps @ {set.actualWeight || exercise.weight}{exercise.weightUnit}
+                              {exercise.exerciseSubType === 'duration' ? (
+                                <>Actual: {set.actualDuration || exercise.duration}s @ {set.actualWeight || exercise.weight}{exercise.weightUnit}</>
+                              ) : (
+                                <>Actual: {set.actualReps || exercise.reps} reps @ {set.actualWeight || exercise.weight}{exercise.weightUnit}</>
+                              )}
                             </div>
                           )}
                         </div>

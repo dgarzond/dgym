@@ -263,9 +263,12 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                               <div className="space-y-1 pl-2">
                                 {(exerciseType.exercises || []).map((exercise, exerciseIndex) => {
                                   const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Peso corporal)';
+                                  const exerciseInfo = exercise.exerciseSubType === 'duration' 
+                                    ? `${exercise.sets} sets x ${exercise.duration}s`
+                                    : `${exercise.sets} sets x ${exercise.reps} reps`;
                                   return (
                                     <div key={exerciseIndex} className="text-xs text-gray-600">
-                                      • {exercise.name}: {exercise.sets} sets x {exercise.reps} reps{weightInfo}
+                                      • {exercise.name}: {exerciseInfo}{weightInfo}
                                     </div>
                                   );
                                 })}
