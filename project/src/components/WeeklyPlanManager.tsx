@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Workout, ExerciseType } from '../types';
@@ -189,7 +190,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
               </p>
               <div className="space-y-2">
                 {currentPlan.workouts.map((workout, index) => {
-                  const duration = calculateWorkoutDuration(workout.exerciseTypes);
+                  const duration = calculateWorkoutDuration(workout.exerciseTypes || []);
                   const isExpanded = expandedWorkouts.has(workout.id);
 
                   return (
@@ -203,7 +204,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                             Day {index + 1}: {workout.name}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {workout.exerciseTypes.length} tipos • {duration}
+                            {(workout.exerciseTypes || []).length} tipos • {duration}
                           </div>
                         </div>
                         {isExpanded ? (
@@ -215,7 +216,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
                       {isExpanded && (
                         <div className="border-t bg-gray-50 p-3">
-                          {workout.exerciseTypes.map((exerciseType, typeIndex) => (
+                          {(workout.exerciseTypes || []).map((exerciseType, typeIndex) => (
                             <div key={typeIndex} className="mb-4 last:mb-0">
                               <div className="flex items-center justify-between mb-2">
                                 <h4 className="text-sm font-bold text-blue-600 uppercase">
@@ -226,7 +227,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                                 </span>
                               </div>
                               <div className="space-y-1 pl-2">
-                                {exerciseType.exercises.map((exercise, exerciseIndex) => {
+                                {(exerciseType.exercises || []).map((exercise, exerciseIndex) => {
                                   const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Peso corporal)';
                                   return (
                                     <div key={exerciseIndex} className="text-xs text-gray-600">
