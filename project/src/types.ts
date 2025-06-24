@@ -22,9 +22,9 @@ export interface Exercise {
 
 export interface Workout {
   id: string;
+  date: string;
   name: string;
   exercises: Exercise[];
-  date: string;
   completed: boolean;
 }
 
@@ -35,6 +35,7 @@ export const lbsToKg = (lbs: number): number => Math.round(lbs / 2.20462);
 export const defaultWorkouts: Workout[] = [
   {
     id: '1',
+    date: new Date().toISOString().split('T')[0],
     name: 'Push Day',
     exercises: [
       {
@@ -72,11 +73,11 @@ export const defaultWorkouts: Workout[] = [
         restTime: 90
       }
     ],
-    date: new Date().toISOString().split('T')[0],
     completed: false
   },
   {
     id: '2',
+    date: new Date().toISOString().split('T')[0],
     name: 'Pull Day',
     exercises: [
       {
@@ -114,7 +115,6 @@ export const defaultWorkouts: Workout[] = [
         restTime: 120
       }
     ],
-    date: new Date().toISOString().split('T')[0],
     completed: false
   }
 ];
