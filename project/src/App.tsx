@@ -28,9 +28,9 @@ function App() {
       if (workout.id === workoutId) {
         return {
           ...workout,
-          exerciseTypes: workout.exerciseTypes.map(exerciseType => ({
+          exerciseTypes: (workout.exerciseTypes || []).map(exerciseType => ({
             ...exerciseType,
-            exercises: exerciseType.exercises.map(exercise => {
+            exercises: (exerciseType.exercises || []).map(exercise => {
               if (exercise.id === exerciseId) {
                 const allSetsCompleted = exercise.setDetails.every(set => set.completed);
                 return { 
@@ -52,10 +52,12 @@ function App() {
   };
 
   const handleUpdateWorkout = (updatedWorkout: Workout) => {
-    setWorkouts(workouts.map(w => 
-      w.id === updatedWorkout.id ? updatedWorkout : w
-    ));
-    setSelectedWorkout(updatedWorkout);
+    if (updatedWorkout && updatedWorkout.id) {
+      setWorkouts(workouts.map(w => 
+        w.id === updatedWorkout.id ? updatedWorkout : w
+      ));
+      setSelectedWorkout(updatedWorkout);
+    }
   };
 
   const handleStartExercise = (workout: Workout) => {
@@ -64,13 +66,13 @@ function App() {
   };
 
   const handleExerciseComplete = (exerciseId: string, setDetails: Set[]) => {
-    if (selectedWorkout) {
+    if (selectedWorkout && selectedWorkout.exerciseTypes) {
       const updatedWorkout = {
         ...selectedWorkout,
         exerciseTypes: selectedWorkout.exerciseTypes.map(exerciseType => ({
           ...exerciseType,
-          exercises: exerciseType.exercises.map(exercise => 
-            exercise.id === exerciseId
+          exercises: (exerciseType.exercises || []).map(exercise => 
+            exercise && exercise.id === exerciseId
               ? { ...exercise, setDetails, completed: true }
               : exercise
           )
@@ -82,7 +84,7 @@ function App() {
 
   const handleNextExercise = () => {
     if (selectedWorkout && currentExercise !== null) {
-      const allExercises = selectedWorkout.exerciseTypes?.flatMap(type => type.exercises) || [];
+      const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
       if (currentExercise < allExercises.length - 1) {
         setCurrentExercise(currentExercise + 1);
       } else {
@@ -97,7 +99,7 @@ function App() {
   };
 
   if (selectedWorkout && currentExercise !== null) {
-    const allExercises = selectedWorkout.exerciseTypes?.flatMap(type => type.exercises) || [];
+    const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
     const exercise = allExercises[currentExercise];
     
     if (!exercise) {

@@ -15,14 +15,14 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
   const handleSetComplete = (exerciseId: string, setId: string, setData?: Partial<Set>) => {
     const updatedWorkout = {
       ...workout,
-      exerciseTypes: workout.exerciseTypes.map(exerciseType => ({
+      exerciseTypes: (workout.exerciseTypes || []).map(exerciseType => ({
         ...exerciseType,
-        exercises: exerciseType.exercises.map(exercise => {
+        exercises: (exerciseType.exercises || []).map(exercise => {
           if (exercise.id === exerciseId) {
             return {
               ...exercise,
-              setDetails: exercise.setDetails.map(set => {
-                if (set.id === setId) {
+              setDetails: (exercise.setDetails || []).map(set => {
+                if (set && set.id === setId) {
                   return {
                     ...set,
                     ...setData,
@@ -31,7 +31,7 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
                 }
                 return set;
               }),
-              completed: exercise.setDetails.every(set => set.completed),
+              completed: (exercise.setDetails || []).every(set => set && set.completed),
             };
           }
           return exercise;
@@ -71,7 +71,7 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
         </p>
 
         <div className="space-y-8">
-          {workout.exerciseTypes.map((exerciseType) => (
+          {(workout.exerciseTypes || []).map((exerciseType) => exerciseType && (
             <div key={exerciseType.id} className="bg-white rounded-lg shadow-lg p-6">
               <div className="mb-6 border-b pb-4">
                 <h2 className="text-2xl font-bold text-blue-600">
@@ -83,7 +83,7 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
               </div>
 
               <div className="space-y-6">
-                {exerciseType.exercises.map((exercise) => (
+                {(exerciseType.exercises || []).map((exercise) => exercise && (
                   <div key={exercise.id} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-800">
@@ -98,7 +98,7 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {exercise.setDetails.map((set, index) => (
+                      {(exercise.setDetails || []).map((set, index) => set && (
                         <div
                           key={set.id}
                           className="bg-white rounded-lg p-4 shadow-sm border border-gray-100"

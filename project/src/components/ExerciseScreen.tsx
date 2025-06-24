@@ -16,9 +16,9 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
   const [timer, setTimer] = useState(0);
   const [isResting, setIsResting] = useState(false);
   const [restTimer, setRestTimer] = useState(60);
-  const [setDetails, setSetDetails] = useState<Set[]>(exercise.setDetails);
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit);
-  const [currentWeight, setCurrentWeight] = useState(exercise.weight);
+  const [setDetails, setSetDetails] = useState<Set[]>(exercise.setDetails || []);
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
+  const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
 
   useEffect(() => {
     let interval: number | undefined;
@@ -69,6 +69,14 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
 
   const handleSetComplete = (actualReps?: number, actualWeight?: number, actualDuration?: number) => {
     const newSetDetails = [...setDetails];
+    if (!newSetDetails[currentSet]) {
+      newSetDetails[currentSet] = {
+        id: `set-${currentSet}`,
+        weight: currentWeight,
+        completed: false,
+        weightUnit: weightUnit
+      };
+    }
     if (exercise.exerciseSubType === 'duration') {
       newSetDetails[currentSet] = {
         ...newSetDetails[currentSet],
@@ -204,11 +212,11 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
 
         <div className="flex justify-between">
           <div className="flex space-x-2">
-            {Array.from({ length: exercise.sets }).map((_, index) => (
+            {Array.from({ length: exercise.sets || 1 }).map((_, index) => (
               <div
                 key={index}
                 className={`w-3 h-3 rounded-full ${
-                  setDetails[index].completed
+                  setDetails[index] && setDetails[index].completed
                     ? 'bg-green-500'
                     : index === currentSet
                     ? 'bg-blue-500'
@@ -217,7 +225,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
               />
             ))}
           </div>
-          {setDetails[exercise.sets - 1].completed && (
+          {setDetails[Math.max(0, (exercise.sets || 1) - 1)] && setDetails[Math.max(0, (exercise.sets || 1) - 1)].completed && (
             <button
               onClick={onNext}
               className="flex items-center text-white bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"

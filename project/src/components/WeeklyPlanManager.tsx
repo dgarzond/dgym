@@ -24,46 +24,79 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   const [expandedWorkouts, setExpandedWorkouts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Load weekly plans from localStorage with data migration
+    // Load weekly plans from localStorage with comprehensive data migration and error handling
     const savedPlans = localStorage.getItem('weeklyPlans');
     if (savedPlans) {
       try {
-        const plans = JSON.parse(savedPlans).map((plan: any) => ({
-          ...plan,
-          weekStart: new Date(plan.weekStart),
-          createdAt: new Date(plan.createdAt),
-          workouts: (plan.workouts || []).map((workout: any) => {
-            // Migrate old structure to new structure
-            if (workout.exercises && !workout.exerciseTypes) {
-              // Convert old exercises array to new exerciseTypes structure
-              const exerciseTypes: ExerciseType[] = [
-                {
-                  id: 'migrated',
-                  name: 'Mixed Exercises',
-                  nameSpanish: 'Ejercicios Mixtos',
-                  duration: '30-45 min',
-                  exercises: workout.exercises || []
-                }
-              ];
+        const parsedPlans = JSON.parse(savedPlans);
+        if (!Array.isArray(parsedPlans)) {
+          throw new Error('Invalid data format');
+        }
+        
+        const plans = parsedPlans.map((plan: any) => {
+          if (!plan || typeof plan !== 'object') {
+            return null;
+          }
+          
+          return {
+            ...plan,
+            weekStart: new Date(plan.weekStart),
+            createdAt: new Date(plan.createdAt),
+            workouts: (plan.workouts || []).map((workout: any) => {
+              if (!workout || typeof workout !== 'object') {
+                return null;
+              }
+              
+              // Migrate old structure to new structure
+              if (workout.exercises && !workout.exerciseTypes) {
+                // Convert old exercises array to new exerciseTypes structure
+                const validExercises = (workout.exercises || []).filter((ex: any) => ex && typeof ex === 'object');
+                const exerciseTypes: ExerciseType[] = [
+                  {
+                    id: 'migrated',
+                    name: 'Mixed Exercises',
+                    nameSpanish: 'Ejercicios Mixtos',
+                    duration: '30-45 min',
+                    exercises: validExercises
+                  }
+                ];
+                return {
+                  ...workout,
+                  exerciseTypes,
+                  date: workout.date,
+                  id: workout.id || `workout-${Date.now()}-${Math.random()}`,
+                  name: workout.name || 'Entrenamiento',
+                  completed: workout.completed || false
+                };
+              }
+              
+              // Return workout with new structure and safety checks
+              const validExerciseTypes = (workout.exerciseTypes || []).map((type: any) => {
+                if (!type || typeof type !== 'object') return null;
+                return {
+                  ...type,
+                  exercises: (type.exercises || []).filter((ex: any) => ex && typeof ex === 'object')
+                };
+              }).filter(Boolean);
+              
               return {
                 ...workout,
-                exerciseTypes,
-                date: workout.date
+                exerciseTypes: validExerciseTypes,
+                date: workout.date,
+                id: workout.id || `workout-${Date.now()}-${Math.random()}`,
+                name: workout.name || 'Entrenamiento',
+                completed: workout.completed || false
               };
-            }
-            // Return workout with new structure
-            return {
-              ...workout,
-              exerciseTypes: workout.exerciseTypes || [],
-              date: workout.date
-            };
-          })
-        }));
+            }).filter(Boolean)
+          };
+        }).filter(Boolean);
+        
         setWeeklyPlans(plans);
       } catch (error) {
         console.error('Error loading plans from localStorage:', error);
         localStorage.removeItem('weeklyPlans');
         setWeeklyPlans([]);
+        alert('Se encontraron datos corruptos y se han limpiado automáticamente. La aplicación debería funcionar correctamente ahora.');
       }
     }
   }, []);

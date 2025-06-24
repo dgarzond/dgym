@@ -11,10 +11,10 @@ interface WorkoutCardProps {
 }
 
 export function WorkoutCard({ workout, onEdit, onDelete, onToggleExercise, onStartExercise }: WorkoutCardProps) {
-  const allExercises = workout.exerciseTypes.flatMap(type => type.exercises);
-  const completedExercises = allExercises.filter(ex => ex.completed).length;
+  const allExercises = (workout.exerciseTypes || []).flatMap(type => type.exercises || []);
+  const completedExercises = allExercises.filter(ex => ex && ex.completed).length;
   const totalExercises = allExercises.length;
-  const progress = (completedExercises / totalExercises) * 100;
+  const progress = totalExercises > 0 ? (completedExercises / totalExercises) * 100 : 0;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-4">
@@ -47,7 +47,7 @@ export function WorkoutCard({ workout, onEdit, onDelete, onToggleExercise, onSta
       </div>
 
       <div className="space-y-3">
-        {allExercises.slice(0, 3).map((exercise, index) => (
+        {allExercises.slice(0, 3).map((exercise, index) => exercise && (
           <div 
             key={exercise.id} 
             className="flex items-center justify-between py-2 border-b border-gray-100"
