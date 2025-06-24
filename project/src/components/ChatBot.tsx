@@ -299,19 +299,30 @@ This will help me create the perfect workout plan for you!`;
             </button>
           </div>
           
-          <form onSubmit={sendMessage} className="flex gap-2">
-            <input
-              type="text"
+          <form onSubmit={sendMessage} className="flex gap-2 items-end">
+            <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about workouts, exercises, or fitness advice..."
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage(e);
+                }
+              }}
+              placeholder="Ask about workouts, exercises, or fitness advice... (Press Enter to send, Shift+Enter for new line)"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[40px] max-h-[120px] overflow-y-auto"
               disabled={isLoading}
+              style={{
+                height: 'auto',
+                minHeight: '40px',
+                maxHeight: '120px',
+                height: Math.min(120, Math.max(40, input.split('\n').length * 20 + 20)) + 'px'
+              }}
             />
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
