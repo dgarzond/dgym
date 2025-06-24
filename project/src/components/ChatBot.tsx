@@ -26,7 +26,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState('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');
+  const [apiKey, setApiKey] = useState('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');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
