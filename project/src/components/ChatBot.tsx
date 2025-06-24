@@ -310,8 +310,8 @@ This will help me create the perfect workout plan for you!`;
   const extractExercisesFromText = (text: string, dayIndex: number): Exercise[] => {
     const exercises: Exercise[] = [];
 
-    // Split text into sections based on common workout section headers
-    const sections = text.split(/(?:\*\*\d+\.\s*|\d+\.\s*)(warm[- ]?up|power|cardio|stretch|cool[- ]?down).*?(?:\*\*)?:?/gi);
+    // Split text into sections based on common workout section headers (English and Spanish)
+    const sections = text.split(/(?:\*\*\d+\.\s*|\d+\.\s*)(warm[- ]?up|calentamiento|power|fuerza|cardio|cardiovascular|stretch|estiramiento|cool[- ]?down|enfriamiento).*?(?:\*\*)?:?/gi);
     
     // If no sections found, treat entire text as one section
     const sectionsToProcess = sections.length > 1 ? sections.slice(1) : [text];
@@ -352,13 +352,16 @@ This will help me create the perfect workout plan for you!`;
     for (const line of lines) {
       const trimmed = line.trim();
       
-      // Skip empty lines and section headers
+      // Skip empty lines and section headers (English and Spanish)
       if (!trimmed || 
           trimmed.length < 5 ||
-          trimmed.match(/^(?:\*\*)?(?:warm[- ]?up|power|cardio|stretch|cool[- ]?down)(?:\*\*)?:?\s*$/i) ||
+          trimmed.match(/^(?:\*\*)?(?:warm[- ]?up|calentamiento|power|fuerza|cardio|cardiovascular|stretch|estiramiento|cool[- ]?down|enfriamiento)(?:\*\*)?:?\s*$/i) ||
           trimmed.toLowerCase().includes('focus on') ||
+          trimmed.toLowerCase().includes('enfócate en') ||
           trimmed.toLowerCase().includes('cool down with') ||
-          trimmed.toLowerCase().includes('foam rolling')) {
+          trimmed.toLowerCase().includes('enfriamiento con') ||
+          trimmed.toLowerCase().includes('foam rolling') ||
+          trimmed.toLowerCase().includes('rodillo de espuma')) {
         continue;
       }
 
