@@ -312,10 +312,10 @@ This will help me create the perfect workout plan for you!`;
 
     // Split text into sections based on common workout section headers (English and Spanish)
     const sections = text.split(/(?:\*\*\d+\.\s*|\d+\.\s*)(warm[- ]?up|calentamiento|power|fuerza|cardio|cardiovascular|stretch|estiramiento|cool[- ]?down|enfriamiento).*?(?:\*\*)?:?/gi);
-    
+
     // If no sections found, treat entire text as one section
     const sectionsToProcess = sections.length > 1 ? sections.slice(1) : [text];
-    
+
     for (const section of sectionsToProcess) {
       const sectionExercises = extractExercisesFromSection(section, dayIndex);
       exercises.push(...sectionExercises);
@@ -326,7 +326,7 @@ This will help me create the perfect workout plan for you!`;
 
   const extractExercisesFromSection = (sectionText: string, dayIndex: number): Exercise[] => {
     const exercises: Exercise[] = [];
-    
+
     // Enhanced patterns to catch different exercise formats
     const exercisePatterns = [
       // "Exercise name: 3 sets of 12 reps" or "Exercise name: 3 sets x 12 reps"
@@ -351,7 +351,7 @@ This will help me create the perfect workout plan for you!`;
 
     for (const line of lines) {
       const trimmed = line.trim();
-      
+
       // Skip empty lines and section headers (English and Spanish)
       if (!trimmed || 
           trimmed.length < 5 ||
@@ -371,11 +371,11 @@ This will help me create the perfect workout plan for you!`;
         const pattern = exercisePatterns[i];
         pattern.lastIndex = 0;
         const match = pattern.exec(trimmed);
-        
+
         if (match) {
           foundMatch = true;
           let name, sets, reps, weight;
-          
+
           if (i === 0 || i === 1 || i === 6 || i === 7) {
             // Standard set/rep patterns
             [, name, sets, reps, weight] = match;
