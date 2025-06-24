@@ -386,7 +386,7 @@ This will help me create the perfect workout plan for you!`;
               <X className="w-4 h-4 mr-1" />
               Clear History
             </button>
-          </div></div>
+          </div>
           
           <form onSubmit={sendMessage} className="flex gap-2 items-end">
             <textarea
