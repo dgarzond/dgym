@@ -121,7 +121,9 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
                             <div className="space-y-2 mt-3">
                               {exercise.exerciseSubType === 'duration' ? (
                                 <div>
-                                  <label className="text-sm text-gray-600">Duración actual (segundos)</label>
+                                  <label className="text-sm text-gray-600">
+                                    Duración actual ({exercise.durationUnit || 'segundos'})
+                                  </label>
                                   <input
                                     type="number"
                                     value={set.actualDuration || exercise.duration}
@@ -160,7 +162,7 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
 
                           <div className="mt-2 text-sm text-gray-600">
                             {exercise.exerciseSubType === 'duration' ? (
-                              <>Objetivo: {exercise.duration}s @ {exercise.weight}{exercise.weightUnit}</>
+                              <>Objetivo: {exercise.duration}{exercise.durationUnit === 'minutes' ? 'min' : 's'} @ {exercise.weight}{exercise.weightUnit}</>
                             ) : (
                               <>Objetivo: {exercise.reps} reps @ {exercise.weight}{exercise.weightUnit}</>
                             )}
@@ -168,7 +170,7 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
                           {set.completed && (
                             <div className="mt-1 text-sm text-green-600">
                               {exercise.exerciseSubType === 'duration' ? (
-                                <>Actual: {set.actualDuration || exercise.duration}s @ {set.actualWeight || exercise.weight}{exercise.weightUnit}</>
+                                <>Actual: {set.actualDuration || exercise.duration}{exercise.durationUnit === 'minutes' ? 'min' : 's'} @ {set.actualWeight || exercise.weight}{exercise.weightUnit}</>
                               ) : (
                                 <>Actual: {set.actualReps || exercise.reps} reps @ {set.actualWeight || exercise.weight}{exercise.weightUnit}</>
                               )}

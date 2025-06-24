@@ -473,11 +473,19 @@ This will help me create the perfect workout plan for you!`;
                                cleanName.toLowerCase().includes('minutos') ||
                                cleanName.toLowerCase().includes('segundos');
 
+            // Determine duration unit based on exercise name or default values
+            const isMinutesBased = cleanName.toLowerCase().includes('minutos') ||
+                                  cleanName.toLowerCase().includes('cardio') ||
+                                  cleanName.toLowerCase().includes('caminata') ||
+                                  cleanName.toLowerCase().includes('bicicleta');
+
+            const durationUnit: 'seconds' | 'minutes' = isMinutesBased ? 'minutes' : 'seconds';
+
             const exercise: Exercise = {
               id: exerciseId,
               name: cleanName,
               sets: exerciseSets,
-              ...(isTimeBased ? { duration: exerciseReps } : { reps: exerciseReps }),
+              ...(isTimeBased ? { duration: exerciseReps, durationUnit } : { reps: exerciseReps }),
               exerciseSubType: isTimeBased ? 'duration' : 'reps',
               weight: exerciseWeight,
               weightUnit: 'kg',
@@ -485,7 +493,7 @@ This will help me create the perfect workout plan for you!`;
               type: exerciseType,
               setDetails: Array(exerciseSets).fill(null).map((_, setIndex) => ({
                 id: `${exerciseId}-set-${setIndex + 1}`,
-                ...(isTimeBased ? { duration: exerciseReps } : { reps: exerciseReps }),
+                ...(isTimeBased ? { duration: exerciseReps, durationUnit } : { reps: exerciseReps }),
                 weight: exerciseWeight,
                 completed: false,
                 weightUnit: 'kg' as const

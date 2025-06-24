@@ -49,6 +49,17 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const getDurationInSeconds = (duration: number, unit: 'seconds' | 'minutes' = 'seconds') => {
+    return unit === 'minutes' ? duration * 60 : duration;
+  };
+
+  const formatDuration = (duration: number, unit: 'seconds' | 'minutes' = 'seconds') => {
+    if (unit === 'minutes') {
+      return `${duration} min`;
+    }
+    return `${duration}s`;
+  };
+
   const handleWeightUnitToggle = () => {
     const newUnit = weightUnit === 'kg' ? 'lbs' : 'kg';
     const newWeight = weightUnit === 'kg' ? kgToLbs(currentWeight) : lbsToKg(currentWeight);
