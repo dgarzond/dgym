@@ -311,7 +311,7 @@ This will help me create the perfect workout plan for you!`;
     const exercises: Exercise[] = [];
 
     // Split text into sections based on common workout section headers
-    const sections = text.split(/(?:\*\*\d+\.\s*|\d+\.\s*)(warm[- ]?up|wod|cardio|stretch|cool[- ]?down).*?(?:\*\*)?:?/gi);
+    const sections = text.split(/(?:\*\*\d+\.\s*|\d+\.\s*)(warm[- ]?up|power|cardio|stretch|cool[- ]?down).*?(?:\*\*)?:?/gi);
     
     // If no sections found, treat entire text as one section
     const sectionsToProcess = sections.length > 1 ? sections.slice(1) : [text];
@@ -355,7 +355,7 @@ This will help me create the perfect workout plan for you!`;
       // Skip empty lines and section headers
       if (!trimmed || 
           trimmed.length < 5 ||
-          trimmed.match(/^(?:\*\*)?(?:warm[- ]?up|wod|cardio|stretch|cool[- ]?down)(?:\*\*)?:?\s*$/i) ||
+          trimmed.match(/^(?:\*\*)?(?:warm[- ]?up|power|cardio|stretch|cool[- ]?down)(?:\*\*)?:?\s*$/i) ||
           trimmed.toLowerCase().includes('focus on') ||
           trimmed.toLowerCase().includes('cool down with') ||
           trimmed.toLowerCase().includes('foam rolling')) {
