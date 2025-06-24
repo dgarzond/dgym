@@ -67,15 +67,25 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
     setCurrentWeight(newWeight);
   };
 
-  const handleSetComplete = (actualReps?: number, actualWeight?: number) => {
+  const handleSetComplete = (actualReps?: number, actualWeight?: number, actualDuration?: number) => {
     const newSetDetails = [...setDetails];
-    newSetDetails[currentSet] = {
-      ...newSetDetails[currentSet],
-      completed: true,
-      actualReps: actualReps || exercise.reps,
-      actualWeight: actualWeight || currentWeight,
-      weightUnit: weightUnit,
-    };
+    if (exercise.exerciseSubType === 'duration') {
+      newSetDetails[currentSet] = {
+        ...newSetDetails[currentSet],
+        completed: true,
+        actualDuration: actualDuration || exercise.duration,
+        actualWeight: actualWeight || currentWeight,
+        weightUnit: weightUnit,
+      };
+    } else {
+      newSetDetails[currentSet] = {
+        ...newSetDetails[currentSet],
+        completed: true,
+        actualReps: actualReps || exercise.reps,
+        actualWeight: actualWeight || currentWeight,
+        weightUnit: weightUnit,
+      };
+    }
     setSetDetails(newSetDetails);
 
     if (currentSet < exercise.sets - 1) {
@@ -131,14 +141,29 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
               <div className="bg-gray-50 p-6 rounded-lg">
                 <h3 className="text-lg font-medium mb-4">Target</h3>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-gray-600">Reps</label>
-                    <input
-                      type="number"
-                      defaultValue={exercise.reps}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
-                    />
-                  </div>
+                  {exercise.exerciseSubType === 'duration' ? (
+                    <div>
+                      <label className="block text-sm text-gray-600">
+                        Duración ({exercise.durationUnit === 'minutes' ? 'minutos' : 'segundos'})
+                      </label>
+                      <input
+                        type="number"
+                        defaultValue={exercise.duration}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+                        id="duration-input"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm text-gray-600">Reps</label>
+                      <input
+                        type="number"
+                        defaultValue={exercise.reps || 10}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+                        id="reps-input"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm text-gray-600">
                       Weight ({weightUnit})
@@ -160,7 +185,15 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
               </div>
 
               <button
-                onClick={() => handleSetComplete()}
+                onClick={() => {
+                  if (exercise.exerciseSubType === 'duration') {
+                    const durationInput = document.getElementById('duration-input') as HTMLInputElement;
+                    handleSetComplete(undefined, currentWeight, Number(durationInput.value));
+                  } else {
+                    const repsInput = document.getElementById('reps-input') as HTMLInputElement;
+                    handleSetComplete(Number(repsInput.value), currentWeight);
+                  }
+                }}
                 className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Complete Set

@@ -82,7 +82,7 @@ function App() {
 
   const handleNextExercise = () => {
     if (selectedWorkout && currentExercise !== null) {
-      const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises);
+      const allExercises = selectedWorkout.exerciseTypes?.flatMap(type => type.exercises) || [];
       if (currentExercise < allExercises.length - 1) {
         setCurrentExercise(currentExercise + 1);
       } else {
@@ -97,8 +97,14 @@ function App() {
   };
 
   if (selectedWorkout && currentExercise !== null) {
-    const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises);
+    const allExercises = selectedWorkout.exerciseTypes?.flatMap(type => type.exercises) || [];
     const exercise = allExercises[currentExercise];
+    
+    if (!exercise) {
+      setCurrentExercise(null);
+      return null;
+    }
+    
     return (
       <ExerciseScreen
         exercise={exercise}

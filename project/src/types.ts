@@ -1,5 +1,3 @@
-
-
 export interface Set {
   id?: string;
   reps?: number; // Optional for duration-based exercises
@@ -491,4 +489,3 @@ export const defaultWorkouts: Workout[] = [
     completed: false
   }
 ];
-

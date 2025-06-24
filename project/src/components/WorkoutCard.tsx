@@ -68,7 +68,11 @@ export function WorkoutCard({ workout, onEdit, onDelete, onToggleExercise, onSta
               </span>
             </div>
             <span className="text-gray-600">
-              {exercise.sets} × {exercise.reps} @ {exercise.weight}{exercise.weightUnit}
+              {exercise.sets} × {
+                exercise.exerciseSubType === 'duration' 
+                  ? `${exercise.duration}${exercise.durationUnit === 'minutes' ? 'min' : 's'}`
+                  : `${exercise.reps || 10} reps`
+              } @ {exercise.weight}{exercise.weightUnit}
             </span>
           </div>
         ))}
