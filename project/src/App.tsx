@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// TEMPORAL: Importa esto una sola vez para configurar tu API key, luego elimina esta línea
+// CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
 import { Dumbbell, Plus, Calendar, MessageSquare } from 'lucide-react';
 import { WorkoutCard } from './components/WorkoutCard';

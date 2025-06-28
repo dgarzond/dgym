@@ -43,7 +43,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  
+
   // Initialize API key from ConfigManager
   useEffect(() => {
     const configManager = ConfigManager.getInstance();
