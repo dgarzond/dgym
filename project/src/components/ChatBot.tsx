@@ -41,8 +41,19 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState('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');
+  const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  
+  // Initialize API key from ConfigManager
+  useEffect(() => {
+    const configManager = ConfigManager.getInstance();
+    const savedApiKey = configManager.getApiKey();
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+    } else {
+      setShowApiKeyInput(true);
+    }
+  }, []);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -71,14 +82,24 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
 
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKey.trim()) {
+    if (apiKey.trim() && apiKey.startsWith('sk-')) {
+      const configManager = ConfigManager.getInstance();
+      configManager.setApiKey(apiKey);
       setShowApiKeyInput(false);
+    } else {
+      alert('Por favor, ingresa una API key válida que comience con "sk-"');
     }
   };
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // Check if API key is valid
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+      setShowApiKeyInput(true);
+      return;
+    }
 
     const currentInput = input.trim();
 
@@ -741,6 +762,11 @@ This will help me create the perfect workout plan for you!`;
               <p className="text-xs text-gray-500 mt-1">
                 Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenAI Platform</a>
               </p>
+              {ConfigManager.getInstance().hasApiKey() && (
+                <p className="text-xs text-green-600 mt-1">
+                  ✓ API key está configurada y guardada de forma segura
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <button
@@ -832,6 +858,12 @@ This will help me create the perfect workout plan for you!`;
             >
               <X className="w-4 h-4 mr-1" />
               Clear History
+            </button>
+            <button
+              onClick={() => setShowApiKeyInput(true)}
+              className="flex items-center px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+            >
+              Configure API
             </button>
           </div>
 
