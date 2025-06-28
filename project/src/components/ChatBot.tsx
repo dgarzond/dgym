@@ -251,7 +251,7 @@ This will help me create the perfect workout plan for you!`;
   };
 
   // Helper function to group exercises by type
-  const groupExercisesByType = (exercises: Exercise[]) => {
+  const groupExercisesByType = (exercises: any[]) => {
     const exerciseTypes: { [key: string]: any } = {};
 
     exercises.forEach(exercise => {
@@ -330,25 +330,33 @@ This will help me create the perfect workout plan for you!`;
     } else {
       // Handle single-day routine (existing logic)
       const exercises = extractExercisesFromText(workoutText, 0);
+      console.log('Extracted exercises:', exercises); // Debug log
+      
+      if (exercises.length === 0) {
+        alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya sets y repeticiones.');
+        return;
+      }
+
       const exerciseTypes = groupExercisesByType(exercises);
+      console.log('Grouped exercise types:', exerciseTypes); // Debug log
 
       if (exerciseTypes.length === 0) {
-        alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya sets y repeticiones.');
+        alert('No se pudieron agrupar los ejercicios por tipo.');
         return;
       }
 
       // Extract workout name
       let workoutName = 'AI Generated Workout';
-      const nameMatch = workoutText.match(/(?:Here's a|Here is a)\s+([^.!?\n]+)/i);
+      const nameMatch = workoutText.match(/(?:Here's a|Here is a|Aquí tienes|Rutina de)\s+([^.!?\n]+)/i);
       if (nameMatch) {
         workoutName = nameMatch[1].trim();
       }
 
       // Estimate duration
       const exerciseCount = exercises.length;
-      let duration = '30-45 minutes';
-      if (exerciseCount > 8) duration = '60-75 minutes';
-      else if (exerciseCount > 5) duration = '45-60 minutes';
+      let duration = '30-45 min';
+      if (exerciseCount > 8) duration = '60-75 min';
+      else if (exerciseCount > 5) duration = '45-60 min';
 
       workoutName += ` (${duration})`;
 
@@ -360,13 +368,14 @@ This will help me create the perfect workout plan for you!`;
         completed: false
       };
 
+      console.log('Generated workout:', newWorkout); // Debug log
       onWorkoutGenerated(newWorkout);
-      alert(`¡Rutina "${workoutName}" importada con ${exercises.length} ejercicios!`);
+      alert(`¡Rutina "${workoutName}" importada con ${exercises.length} ejercicios en ${exerciseTypes.length} categorías!`);
     }
   };
 
-  const extractExercisesFromText = (text: string, dayIndex: number): Exercise[] => {
-    const exercises: Exercise[] = [];
+  const extractExercisesFromText = (text: string, dayIndex: number): any[] => {
+    const exercises: any[] = [];
 
     // Split text into sections based on common workout section headers (English and Spanish)
     const sections = text.split(/(?:\*\*\d+\.\s*|\d+\.\s*)(warm[- ]?up|calentamiento|power|fuerza|cardio|cardiovascular|stretch|estiramiento|cool[- ]?down|enfriamiento).*?(?:\*\*)?:?/gi);
@@ -382,27 +391,27 @@ This will help me create the perfect workout plan for you!`;
     return exercises;
   };
 
-  const extractExercisesFromSection = (sectionText: string, dayIndex: number): Exercise[] => {
-    const exercises: Exercise[] = [];
+  const extractExercisesFromSection = (sectionText: string, dayIndex: number): any[] => {
+    const exercises: any[] = [];
 
-    // Enhanced patterns to catch different exercise formats
+    // Enhanced patterns to catch different exercise formats (English and Spanish)
     const exercisePatterns = [
       // "Exercise name: 3 sets of 12 reps" or "Exercise name: 3 sets x 12 reps"
-      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*reps?(?:\s*@?\s*(\d+)\s*(?:lbs?|kg))?/gmi,
+      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*(?:sets?|series?)\s*(?:of|x|de)\s*(\d+)\s*(?:reps?|repeticiones?)(?:\s*@?\s*(\d+)\s*(?:lbs?|kg))?/gmi,
       // "Exercise name: 3 x 12"
       /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*[x×]\s*(\d+)(?:\s*@?\s*(\d+)\s*(?:lbs?|kg))?/gmi,
       // Time-based: "Exercise name: 3 sets of 30 seconds"
-      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*(?:seconds?|mins?|minutes?)/gmi,
+      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*(?:sets?|series?)\s*(?:of|x|de)\s*(\d+)\s*(?:seconds?|segundos?|mins?|minutes?|minutos?)/gmi,
       // Simple reps: "Exercise name: 10 reps each leg"
-      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*reps?(?:\s+(?:each|per)\s+\w+)?/gmi,
+      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*(?:reps?|repeticiones?)(?:\s+(?:each|per|cada)\s+\w+)?/gmi,
       // Time only: "Exercise name: 30 seconds each side"
-      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*(?:seconds?|minutes?|mins?)(?:\s+(?:each|per)\s+\w+)?/gmi,
-      // Cardio: "20 minutes of cardio"
-      /(?:^\s*[-•*]\s*)?(\d+)\s*(?:minutes?|mins?)\s*(?:of\s+)?([^.\n,]+?)(?:(?:\(|\[)[^)\]]*(?:\)|\])|$)/gmi,
+      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*(?:seconds?|segundos?|minutes?|minutos?|mins?)(?:\s+(?:each|per|cada)\s+\w+)?/gmi,
+      // Cardio: "20 minutes of cardio" or "20 minutos de cardio"
+      /(?:^\s*[-•*]\s*)?(\d+)\s*(?:minutes?|minutos?|mins?)\s*(?:of|de)?\s*([^.\n,]+?)(?:(?:\(|\[)[^)\]]*(?:\)|\])|$)/gmi,
+      // Duration only format: "Exercise name: 20 minutes"
+      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]+?)(?:\*\*)?\s*:\s*(\d+)\s*(?:minutes?|minutos?|mins?)/gmi,
       // Machine exercises: "Exercise machine: 3 sets of 12 reps"
-      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]*(?:machine|press|curl|raise|pulldown)[^:\n]*)(?:\*\*)?\s*:\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*reps?/gmi,
-      // Variations: "Exercise variations: 3 sets of 30 seconds"
-      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]*(?:variation|plank)[^:\n]*)(?:\*\*)?\s*:\s*(\d+)\s*sets?\s*(?:of|x)\s*(\d+)\s*(?:seconds?|reps?)/gmi
+      /(?:^\s*[-•*]\s*)?(?:\*\*)?([^:\n]*(?:machine|press|curl|raise|pulldown|máquina|prensa)[^:\n]*)(?:\*\*)?\s*:\s*(\d+)\s*(?:sets?|series?)\s*(?:of|x|de)\s*(\d+)\s*(?:reps?|repeticiones?)/gmi
     ];
 
     const lines = sectionText.split('\n');
@@ -519,7 +528,7 @@ This will help me create the perfect workout plan for you!`;
 
             const durationUnit: 'seconds' | 'minutes' = isMinutesBased ? 'minutes' : 'seconds';
 
-            const exercise: Exercise = {
+            const exercise: any = {
               id: exerciseId,
               name: cleanName,
               sets: exerciseSets,
