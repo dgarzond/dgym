@@ -80,6 +80,23 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
     localStorage.setItem('chatBotMessages', JSON.stringify([initialMessage]));
   };
 
+  // Function to format message content with markdown-like styling
+  const formatMessageContent = (content: string) => {
+    // Convert **text** to bold
+    let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Convert *text* to italic
+    formatted = formatted.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+    
+    // Preserve line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Add some emoji enhancements for fitness terms
+    formatted = formatted.replace(/💪|🏋️‍♂️|🏋️‍♀️|🔥|⚡|✅|🎯/g, (match) => match);
+    
+    return formatted;
+  };
+
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (apiKey.trim() && apiKey.startsWith('sk-')) {
@@ -137,7 +154,9 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
               role: 'system',
               content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences.
 
-IMPORTANT: When creating workout plans, always structure them using these exact exercise categories:
+IMPORTANT: Use emojis and formatting to make your responses more engaging. Use **bold text** for emphasis and include relevant fitness emojis like 💪, 🏋️‍♂️, 🔥, ⚡, ✅, 🎯.
+
+When creating workout plans, always structure them using these exact exercise categories:
 
 **1. Calentamiento (Warm-up):**
 - Dynamic stretches
@@ -166,18 +185,18 @@ For each exercise, specify:
 
 Structure your response like this example:
 
-**Calentamiento:**
+**🔥 Calentamiento:**
 - Círculos de brazos: 2 sets of 10 reps
 - Rotaciones de hombros: 2 sets of 10 reps
 
-**Fuerza:**
+**💪 Fuerza:**
 - Bench Press: 3 sets of 10 reps @ 60 kg
 - Squats: 3 sets of 12 reps @ 50 kg
 
-**Cardio:**
+**⚡ Cardio:**
 - Caminata intensa: 20 minutes
 
-**Estiramiento:**
+**✅ Estiramiento:**
 - Estiramiento de pecho: 2 sets of 30 seconds
 - Estiramiento de piernas: 2 sets of 30 seconds
 
@@ -822,7 +841,12 @@ This will help me create the perfect workout plan for you!`;
                   {message.role === 'user' && (
                     <User className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
                   )}
-                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  <div 
+                    className="whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ 
+                      __html: formatMessageContent(message.content) 
+                    }}
+                  />
                 </div>
                 <div className="text-xs opacity-70 mt-1">
                   {message.timestamp.toLocaleTimeString()}
@@ -846,7 +870,7 @@ This will help me create the perfect workout plan for you!`;
         <div className="border-t p-4">
           <div className="flex gap-2 mb-3">
             <button
-              onClick={handleImportWorkout}
+              onClick={() => handleImportWorkout()}
               className="flex items-center px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
             >
               <Download className="w-4 h-4 mr-1" />
