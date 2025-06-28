@@ -1,5 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+// TEMPORAL: Importa esto una sola vez para configurar tu API key, luego elimina esta línea
+import './utils/setup-api-key';
 import { Dumbbell, Plus, Calendar, MessageSquare } from 'lucide-react';
 import { WorkoutCard } from './components/WorkoutCard';
 import { WorkoutDetail } from './components/WorkoutDetail';
@@ -101,12 +102,12 @@ function App() {
   if (selectedWorkout && currentExercise !== null) {
     const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
     const exercise = allExercises[currentExercise];
-    
+
     if (!exercise) {
       setCurrentExercise(null);
       return null;
     }
-    
+
     return (
       <ExerciseScreen
         exercise={exercise}

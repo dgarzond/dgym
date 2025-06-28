@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, X, MessageSquare, Download, Loader } from 'lucide-react';
-import type { Workout } from '../types';
+import type { Workout, Exercise } from '../types';
+import { ConfigManager } from '../utils/config';
 
 interface Message {
   id: string;
