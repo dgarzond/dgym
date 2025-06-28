@@ -191,6 +191,11 @@ Always end your response by telling users they can click the "Import Workout" bu
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Extract workout and call onWorkoutGenerated
+      if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+        handleImportWorkout(data.choices[0].message.content);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
@@ -268,110 +273,124 @@ This will help me create the perfect workout plan for you!`;
     return Object.values(exerciseTypes);
   };
 
-  const handleImportWorkout = () => {
-    if (!messages.length) return;
+  const handleImportWorkout = (responseText?: string) => {
+    if (!responseText) {
+        if (!messages.length) return;
 
-    const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
-    if (!lastAssistantMessage) return;
+        const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
+        if (!lastAssistantMessage) return;
 
-    const workoutText = lastAssistantMessage.content;
+        responseText = lastAssistantMessage.content;
+        if (!responseText) return;
+    }
 
-    // Check if this is a multi-day routine
-    const dayMatches = workoutText.match(/\*\*Day\s+(\d+):\*\*/gi);
+    const response = responseText;
 
-    if (dayMatches && dayMatches.length > 1) {
-      // Handle multi-day routine
-      const days = workoutText.split(/\*\*Day\s+\d+:\*\*/i);
-      days.shift(); // Remove the first empty element
+    // Check if it's a multi-day routine - improved detection
+    const dayMatches = response.match(/(?:day\s*\d+|día\s*\d+|d[ií]a\s*\d+)/gi);
+    const dayHeaders = response.match(/(?:^|\n)\s*(?:\*\*)?(?:day\s*\d+|día\s*\d+|d[ií]a\s*\d+)(?:\*\*)?\s*[:-]?\s*/gmi);
 
-      const generatedWorkouts: Workout[] = [];
+    if ((dayMatches && dayMatches.length > 1) || (dayHeaders && dayHeaders.length > 1)) {
+      console.log('Multi-day routine detected:', dayMatches?.length || dayHeaders?.length, 'days');
 
-      dayMatches.forEach((dayMatch, dayIndex) => {
-        const dayNumber = dayMatch.match(/\d+/)?.[0] || (dayIndex + 1).toString();
-        const dayContent = days[dayIndex] || '';
+      // Split by day headers more accurately
+      const daySections = response.split(/(?=(?:^|\n)\s*(?:\*\*)?(?:day\s*\d+|día\s*\d+|d[ií]a\s*\d+)(?:\*\*)?\s*[:-]?\s*)/gmi);
+      const workouts: Workout[] = [];
 
-        // Extract duration from the day content
-        let duration = '45-60 minutes'; // default
-        const durationMatch = dayContent.match(/(\d+[-–]\d+|\d+)\s*(?:minutes?|mins?|hours?)/i);
-        if (durationMatch) {
-          duration = durationMatch[0];
-        } else {
-          // Estimate duration based on content
-          const exerciseCount = (dayContent.match(/\d+\s*sets?\s*(?:of|x)\s*\d+/gi) || []).length;
-          if (exerciseCount > 8) duration = '60-75 minutes';
-          else if (exerciseCount > 5) duration = '45-60 minutes';
-          else duration = '30-45 minutes';
-        }
+      daySections.forEach((dayContent, index) => {
+        if (dayContent.trim().length > 30 && index > 0) { // Skip first empty section and very short sections
+          console.log(`Processing day ${index}:`, dayContent.substring(0, 100));
+          const exercises = parseExercises(dayContent, index);
+          console.log(`Found ${exercises.length} exercises for day ${index}`);
 
-        const exercises = extractExercisesFromText(dayContent, dayIndex);
-        const exerciseTypes = groupExercisesByType(exercises);
+          if (exercises.length > 0) {
+            const exerciseTypes = groupExercisesByType(exercises);
+            console.log(`Grouped into ${exerciseTypes.length} exercise types`);
 
-        if (exerciseTypes.length > 0) {
-          const workoutName = `Day ${dayNumber} - AI Routine (${duration})`;
+            if (exerciseTypes.length > 0) {
+              const totalExercises = exercises.length;
+              let duration = "30-45 minutes";
+              if (totalExercises > 8) {
+                duration = "60-75 minutes";
+              } else if (totalExercises > 5) {
+                duration = "45-60 minutes";
+              }
 
-          const newWorkout: Workout = {
-            id: `workout-day${dayNumber}-${Date.now()}-${dayIndex}`,
-            date: new Date(Date.now() + dayIndex * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Each day gets a different date
-            name: workoutName,
-            exerciseTypes,
-            completed: false
-          };
+              // Extract day name from content if available
+              const dayNameMatch = dayContent.match(/(?:day\s*\d+|día\s*\d+|d[ií]a\s*\d+)[:-]?\s*([^\n\r]*)/i);
+              const dayName = dayNameMatch && dayNameMatch[1].trim() ? 
+                dayNameMatch[1].trim().replace(/^\*\*|\*\*$/g, '') : 
+                `AI Routine`;
 
-          generatedWorkouts.push(newWorkout);
+              const workoutName = `Día ${index} - ${dayName} (${duration})`;
+              const workout: Workout = {
+                id: `workout-day${index}-${Date.now()}-${index}`,
+                date: new Date(Date.now() + (index - 1) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                name: workoutName,
+                exerciseTypes: exerciseTypes,
+                completed: false
+              };
+              workouts.push(workout);
+            }
+          }
         }
       });
 
-      if (generatedWorkouts.length > 0) {
-        generatedWorkouts.forEach(workout => onWorkoutGenerated(workout));
-        alert(`¡${generatedWorkouts.length} rutinas importadas exitosamente!`);
+      if (workouts.length > 0) {
+        console.log(`Successfully created ${workouts.length} workouts`);
+        workouts.forEach(workout => onWorkoutGenerated(workout));
+        alert(`¡${workouts.length} rutinas importadas exitosamente!`);
+        return;
       } else {
+        console.warn('No workouts created from multi-day routine');
         alert('No se pudieron extraer ejercicios de la rutina multi-día.');
-      }
-    } else {
-      // Handle single-day routine (existing logic)
-      const exercises = extractExercisesFromText(workoutText, 0);
-      console.log('Extracted exercises:', exercises); // Debug log
-      
-      if (exercises.length === 0) {
-        alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya sets y repeticiones.');
         return;
       }
-
-      const exerciseTypes = groupExercisesByType(exercises);
-      console.log('Grouped exercise types:', exerciseTypes); // Debug log
-
-      if (exerciseTypes.length === 0) {
-        alert('No se pudieron agrupar los ejercicios por tipo.');
-        return;
-      }
-
-      // Extract workout name
-      let workoutName = 'AI Generated Workout';
-      const nameMatch = workoutText.match(/(?:Here's a|Here is a|Aquí tienes|Rutina de)\s+([^.!?\n]+)/i);
-      if (nameMatch) {
-        workoutName = nameMatch[1].trim();
-      }
-
-      // Estimate duration
-      const exerciseCount = exercises.length;
-      let duration = '30-45 min';
-      if (exerciseCount > 8) duration = '60-75 min';
-      else if (exerciseCount > 5) duration = '45-60 min';
-
-      workoutName += ` (${duration})`;
-
-      const newWorkout: Workout = {
-        id: `workout-${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
-        name: workoutName,
-        exerciseTypes,
-        completed: false
-      };
-
-      console.log('Generated workout:', newWorkout); // Debug log
-      onWorkoutGenerated(newWorkout);
-      alert(`¡Rutina "${workoutName}" importada con ${exercises.length} ejercicios en ${exerciseTypes.length} categorías!`);
     }
+
+    // Single-day routine (existing logic)
+    const exercises = extractExercisesFromText(response, 0);
+    console.log('Extracted exercises:', exercises); // Debug log
+
+    if (exercises.length === 0) {
+      alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya sets y repeticiones.');
+      return;
+    }
+
+    const exerciseTypes = groupExercisesByType(exercises);
+    console.log('Grouped exercise types:', exerciseTypes); // Debug log
+
+    if (exerciseTypes.length === 0) {
+      alert('No se pudieron agrupar los ejercicios por tipo.');
+      return;
+    }
+
+    // Extract workout name
+    let workoutName = 'AI Generated Workout';
+    const nameMatch = response.match(/(?:Here's a|Here is a|Aquí tienes|Rutina de)\s+([^.!?\n]+)/i);
+    if (nameMatch) {
+      workoutName = nameMatch[1].trim();
+    }
+
+    // Estimate duration
+    const exerciseCount = exercises.length;
+    let duration = '30-45 min';
+    if (exerciseCount > 8) duration = '60-75 min';
+    else if (exerciseCount > 5) duration = '45-60 min';
+
+    workoutName += ` (${duration})`;
+
+    const newWorkout: Workout = {
+      id: `workout-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      name: workoutName,
+      exerciseTypes,
+      completed: false
+    };
+
+    console.log('Generated workout:', newWorkout); // Debug log
+    onWorkoutGenerated(newWorkout);
+    alert(`¡Rutina "${workoutName}" importada con ${exercises.length} ejercicios en ${exerciseTypes.length} categorías!`);
   };
 
   const extractExercisesFromText = (text: string, dayIndex: number): any[] => {
@@ -552,6 +571,143 @@ This will help me create the perfect workout plan for you!`;
           }
           break;
         }
+      }
+    }
+
+    return exercises;
+  };
+
+  const parseExercises = (text: string, dayIndex: number) => {
+    const exercises: Exercise[] = [];
+
+    // Split by lines and filter out empty lines
+    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    let currentCategory = 'power'; // default category
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Detect category headers
+      const categoryLower = line.toLowerCase();
+      if (categoryLower.includes('calentamiento') || categoryLower.includes('warm')) {
+        currentCategory = 'warmup';
+        continue;
+      } else if (categoryLower.includes('fuerza') || categoryLower.includes('power') || categoryLower.includes('strength')) {
+        currentCategory = 'power';
+        continue;
+      } else if (categoryLower.includes('cardio') || categoryLower.includes('cardiovascular')) {
+        currentCategory = 'cardio';
+        continue;
+      } else if (categoryLower.includes('estiramiento') || categoryLower.includes('stretch') || categoryLower.includes('cool')) {
+        currentCategory = 'stretching';
+        continue;
+      }
+
+      // Skip headers, days, and other non-exercise lines
+      if (line.includes('**') || 
+          line.toLowerCase().includes('day') || 
+          line.toLowerCase().includes('día') ||
+          line.length < 8) {
+        continue;
+      }
+
+      // Look for exercise patterns - more flexible matching
+      const exercisePatterns = [
+        /^[-•*]\s*(.+?):\s*(\d+)\s*(?:sets?\s*(?:of|x|de)\s*)?(\d+)\s*(reps?|repeticiones|seconds?|segundos|minutes?|minutos)/i,
+        /^[-•*]\s*(.+?):\s*(\d+)\s*sets?\s*x\s*(\d+)\s*(reps?|repeticiones|seconds?|segundos|minutes?|minutos)/i,
+        /^[-•*]\s*(.+?):\s*(\d+)\s*x\s*(\d+)\s*(reps?|repeticiones|seconds?|segundos|minutes?|minutos)/i,
+        /^[-•*]?\s*(.+?):\s*(\d+)\s*(?:sets?\s*(?:of|x|de)\s*)?(\d+)\s*(reps?|repeticiones|seconds?|segundos|minutes?|minutos)/i
+      ];
+
+      let exerciseMatch = null;
+      for (const pattern of exercisePatterns) {
+        exerciseMatch = line.match(pattern);
+        if (exerciseMatch) break;
+      }
+
+      if (exerciseMatch) {
+        const [, exerciseName, sets, amount, unit] = exerciseMatch;
+        const exerciseId = `ex-${dayIndex}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Extract weight if mentioned
+        const weightMatch = line.match(/(?:@|at|con|with)\s*(\d+)\s*(kg|lbs)/i);
+        const weight = weightMatch ? parseInt(weightMatch[1]) : 0;
+        const weightUnit = weightMatch ? weightMatch[2].toLowerCase() as 'kg' | 'lbs' : 'kg';
+
+        const numSets = Math.max(1, parseInt(sets) || 1);
+        const numAmount = Math.max(1, parseInt(amount) || 10);
+
+        // Get exercise type based on current category
+        let exerciseType;
+        switch (currentCategory) {
+          case 'warmup':
+            exerciseType = { 
+              id: 'warmup', 
+              name: 'Warm-up', 
+              nameSpanish: 'Calentamiento', 
+              duration: '5-10 min' 
+            };
+            break;
+          case 'cardio':
+            exerciseType = { 
+              id: 'cardio', 
+              name: 'Cardio', 
+              nameSpanish: 'Cardio', 
+              duration: '15-25 min' 
+            };
+            break;
+          case 'stretching':
+            exerciseType = { 
+              id: 'stretching', 
+              name: 'Stretching', 
+              nameSpanish: 'Estiramiento', 
+              duration: '5-10 min' 
+            };
+            break;
+          default: // power
+            exerciseType = { 
+              id: 'power', 
+              name: 'Power', 
+              nameSpanish: 'Fuerza', 
+              duration: '20-30 min' 
+            };
+            break;
+        }
+
+        // Determine if it's duration or reps based
+        const unitLower = unit.toLowerCase();
+        const exerciseNameLower = exerciseName.toLowerCase();
+        const isDuration = unitLower.includes('second') || 
+                          unitLower.includes('minute') ||
+                          unitLower.includes('segundo') ||
+                          unitLower.includes('minuto') ||
+                          exerciseNameLower.includes('plank') || 
+                          exerciseNameLower.includes('hold') ||
+                          currentCategory === 'cardio';
+
+        const durationUnit = unitLower.includes('minute') || unitLower.includes('minuto') ? 'minutes' : 'seconds';
+
+        const exercise: Exercise = {
+          id: exerciseId,
+          name: exerciseName,
+          sets: numSets,
+          ...(isDuration ? { duration: numAmount, durationUnit } : { reps: numAmount }),
+          exerciseSubType: isDuration ? 'duration' : 'reps',
+          weight: weight,
+          weightUnit: 'kg',
+          completed: false,
+          type: exerciseType,
+          setDetails: Array(numSets).fill(null).map((_, setIndex) => ({
+            id: `${exerciseId}-set-${setIndex + 1}`,
+            ...(isDuration ? { duration: numAmount, durationUnit } : { reps: numAmount }),
+            weight: weight,
+            completed: false,
+            weightUnit: 'kg'
+          })),
+          restTime: isDuration ? 0 : (numSets > 1 ? 60 : 30)
+        };
+
+        exercises.push(exercise);
       }
     }
 
