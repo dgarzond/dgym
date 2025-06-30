@@ -187,6 +187,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       setWeeklyPlans(plans => [...plans, newPlan]);
     }
 
+    // Only add to main workouts list, not duplicate in weekly plan
     onAddWorkout(workout);
   };
 
