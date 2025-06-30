@@ -1,0 +1,176 @@
+ "workouts": [
+    {
+      "workoutName": "Día 1",
+      "estimatedDuration": "60 minutos",
+      "exerciseTypes": [
+        {
+          "id": "warmup",
+          "name": "Warm-up",
+          "nameSpanish": "Calentamiento",
+          "duration": "5 minutos",
+          "exercises": [
+            {
+              "name": "Trotar suave en la cinta",
+              "sets": 1,
+              "duration": 5,
+              "durationUnit": "minutos",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        },
+        {
+          "id": "power",
+          "name": "Strength",
+          "nameSpanish": "Fuerza",
+          "exercises": [
+            {
+              "name": "Prensa de pecho inclinada",
+              "sets": 3,
+              "reps": 12,
+              "exerciseSubType": "reps",
+              "weight": 0,
+              "weightUnit": "kg"
+            },
+            {
+              "name": "Peso muerto rumano",
+              "sets": 3,
+              "reps": 10,
+              "exerciseSubType": "reps",
+              "weight": 0,
+              "weightUnit": "kg"
+            },
+            {
+              "name": "Plancha frontal",
+              "sets": 3,
+              "duration": 30,
+              "durationUnit": "seconds",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        },
+        {
+          "id": "cardio",
+          "name": "Cardio",
+          "nameSpanish": "Cardio",
+          "exercises": [
+            {
+              "name": "Bicicleta estática",
+              "sets": 1,
+              "duration": 5,
+              "durationUnit": "kilómetros",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        },
+        {
+          "id": "stretching",
+          "name": "Stretching",
+          "nameSpanish": "Estiramiento",
+          "exercises": [
+            {
+              "name": "Estiramiento de espalda",
+              "sets": 2,
+              "duration": 30,
+              "durationUnit": "seconds",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workoutName": "Día 2",
+      "estimatedDuration": "60 minutos",
+      "exerciseTypes": [
+        {
+          "id": "warmup",
+          "name": "Warm-up",
+          "nameSpanish": "Calentamiento",
+          "duration": "5 minutos",
+          "exercises": [
+            {
+              "name": "Elíptica",
+              "sets": 1,
+              "duration": 5,
+              "durationUnit": "minutos",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        },
+        {
+          "id": "power",
+          "name": "Strength",
+          "nameSpanish": "Fuerza",
+          "exercises": [
+            {
+              "name": "Remo sentado",
+              "sets": 3,
+              "reps": 12,
+              "exerciseSubType": "reps",
+              "weight": 0,
+              "weightUnit": "kg"
+            },
+            {
+              "name": "Puente de glúteos",
+              "sets": 3,
+              "reps": 15,
+              "exerciseSubType": "reps",
+              "weight": 0,
+              "weightUnit": "kg"
+            },
+            {
+              "name": "Superman",
+              "sets": 3,
+              "reps": 12,
+              "exerciseSubType": "reps",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        },
+        {
+          "id": "cardio",
+          "name": "Cardio",
+          "nameSpanish": "Cardio",
+          "exercises": [
+            {
+              "name": "Caminata en cinta con inclinación",
+              "sets": 1,
+              "duration": 15,
+              "durationUnit": "minutos",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        },
+        {
+          "id": "stretching",
+          "name": "Stretching",
+          "nameSpanish": "Estiramiento",
+          "exercises": [
+            {
+              "name": "Estiramiento de isquiotibiales",
+              "sets": 2,
+              "duration": 30,
+              "durationUnit": "seconds",
+              "exerciseSubType": "duration",
+              "weight": 0,
+              "weightUnit": "kg"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
