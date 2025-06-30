@@ -352,7 +352,8 @@ RULES:
       });
 
       if (!response.ok) {
-        throw new Error(`AI conversion failed: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`AI conversion failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -363,7 +364,18 @@ RULES:
       }
 
       console.log('AI generated JSON:', jsonContent);
-      return JSON.parse(jsonContent);
+      
+      // Clean the JSON content to ensure it's valid
+      let cleanJsonContent = jsonContent;
+      
+      // Remove markdown code blocks if present
+      if (cleanJsonContent.includes('```json')) {
+        cleanJsonContent = cleanJsonContent.replace(/```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanJsonContent.includes('```')) {
+        cleanJsonContent = cleanJsonContent.replace(/```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      return JSON.parse(cleanJsonContent);
 
     } catch (error) {
       console.error('Error in AI conversion:', error);
@@ -906,7 +918,7 @@ RULES:
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
