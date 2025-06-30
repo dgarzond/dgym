@@ -480,6 +480,8 @@ RULES:
         }, 0);
 
         alert(`¡${importedWorkouts.length} rutinas importadas exitosamente!\n\n📊 Detalles:\n• ${totalExercises} ejercicios en total\n• ${importedWorkouts.length} días de entrenamiento\n• Rutinas creadas: ${importedWorkouts.map(w => `"${w.name}"`).join(', ')}`);
+        
+        console.log('Successfully imported multiple workouts:', importedWorkouts.map(w => ({ name: w.name, exerciseCount: w.exerciseTypes.reduce((sum, type) => sum + type.exercises.length, 0) })));
         return;
       }
 
@@ -613,11 +615,6 @@ RULES:
           exercises: processedExercises
         };
       }).filter(type => type !== null); // Remove invalid exercise types
-
-      // Validate we have at least one valid exercise type
-      if (processedExerciseTypes.length === 0) {
-        throw new Error('No se pudieron procesar ejercicios válidos de la rutina');
-      }
 
       // Validate we have at least one valid exercise type
       if (processedExerciseTypes.length === 0) {
