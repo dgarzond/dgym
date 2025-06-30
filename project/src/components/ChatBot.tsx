@@ -154,64 +154,102 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
               role: 'system',
               content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences.
 
-CRITICAL FORMATTING RULES - ALWAYS FOLLOW EXACTLY:
-1. EVERY exercise MUST have the EXACT format shown below
-2. Use emojis and **bold text** for engagement: 💪, 🏋️‍♂️, 🔥, ⚡, ✅, 🎯
-3. NEVER suggest an exercise without specifying exact sets and reps/time
-4. ALWAYS use "sets de" (not "sets of") for consistency
-5. ALWAYS use the exact format: "Exercise Name: X sets de Y reps/seconds/minutes"
+RESPONSE FORMAT - CRITICAL: You MUST respond with TWO parts:
 
-MANDATORY EXERCISE FORMAT (copy exactly):
-- For rep-based: "Exercise Name: X sets de Y reps @ Z kg"
-- For time-based: "Exercise Name: X sets de Y seconds" or "Exercise Name: X sets de Y minutes"
-- For cardio without sets: "Exercise Name: X minutes" or "Exercise Name: X kilometers"
+1. FIRST: A friendly, engaging response with emojis explaining the workout plan
+2. SECOND: A JSON object enclosed in triple backticks with "json" language identifier
 
-REQUIRED CATEGORIES (use these exact headers with emojis):
+EXAMPLE RESPONSE FORMAT:
+¡Perfecto! Aquí tienes un plan de entrenamiento personalizado 💪
 
-**🔥 Calentamiento:**
-- Dynamic stretches and mobility
-- Format: "Exercise Name: X sets de Y reps" or "Exercise Name: X sets de Y seconds"
+[Your engaging explanation here with emojis]
 
-**💪 Fuerza:**
-- Compound and isolation movements
-- Format: "Exercise Name: X sets de Y reps @ Z kg"
+\`\`\`json
+{
+  "workoutName": "Rutina Principiante - Cuerpo Completo",
+  "estimatedDuration": "45-60 min",
+  "exerciseTypes": [
+    {
+      "id": "warmup",
+      "name": "Warm-up",
+      "nameSpanish": "Calentamiento",
+      "duration": "5-10 min",
+      "exercises": [
+        {
+          "name": "Círculos de brazos",
+          "sets": 2,
+          "reps": 10,
+          "exerciseSubType": "reps",
+          "weight": 0,
+          "weightUnit": "kg"
+        }
+      ]
+    },
+    {
+      "id": "power",
+      "name": "Power",
+      "nameSpanish": "Fuerza",
+      "duration": "20-30 min",
+      "exercises": [
+        {
+          "name": "Sentadillas",
+          "sets": 3,
+          "reps": 12,
+          "exerciseSubType": "reps",
+          "weight": 0,
+          "weightUnit": "kg"
+        }
+      ]
+    },
+    {
+      "id": "cardio",
+      "name": "Cardio",
+      "nameSpanish": "Cardio",
+      "duration": "15-20 min",
+      "exercises": [
+        {
+          "name": "Caminata intensa",
+          "sets": 1,
+          "duration": 20,
+          "durationUnit": "minutes",
+          "exerciseSubType": "duration",
+          "weight": 0,
+          "weightUnit": "kg"
+        }
+      ]
+    },
+    {
+      "id": "stretching",
+      "name": "Stretching",
+      "nameSpanish": "Estiramiento",
+      "duration": "5-10 min",
+      "exercises": [
+        {
+          "name": "Estiramiento de pecho",
+          "sets": 2,
+          "duration": 30,
+          "durationUnit": "seconds",
+          "exerciseSubType": "duration",
+          "weight": 0,
+          "weightUnit": "kg"
+        }
+      ]
+    }
+  ]
+}
+\`\`\`
 
-**⚡ Cardio:**
-- Cardiovascular exercises
-- Format: "Exercise Name: X minutes" or "Exercise Name: X kilometers"
+EXERCISE RULES:
+- exerciseSubType: "reps" for rep-based exercises, "duration" for time-based exercises
+- For rep-based: include "reps" field, omit "duration" and "durationUnit"
+- For time-based: include "duration" and "durationUnit" fields, omit "reps"
+- durationUnit options: "seconds", "minutes", "meters", "kilometers"
+- Always include "weight" and "weightUnit" fields
+- Use appropriate category IDs: "warmup", "power", "cardio", "stretching"
 
-**✅ Estiramiento:**
-- Static stretches and cool-down
-- Format: "Exercise Name: X sets de Y seconds"
+Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level.
 
-MANDATORY EXAMPLE FORMAT (copy this structure EXACTLY):
-
-**🔥 Calentamiento:**
-- Círculos de brazos: 2 sets de 10 reps
-- Rotaciones de hombros: 2 sets de 10 reps
-- Rodillas al pecho: 2 sets de 8 reps
-
-**💪 Fuerza:**
-- Bench Press: 3 sets de 10 reps @ 60 kg
-- Squats: 3 sets de 12 reps @ 50 kg
-- Deadlift: 3 sets de 8 reps @ 70 kg
-
-**⚡ Cardio:**
-- Caminata intensa: 20 minutes
-- Bicicleta estática: 15 minutes
-- Correr en cinta: 5 kilometers
-- Sprint: 200 meters
-
-**✅ Estiramiento:**
-- Estiramiento de pecho: 2 sets de 30 seconds
-- Estiramiento de piernas: 2 sets de 30 seconds
-- Estiramiento de espalda: 2 sets de 45 seconds
-
-IMPORTANTE: Siempre usa "sets de" (español) en lugar de "sets of" (inglés). El formato debe ser EXACTAMENTE como se muestra arriba.
-
-Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level (beginner, intermediate, advanced).
-
-Always end your response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.`
+Always end your friendly response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.`
             },
             ...messages.map(msg => ({
               role: msg.role,
@@ -338,6 +376,114 @@ This will help me create the perfect workout plan for you!`;
 
       console.log('Processing text for import:', textToProcess);
 
+      // Extract JSON from the response
+      const jsonMatch = textToProcess.match(/```json\s*([\s\S]*?)\s*```/);
+      
+      if (!jsonMatch) {
+        console.log('No JSON found, falling back to text parsing...');
+        // Fallback to old parsing method if no JSON is found
+        return handleImportWorkoutFallback(textToProcess);
+      }
+
+      const jsonStr = jsonMatch[1].trim();
+      console.log('Extracted JSON:', jsonStr);
+
+      const workoutData = JSON.parse(jsonStr);
+      console.log('Parsed workout data:', workoutData);
+
+      // Validate required fields
+      if (!workoutData.exerciseTypes || !Array.isArray(workoutData.exerciseTypes)) {
+        throw new Error('Formato JSON inválido: falta exerciseTypes o no es un array');
+      }
+
+      // Process exercise types and exercises
+      const processedExerciseTypes = workoutData.exerciseTypes.map((exerciseType: any) => {
+        const processedExercises = (exerciseType.exercises || []).map((exercise: any) => {
+          const exerciseId = `ex-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const sets = Math.max(1, parseInt(exercise.sets || 1));
+
+          // Create set details
+          const setDetails = Array(sets).fill(null).map((_, setIndex) => ({
+            id: `${exerciseId}-set-${setIndex + 1}`,
+            weight: exercise.weight || 0,
+            completed: false,
+            weightUnit: exercise.weightUnit || 'kg',
+            ...(exercise.exerciseSubType === 'duration' ? {
+              duration: exercise.duration || 30,
+              durationUnit: exercise.durationUnit || 'seconds'
+            } : {
+              reps: exercise.reps || 10
+            })
+          }));
+
+          return {
+            id: exerciseId,
+            name: exercise.name || 'Ejercicio sin nombre',
+            sets: sets,
+            ...(exercise.exerciseSubType === 'duration' ? {
+              duration: exercise.duration || 30,
+              durationUnit: exercise.durationUnit || 'seconds'
+            } : {
+              reps: exercise.reps || 10
+            }),
+            exerciseSubType: exercise.exerciseSubType || 'reps',
+            weight: exercise.weight || 0,
+            weightUnit: exercise.weightUnit || 'kg',
+            completed: false,
+            type: {
+              id: exerciseType.id,
+              name: exerciseType.name,
+              nameSpanish: exerciseType.nameSpanish,
+              duration: exerciseType.duration
+            },
+            setDetails: setDetails,
+            restTime: exerciseType.id === 'cardio' ? 0 : (sets > 1 ? 90 : 60)
+          };
+        });
+
+        return {
+          id: exerciseType.id,
+          name: exerciseType.name,
+          nameSpanish: exerciseType.nameSpanish,
+          duration: exerciseType.duration,
+          exercises: processedExercises
+        };
+      });
+
+      const workoutName = workoutData.workoutName || 'Rutina IA';
+      const estimatedDuration = workoutData.estimatedDuration || '30-45 min';
+      const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
+
+      // Create workout object
+      const newWorkout: Workout = {
+        id: `ai-workout-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        name: finalWorkoutName,
+        exerciseTypes: processedExerciseTypes,
+        completed: false
+      };
+
+      console.log('Final workout created:', newWorkout);
+
+      // Calculate totals for success message
+      const totalExercises = processedExerciseTypes.reduce((sum, type) => sum + type.exercises.length, 0);
+
+      // Call the parent function to add the workout
+      onWorkoutGenerated(newWorkout);
+
+      alert(`¡Rutina "${finalWorkoutName}" importada exitosamente!\n\n📊 Detalles:\n• ${totalExercises} ejercicios\n• ${processedExerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
+
+    } catch (error) {
+      console.error('Error importing workout:', error);
+      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor, informa al asistente sobre este error para mejorar el formato.`);
+    }
+  };
+
+  // Fallback function for text parsing (keeping the old method as backup)
+  const handleImportWorkoutFallback = (textToProcess: string) => {
+    try {
+      console.log('Using fallback text parsing method...');
+      
       // Clean text from HTML and markdown formatting
       const cleanText = textToProcess
         .replace(/<[^>]*>/g, '') // Remove HTML tags
@@ -345,12 +491,11 @@ This will help me create the perfect workout plan for you!`;
         .replace(/\*/g, '') // Remove italic markdown
         .trim();
 
-      // Extract exercises
+      // Extract exercises using the old method
       const exercises = extractExercisesFromText(cleanText, 0);
-      console.log('Exercises extracted:', exercises);
-
+      
       if (exercises.length === 0) {
-        alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya "sets of" y las repeticiones/tiempo (ej: "3 sets of 12 reps" o "20 minutes").');
+        alert('No se pudieron extraer ejercicios del plan. Pide al asistente que use el formato JSON estructurado.');
         return;
       }
 
@@ -369,36 +514,9 @@ This will help me create the perfect workout plan for you!`;
       });
 
       const exerciseTypes = Object.values(exerciseTypesMap);
-      console.log('Exercise types grouped:', exerciseTypes);
 
-      if (exerciseTypes.length === 0) {
-        alert('No se pudieron agrupar los ejercicios por categorías.');
-        return;
-      }
-
-      // Generate workout name
-      let workoutName = 'Rutina IA';
-      const lines = cleanText.split('\n');
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && 
-            !trimmed.startsWith('*') && 
-            !trimmed.startsWith('-') && 
-            !trimmed.includes(':') && 
-            !trimmed.includes('sets') &&
-            !trimmed.includes('reps') &&
-            !trimmed.includes('🔥') &&
-            !trimmed.includes('💪') &&
-            !trimmed.includes('⚡') &&
-            !trimmed.includes('✅') &&
-            trimmed.length > 5 && 
-            trimmed.length < 60) {
-          workoutName = trimmed;
-          break;
-        }
-      }
-
-      // Calculate estimated duration
+      // Generate workout name from text
+      let workoutName = 'Rutina IA (Texto Parseado)';
       const totalExercises = exercises.length;
       let estimatedDuration = '30-45 min';
       if (totalExercises > 10) {
@@ -418,16 +536,12 @@ This will help me create the perfect workout plan for you!`;
         completed: false
       };
 
-      console.log('Final workout created:', newWorkout);
-
-      // Call the parent function to add the workout
       onWorkoutGenerated(newWorkout);
-
-      alert(`¡Rutina "${finalWorkoutName}" importada exitosamente!\n\n📊 Detalles:\n• ${exercises.length} ejercicios\n• ${exerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
+      alert(`¡Rutina importada con método de respaldo!\n\n📊 Detalles:\n• ${exercises.length} ejercicios\n• ${exerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
 
     } catch (error) {
-      console.error('Error importing workout:', error);
-      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nAsegúrate de que el formato sea correcto.`);
+      console.error('Error in fallback parsing:', error);
+      alert('Error al procesar la rutina. Pide al asistente que use el formato JSON estructurado.');
     }
   };
 
