@@ -154,102 +154,34 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
               role: 'system',
               content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences.
 
-RESPONSE FORMAT - CRITICAL: You MUST respond with TWO parts:
+Create engaging, friendly responses with emojis explaining workout plans. Use this specific format for exercises:
 
-1. FIRST: A friendly, engaging response with emojis explaining the workout plan
-2. SECOND: A JSON object enclosed in triple backticks with "json" language identifier
+EXERCISE FORMAT:
+Use sections with emojis:
+🔥 Calentamiento: (for warm-up exercises)
+💪 Fuerza: (for strength exercises)  
+⚡ Cardio: (for cardio exercises)
+✅ Estiramiento: (for stretching exercises)
 
-EXAMPLE RESPONSE FORMAT:
-¡Perfecto! Aquí tienes un plan de entrenamiento personalizado 💪
+For each exercise, use this format:
+- Exercise name: sets x reps/duration
 
-[Your engaging explanation here with emojis]
+Examples:
+- Sentadillas: 3 sets x 12 reps
+- Plancha: 3 sets x 30 seconds
+- Caminata: 1 set x 20 minutes
+- Bicicleta estática: 1 set x 5 kilometers
 
-\`\`\`json
-{
-  "workoutName": "Rutina Principiante - Cuerpo Completo",
-  "estimatedDuration": "45-60 min",
-  "exerciseTypes": [
-    {
-      "id": "warmup",
-      "name": "Warm-up",
-      "nameSpanish": "Calentamiento",
-      "duration": "5-10 min",
-      "exercises": [
-        {
-          "name": "Círculos de brazos",
-          "sets": 2,
-          "reps": 10,
-          "exerciseSubType": "reps",
-          "weight": 0,
-          "weightUnit": "kg"
-        }
-      ]
-    },
-    {
-      "id": "power",
-      "name": "Power",
-      "nameSpanish": "Fuerza",
-      "duration": "20-30 min",
-      "exercises": [
-        {
-          "name": "Sentadillas",
-          "sets": 3,
-          "reps": 12,
-          "exerciseSubType": "reps",
-          "weight": 0,
-          "weightUnit": "kg"
-        }
-      ]
-    },
-    {
-      "id": "cardio",
-      "name": "Cardio",
-      "nameSpanish": "Cardio",
-      "duration": "15-20 min",
-      "exercises": [
-        {
-          "name": "Caminata intensa",
-          "sets": 1,
-          "duration": 20,
-          "durationUnit": "minutes",
-          "exerciseSubType": "duration",
-          "weight": 0,
-          "weightUnit": "kg"
-        }
-      ]
-    },
-    {
-      "id": "stretching",
-      "name": "Stretching",
-      "nameSpanish": "Estiramiento",
-      "duration": "5-10 min",
-      "exercises": [
-        {
-          "name": "Estiramiento de pecho",
-          "sets": 2,
-          "duration": 30,
-          "durationUnit": "seconds",
-          "exerciseSubType": "duration",
-          "weight": 0,
-          "weightUnit": "kg"
-        }
-      ]
-    }
-  ]
-}
-\`\`\`
-
-EXERCISE RULES:
-- exerciseSubType: "reps" for rep-based exercises, "duration" for time-based exercises
-- For rep-based: include "reps" field, omit "duration" and "durationUnit"
-- For time-based: include "duration" and "durationUnit" fields, omit "reps"
-- durationUnit options: "seconds", "minutes", "meters", "kilometers"
-- Always include "weight" and "weightUnit" fields
-- Use appropriate category IDs: "warmup", "power", "cardio", "stretching"
+RULES:
+- Always use "sets" and "x" between sets and reps/duration
+- For strength exercises: use "reps" 
+- For time-based exercises: use "seconds" or "minutes"
+- For cardio distance: use "meters" or "kilometers"
+- Include weight if relevant: "- Press militar: 3 sets x 10 reps @ 20 kg"
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level.
 
-Always end your friendly response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.`
+Always end your response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.`
             },
             ...messages.map(msg => ({
               role: msg.role,
@@ -279,11 +211,6 @@ Always end your friendly response by telling users they can click the "Import Wo
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-
-      // Extract workout and call onWorkoutGenerated
-      if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-        handleImportWorkout(data.choices[0].message.content);
-      }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
@@ -361,7 +288,90 @@ This will help me create the perfect workout plan for you!`;
     return Object.values(exerciseTypes);
   };
 
-  const handleImportWorkout = (responseText?: string) => {
+  const convertTextToWorkoutJSON = async (textToProcess: string) => {
+    try {
+      console.log('Converting text to JSON with AI...', textToProcess);
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a workout parser. Convert the provided workout text into a structured JSON format.
+
+RESPOND ONLY WITH VALID JSON - NO OTHER TEXT:
+
+{
+  "workoutName": "extracted name or generate one",
+  "estimatedDuration": "estimated duration",
+  "exerciseTypes": [
+    {
+      "id": "warmup",
+      "name": "Warm-up", 
+      "nameSpanish": "Calentamiento",
+      "duration": "5-10 min",
+      "exercises": [
+        {
+          "name": "Exercise name",
+          "sets": number,
+          "reps": number (only for rep-based),
+          "duration": number (only for time-based),
+          "durationUnit": "seconds|minutes|meters|kilometers",
+          "exerciseSubType": "reps|duration",
+          "weight": number,
+          "weightUnit": "kg"
+        }
+      ]
+    }
+  ]
+}
+
+RULES:
+- Use category IDs: "warmup", "power", "cardio", "stretching"
+- exerciseSubType: "reps" for strength exercises, "duration" for time/distance
+- For reps: include "reps", omit "duration" and "durationUnit"
+- For time/distance: include "duration" and "durationUnit", omit "reps"
+- Extract weight from text like "@ 20 kg" or default to 0
+- Map Spanish categories: Calentamiento=warmup, Fuerza=power, Cardio=cardio, Estiramiento=stretching
+- Parse patterns like "3 sets x 12 reps", "3 sets x 30 seconds", "1 set x 20 minutes"`
+            },
+            {
+              role: 'user',
+              content: `Convert this workout text to JSON:\n\n${textToProcess}`
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI conversion failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const jsonContent = data.choices[0]?.message?.content?.trim();
+      
+      if (!jsonContent) {
+        throw new Error('No content received from AI');
+      }
+
+      console.log('AI generated JSON:', jsonContent);
+      return JSON.parse(jsonContent);
+
+    } catch (error) {
+      console.error('Error in AI conversion:', error);
+      throw error;
+    }
+  };
+
+  const handleImportWorkout = async (responseText?: string) => {
     try {
       let textToProcess = responseText;
 
@@ -376,20 +386,15 @@ This will help me create the perfect workout plan for you!`;
 
       console.log('Processing text for import:', textToProcess);
 
-      // Extract JSON from the response
-      const jsonMatch = textToProcess.match(/```json\s*([\s\S]*?)\s*```/);
-      
-      if (!jsonMatch) {
-        console.log('No JSON found, falling back to text parsing...');
-        // Fallback to old parsing method if no JSON is found
+      // Check if API key is available for AI conversion
+      if (!apiKey || !apiKey.startsWith('sk-')) {
+        console.log('No API key available, using fallback parsing...');
         return handleImportWorkoutFallback(textToProcess);
       }
 
-      const jsonStr = jsonMatch[1].trim();
-      console.log('Extracted JSON:', jsonStr);
-
-      const workoutData = JSON.parse(jsonStr);
-      console.log('Parsed workout data:', workoutData);
+      // Use AI to convert text to structured JSON
+      const workoutData = await convertTextToWorkoutJSON(textToProcess);
+      console.log('AI converted workout data:', workoutData);
 
       // Validate required fields
       if (!workoutData.exerciseTypes || !Array.isArray(workoutData.exerciseTypes)) {
@@ -475,7 +480,18 @@ This will help me create the perfect workout plan for you!`;
 
     } catch (error) {
       console.error('Error importing workout:', error);
-      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nPor favor, informa al asistente sobre este error para mejorar el formato.`);
+      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nIntentando con método de respaldo...`);
+      
+      // Try fallback method if AI conversion fails
+      try {
+        const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
+        if (lastAssistantMessage?.content) {
+          handleImportWorkoutFallback(lastAssistantMessage.content);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        alert('Error: No se pudo procesar la rutina con ningún método disponible.');
+      }
     }
   };
 
