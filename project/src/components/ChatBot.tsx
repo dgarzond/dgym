@@ -154,35 +154,37 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
               role: 'system',
               content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences.
 
-CRITICAL FORMATTING RULES - ALWAYS FOLLOW:
-1. EVERY exercise MUST have a specific format with sets and reps/duration
+CRITICAL FORMATTING RULES - ALWAYS FOLLOW EXACTLY:
+1. EVERY exercise MUST have the EXACT format shown below
 2. Use emojis and **bold text** for engagement: 💪, 🏋️‍♂️, 🔥, ⚡, ✅, 🎯
 3. NEVER suggest an exercise without specifying exact sets and reps/time
+4. ALWAYS use "sets de" (not "sets of") for consistency
+5. ALWAYS use the exact format: "Exercise Name: X sets de Y reps/seconds/minutes"
 
-MANDATORY EXERCISE FORMAT:
-- For rep-based: "Exercise Name: X sets of Y reps" or "Exercise Name: X sets de Y reps"
-- For time-based: "Exercise Name: X sets of Y seconds/minutes" or "Exercise Name: X sets de Y seconds/minutes"
-- Always include weight when applicable: "@ Z kg"
+MANDATORY EXERCISE FORMAT (copy exactly):
+- For rep-based: "Exercise Name: X sets de Y reps @ Z kg"
+- For time-based: "Exercise Name: X sets de Y seconds" or "Exercise Name: X sets de Y minutes"
+- For cardio without sets: "Exercise Name: X minutes" or "Exercise Name: X kilometers"
 
 REQUIRED CATEGORIES (use these exact headers with emojis):
 
-**🔥 Calentamiento (Warm-up):**
+**🔥 Calentamiento:**
 - Dynamic stretches and mobility
-- Format: "X sets of Y reps" or "X sets of Y seconds"
+- Format: "Exercise Name: X sets de Y reps" or "Exercise Name: X sets de Y seconds"
 
-**💪 Fuerza (Power/Strength):**
+**💪 Fuerza:**
 - Compound and isolation movements
-- Format: "X sets of Y reps @ Z kg"
+- Format: "Exercise Name: X sets de Y reps @ Z kg"
 
 **⚡ Cardio:**
 - Cardiovascular exercises
-- Format: "X minutes", "X sets of Y minutes", "X meters", "X kilometers"
+- Format: "Exercise Name: X minutes" or "Exercise Name: X kilometers"
 
-**✅ Estiramiento (Stretching):**
+**✅ Estiramiento:**
 - Static stretches and cool-down
-- Format: "X sets of Y seconds"
+- Format: "Exercise Name: X sets de Y seconds"
 
-MANDATORY EXAMPLE FORMAT (copy this structure exactly):
+MANDATORY EXAMPLE FORMAT (copy this structure EXACTLY):
 
 **🔥 Calentamiento:**
 - Círculos de brazos: 2 sets de 10 reps
@@ -204,6 +206,8 @@ MANDATORY EXAMPLE FORMAT (copy this structure exactly):
 - Estiramiento de pecho: 2 sets de 30 seconds
 - Estiramiento de piernas: 2 sets de 30 seconds
 - Estiramiento de espalda: 2 sets de 45 seconds
+
+IMPORTANTE: Siempre usa "sets de" (español) en lugar de "sets of" (inglés). El formato debe ser EXACTAMENTE como se muestra arriba.
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level (beginner, intermediate, advanced).
 
@@ -475,13 +479,15 @@ This will help me create the perfect workout plan for you!`;
         continue;
       }
 
-      // Enhanced exercise extraction patterns - bilingual support
+      // Enhanced exercise extraction patterns - prioritize "sets de" format
       const exercisePatterns = [
-        // "- Exercise name: 3 sets of 12 reps @ 60 kg" or "- Exercise name: 3 sets de 12 reps @ 60 kg"
-        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
-        // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers"
+        // "- Exercise name: 3 sets de 12 reps @ 60 kg" (primary format)
+        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+de\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos)(?:\s*@\s*(\d+)\s*kg)?/i,
+        // "- Exercise name: 3 sets of 12 reps @ 60 kg" (fallback format)
+        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos)(?:\s*@\s*(\d+)\s*kg)?/i,
+        // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers" (cardio format)
         /^[-•*]?\s*([^:]+):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
-        // "Exercise name: 3 x 12"
+        // "Exercise name: 3 x 12" (alternative format)
         /^[-•*]?\s*([^:]+):\s*(\d+)\s*[x×]\s*(\d+)/i
       ];
 
@@ -500,15 +506,15 @@ This will help me create the perfect workout plan for you!`;
       if (exerciseMatch && exerciseMatch.length >= 3) {
         let exerciseName, sets, amount, unit = 'reps', weight = 0;
 
-        if (patternIndex === 0) {
-          // Full format: "Exercise: 3 sets of/de 12 reps @ 60 kg"
-          [, exerciseName, sets, , amount, unit, weight] = exerciseMatch;
+        if (patternIndex === 0 || patternIndex === 1) {
+          // Full format: "Exercise: 3 sets de/of 12 reps @ 60 kg"
+          [, exerciseName, sets, amount, unit, weight] = exerciseMatch;
           weight = weight ? parseInt(weight) : 0;
-        } else if (patternIndex === 1) {
+        } else if (patternIndex === 2) {
           // Time/distance format: "Exercise: 20 minutes"
           [, exerciseName, amount, unit] = exerciseMatch;
           sets = 1;
-        } else if (patternIndex === 2) {
+        } else if (patternIndex === 3) {
           // Short format: "Exercise: 3 x 12"
           [, exerciseName, sets, amount] = exerciseMatch;
           unit = 'reps';
