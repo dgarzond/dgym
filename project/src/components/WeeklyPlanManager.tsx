@@ -175,47 +175,17 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       );
 
       if (currentPlan) {
-        // Check for duplicate workouts using exercise composition comparison
+        // Check for duplicate workouts using dayId (much more reliable)
         const workoutExists = currentPlan.workouts.some(existingWorkout => {
-          // Get exercise codes from both workouts
-          const existingCodes = new Set();
-          const newCodes = new Set();
-
-          // Extract codes from existing workout
-          (existingWorkout.exerciseTypes || []).forEach(type => {
-            (type.exercises || []).forEach(ex => {
-              if (ex.exerciseCode) {
-                existingCodes.add(ex.exerciseCode);
-              } else {
-                // Fallback to exercise name if no code
-                existingCodes.add(ex.name);
-              }
-            });
-          });
-
-          // Extract codes from new workout
-          (workout.exerciseTypes || []).forEach(type => {
-            (type.exercises || []).forEach(ex => {
-              if (ex.exerciseCode) {
-                newCodes.add(ex.exerciseCode);
-              } else {
-                // Fallback to exercise name if no code
-                newCodes.add(ex.name);
-              }
-            });
-          });
-
-          // Compare sets of exercise codes - if 80% or more overlap, consider duplicate
-          const intersection = new Set([...existingCodes].filter(code => newCodes.has(code)));
-          const union = new Set([...existingCodes, ...newCodes]);
-          const similarity = intersection.size / union.size;
-
-          console.log('🔍 Comparing workouts:');
-          console.log('   Existing codes:', Array.from(existingCodes));
-          console.log('   New codes:', Array.from(newCodes));
-          console.log('   Similarity:', Math.round(similarity * 100) + '%');
-
-          return similarity > 0.8; // 80% similar = duplicate
+          // First check if both workouts have dayId
+          if (workout.dayId && existingWorkout.dayId) {
+            console.log('🔍 Comparing dayIds:', existingWorkout.dayId, 'vs', workout.dayId);
+            return workout.dayId === existingWorkout.dayId;
+          }
+          
+          // Fallback to name comparison if no dayId
+          console.log('🔍 Comparing names (no dayId):', existingWorkout.name, 'vs', workout.name);
+          return existingWorkout.name === workout.name;
         });
 
         if (!workoutExists) {

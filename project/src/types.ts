@@ -40,6 +40,7 @@ export interface Workout {
   id: string;
   date: string;
   name: string;
+  dayId?: string; // Unique day identifier (e.g., "DAY001", "DAY002")
   exerciseTypes: ExerciseType[]; // Changed from exercises to exerciseTypes
   completed: boolean;
 }

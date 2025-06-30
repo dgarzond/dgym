@@ -185,6 +185,14 @@ CRITICAL: For each exercise, assign a unique CODE in the format [EX001], [EX002]
 
 Example: "Sentadillas [EX001]: 3 sets x 12 reps"
 
+🆔 DAY IDENTIFICATION SYSTEM:
+CRITICAL: When creating multiple-day workouts, assign a unique DAY ID to each day in the format [DAY001], [DAY002], etc.
+- Each day must have a unique day ID
+- Include the day ID in the workout name
+- This prevents duplicate days from being created
+
+Example: "Día 1 - Tren Superior [DAY001]", "Día 2 - Tren Inferior [DAY002]"
+
 Standard exercise codes to use:
 - [EX001] Sentadillas/Squats
 - [EX002] Press de banca/Bench press
@@ -397,11 +405,13 @@ For multiple days:
   "workouts": [
     {
       "workoutName": "Day 1 name",
+      "dayId": "DAY001",
       "estimatedDuration": "estimated duration",
       "exerciseTypes": [...]
     },
     {
-      "workoutName": "Day 2 name", 
+      "workoutName": "Day 2 name",
+      "dayId": "DAY002", 
       "estimatedDuration": "estimated duration",
       "exerciseTypes": [...]
     }
@@ -432,7 +442,9 @@ Exercise format:
 RULES:
 - CRITICAL: Look for day separators like "Día 1:", "Day 1:", "Día 2:", "Day 2:", etc. If found, return multiple workouts array
 - CRITICAL: Extract exercise codes [EX###] from exercise names. Pattern: "Exercise name [EX001]"
+- CRITICAL: Extract day IDs [DAY###] from workout names. Pattern: "Workout name [DAY001]"
 - If exercise code found, include as "exerciseCode" field and remove code from exercise name
+- If day ID found, include as "dayId" field and remove code from workout name
 - Use category IDs: "warmup", "power", "cardio", "stretching"
 - exerciseSubType: "reps" for strength exercises, "duration" for time/distance
 - For reps: include "reps", omit "duration" and "durationUnit"
@@ -700,6 +712,9 @@ RULES:
       const workoutName = String(workoutData.workoutName || `Rutina IA Día ${dayNumber}`).trim();
       const estimatedDuration = String(workoutData.estimatedDuration || '30-45 min').trim();
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
+      
+      // Extract dayId if present in workoutData
+      const dayId = workoutData.dayId || null;
 
       // Create workout object with unique ID that includes timestamp and day
       const uniqueId = `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}`;
@@ -707,6 +722,7 @@ RULES:
         id: uniqueId,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
+        dayId: dayId,
         exerciseTypes: processedExerciseTypes,
         completed: false
       };
