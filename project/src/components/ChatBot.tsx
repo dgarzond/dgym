@@ -310,10 +310,10 @@ Always end your response by telling users they can click the "Import Workout" bu
     }
   };
 
-  // 🚀 OPTIMIZED AI CONVERSION FUNCTION
+  // 🚀 OPTIMIZED AI CONVERSION FUNCTION FOR SINGLE DAY PROCESSING
   const convertTextToWorkoutJSON = async (textToProcess: string) => {
     try {
-      console.log('🤖 INICIANDO CONVERSIÓN CON IA OPTIMIZADA...');
+      console.log('🤖 INICIANDO CONVERSIÓN CON IA PARA DÍA INDIVIDUAL...');
       console.log('📝 Texto a procesar:', textToProcess.substring(0, 200) + '...');
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -327,17 +327,16 @@ Always end your response by telling users they can click the "Import Workout" bu
           messages: [
             {
               role: 'system',
-              content: `You are an expert workout parser. Convert workout text into structured JSON with ABSOLUTE PRECISION.
+              content: `You are an expert workout parser. Convert workout text into structured JSON for a SINGLE DAY with ABSOLUTE PRECISION.
 
 🎯 CRITICAL PARSING RULES:
 
-1. DETECT MULTIPLE DAYS:
-   - Look for patterns: "Día 1:", "Day 1:", "Día 2:", "Day 2:", etc.
-   - If found: Return {"workouts": [...]} format
-   - If single day: Return single workout object
+1. SINGLE DAY PARSING:
+   - Always return a single workout object, never an array
+   - Focus on one complete day of exercises
 
 2. MANDATORY FIELDS - NEVER OMIT:
-   - "dayId": REQUIRED for every workout (DAY001, DAY002, etc.)
+   - "dayId": REQUIRED (DAY001, DAY002, etc.)
    - "workoutName": Descriptive name
    - "estimatedDuration": Time estimate
    - "exerciseTypes": Array of exercise categories
@@ -346,7 +345,7 @@ Always end your response by telling users they can click the "Import Workout" bu
    {
      "id": "warmup|power|cardio|stretching",
      "name": "English name",
-     "nameSpanish": "Spanish name",
+     "nameSpanish": "Spanish name", 
      "duration": "5-10 min",
      "exercises": [...]
    }
@@ -376,38 +375,26 @@ Always end your response by telling users they can click the "Import Workout" bu
    - "1 set x 20 minutes" → sets:1, duration:20, durationUnit:"minutes", exerciseSubType:"duration"
 
 7. DAYID GENERATION:
-   - Extract from "[DAY001]" patterns
-   - If missing: Auto-generate DAY001, DAY002, etc.
+   - Extract from "[DAY001]" patterns in text
+   - If missing: Auto-generate based on day number
    - NEVER omit dayId field
 
 8. EXERCISE CODE EXTRACTION:
    - Extract from "[EX001]" patterns in exercise names
    - Remove code from exercise name after extraction
 
-RESPONSE FORMAT:
-
-Single day:
+RESPONSE FORMAT (SINGLE DAY ONLY):
 {
-  "workoutName": "Name",
+  "workoutName": "Descriptive name",
   "dayId": "DAY001",
   "estimatedDuration": "30-45 min",
-  "exerciseTypes": [...]
-}
-
-Multiple days:
-{
-  "workouts": [
+  "exerciseTypes": [
     {
-      "workoutName": "Day 1 Name",
-      "dayId": "DAY001",
-      "estimatedDuration": "30-45 min",
-      "exerciseTypes": [...]
-    },
-    {
-      "workoutName": "Day 2 Name", 
-      "dayId": "DAY002",
-      "estimatedDuration": "30-45 min",
-      "exerciseTypes": [...]
+      "id": "warmup",
+      "name": "Warm-up",
+      "nameSpanish": "Calentamiento",
+      "duration": "5-10 min",
+      "exercises": [...]
     }
   ]
 }
@@ -416,10 +403,10 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
             },
             {
               role: 'user',
-              content: `Parse this workout text to structured JSON:\n\n${textToProcess}`
+              content: `Parse this single day workout text to structured JSON:\n\n${textToProcess}`
             }
           ],
-          max_tokens: 4000, // 🚀 INCREASED for multiple days
+          max_tokens: 2000, // Sufficient for single day
           temperature: 0.1 // Low for consistency
         })
       });
@@ -512,11 +499,11 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
     }
   };
 
-  // 🚀 OPTIMIZED IMPORT FUNCTION
+  // 🚀 NEW SEQUENTIAL DAY-BY-DAY IMPORT FUNCTION
   const handleImportWorkout = async (responseText?: string) => {
     setIsImporting(true);
     try {
-      console.log('🚀 INICIANDO IMPORTACIÓN OPTIMIZADA...');
+      console.log('🚀 INICIANDO IMPORTACIÓN SECUENCIAL DÍA POR DÍA...');
 
       let textToProcess = responseText;
       if (!textToProcess) {
@@ -536,67 +523,38 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
         return handleImportWorkoutFallback(textToProcess);
       }
 
-      // 🚀 RETRY LOGIC for AI conversion
-      let workoutData;
-      const maxRetries = 3;
+      // 🔍 DETECT MULTIPLE DAYS FIRST
+      const dayDetectionPatterns = [
+        /día\s*\d+/gi,
+        /day\s*\d+/gi,
+        /\[DAY\d+\]/gi
+      ];
 
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          console.log(`🔄 Intento de conversión IA ${attempt}/${maxRetries}...`);
-          workoutData = await convertTextToWorkoutJSON(textToProcess);
-          console.log('✅ Conversión IA exitosa en intento', attempt);
+      const detectedDays = [];
+      let hasDayMarkers = false;
+
+      for (const pattern of dayDetectionPatterns) {
+        const matches = textToProcess.match(pattern);
+        if (matches && matches.length > 1) {
+          hasDayMarkers = true;
           break;
-        } catch (error) {
-          console.log(`❌ Intento ${attempt} falló:`, error);
-          if (attempt === maxRetries) {
-            throw new Error(`Error después de ${maxRetries} intentos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
-          }
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
         }
       }
 
-      console.log('📊 Datos de workout convertidos:', workoutData);
+      console.log('🔍 Múltiples días detectados:', hasDayMarkers);
 
-      // 🛡️ ROBUST DAYID VALIDATION AND GENERATION
-      workoutData = ensureDayIds(workoutData);
-
-      // 🏗️ PROCESS WORKOUTS
-      const processedWorkouts = processWorkoutArray(workoutData);
-
-      if (processedWorkouts.length === 0) {
-        throw new Error('❌ No se pudieron procesar workouts válidos');
-      }
-
-      console.log(`✅ ${processedWorkouts.length} workout(s) procesado(s) exitosamente`);
-
-      // 📤 SEND TO PARENT COMPONENT
-      console.log('=== 📤 CHATBOT ENVIANDO WORKOUTS AL PARENT ===');
-      console.log('📊 Enviando', processedWorkouts.length, 'workout(s)');
-      console.log('📋 Workouts a enviar:', processedWorkouts.map(w => `"${w.name}" (ID: ${w.id}, DayId: ${w.dayId})`));
-      
-      if (processedWorkouts.length === 1) {
-        console.log('📦 Enviando workout único...');
-        onWorkoutGenerated(processedWorkouts[0]);
+      if (!hasDayMarkers) {
+        console.log('📅 PROCESANDO RUTINA DE UN SOLO DÍA...');
+        await processSingleDay(textToProcess, 1);
       } else {
-        console.log('📦 Enviando array de workouts...');
-        onWorkoutGenerated(processedWorkouts);
+        console.log('📅 PROCESANDO RUTINA DE MÚLTIPLES DÍAS SECUENCIALMENTE...');
+        await processMultipleDaysSequentially(textToProcess);
       }
-      
-      console.log('✅ WORKOUTS ENVIADOS AL PARENT COMPONENT');
 
-      // 🎉 SUCCESS MESSAGE
-      const totalExercises = processedWorkouts.reduce((sum, workout) => {
-        return sum + (workout.exerciseTypes || []).reduce((typeSum, type) => 
-          typeSum + (type?.exercises?.length || 0), 0);
-      }, 0);
-
-      const successMessage = `🎉 ¡IMPORTACIÓN EXITOSA!\n\n📊 Resumen:\n• ${processedWorkouts.length} rutina(s) creada(s)\n• ${totalExercises} ejercicios en total\n• Duración estimada promedio: 45-60 min\n\n📅 Rutinas:\n${processedWorkouts.map((w, i) => `${i + 1}. ${w.name} (${w.dayId})`).join('\n')}\n\n🔍 Revisa la consola para logs detallados.`;
-
-      alert(successMessage);
-      console.log('🎊 IMPORTACIÓN COMPLETADA EXITOSAMENTE');
+      console.log('🎊 IMPORTACIÓN SECUENCIAL COMPLETADA EXITOSAMENTE');
 
     } catch (error) {
-      console.error('❌ Error en importación:', error);
+      console.error('❌ Error en importación secuencial:', error);
       alert(`❌ Error al importar: ${error instanceof Error ? error.message : 'Error desconocido'}\n\n🔄 Intentando método de respaldo...`);
 
       // Fallback method
@@ -611,6 +569,130 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
       }
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  // 🚀 PROCESS SINGLE DAY FUNCTION
+  const processSingleDay = async (textToProcess: string, dayNumber: number) => {
+    try {
+      console.log(`=== 📅 PROCESANDO DÍA ${dayNumber} ===`);
+      
+      const singleDayPrompt = `Parse this single day workout into JSON format. Return only the workout object (not an array):
+
+${textToProcess}
+
+RESPOND WITH CLEAN JSON ONLY - single workout object format.`;
+
+      const workoutData = await convertTextToWorkoutJSON(singleDayPrompt);
+      
+      // Ensure dayId
+      if (!workoutData.dayId) {
+        workoutData.dayId = `DAY${String(dayNumber).padStart(3, '0')}`;
+      }
+      
+      const processedWorkout = processWorkoutData(workoutData, dayNumber);
+      
+      if (processedWorkout) {
+        console.log(`✅ DÍA ${dayNumber} PROCESADO - ENVIANDO AL PARENT...`);
+        onWorkoutGenerated(processedWorkout);
+        
+        // Show immediate feedback
+        const exerciseCount = (processedWorkout.exerciseTypes || []).reduce((sum, type) => 
+          sum + (type?.exercises?.length || 0), 0);
+        
+        alert(`✅ ¡Día ${dayNumber} importado exitosamente!\n\n📊 "${processedWorkout.name}"\n• ${exerciseCount} ejercicios\n• ${processedWorkout.exerciseTypes?.length || 0} categorías`);
+      } else {
+        throw new Error(`Error procesando día ${dayNumber}`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error procesando día ${dayNumber}:`, error);
+      throw error;
+    }
+  };
+
+  // 🚀 PROCESS MULTIPLE DAYS SEQUENTIALLY
+  const processMultipleDaysSequentially = async (textToProcess: string) => {
+    try {
+      // Split text by day markers
+      const dayMarkers = textToProcess.match(/(día\s*\d+|day\s*\d+)/gi) || [];
+      console.log('📊 Marcadores de día encontrados:', dayMarkers);
+      
+      if (dayMarkers.length === 0) {
+        throw new Error('No se encontraron marcadores de día válidos');
+      }
+
+      // Split content by days
+      const dayContents = [];
+      const dayPattern = /(día\s*\d+|day\s*\d+)/gi;
+      const parts = textToProcess.split(dayPattern);
+      
+      for (let i = 1; i < parts.length; i += 2) {
+        if (parts[i + 1]) {
+          const dayTitle = parts[i].trim();
+          const dayContent = parts[i + 1].trim();
+          if (dayContent.length > 20) { // Minimum content check
+            dayContents.push({
+              title: dayTitle,
+              content: dayTitle + '\n' + dayContent,
+              dayNumber: dayContents.length + 1
+            });
+          }
+        }
+      }
+
+      console.log(`📊 ${dayContents.length} días válidos para procesar`);
+
+      if (dayContents.length === 0) {
+        throw new Error('No se pudo extraer contenido válido de los días');
+      }
+
+      const results = [];
+      
+      // Process each day sequentially with delay
+      for (let i = 0; i < dayContents.length; i++) {
+        const dayData = dayContents[i];
+        
+        try {
+          console.log(`=== 📅 PROCESANDO DÍA ${dayData.dayNumber}/${dayContents.length}: ${dayData.title} ===`);
+          
+          // Add delay between requests to avoid rate limiting
+          if (i > 0) {
+            console.log('⏳ Esperando 2 segundos antes del siguiente día...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+          await processSingleDay(dayData.content, dayData.dayNumber);
+          results.push({ day: dayData.dayNumber, status: 'success' });
+          
+        } catch (error) {
+          console.error(`❌ Error en día ${dayData.dayNumber}:`, error);
+          results.push({ day: dayData.dayNumber, status: 'error', error });
+          
+          // Ask user if they want to continue
+          const continueProcessing = confirm(
+            `❌ Error en Día ${dayData.dayNumber}: ${error instanceof Error ? error.message : 'Error desconocido'}\n\n¿Continuar con los días restantes?`
+          );
+          
+          if (!continueProcessing) {
+            break;
+          }
+        }
+      }
+
+      // Show final summary
+      const successful = results.filter(r => r.status === 'success').length;
+      const failed = results.filter(r => r.status === 'error').length;
+      
+      const summaryMessage = `🏁 PROCESAMIENTO COMPLETADO\n\n📊 Resumen:\n• ✅ Días exitosos: ${successful}\n• ❌ Días fallidos: ${failed}\n• 📅 Total procesados: ${results.length}\n\n${results.map(r => 
+        `Día ${r.day}: ${r.status === 'success' ? '✅' : '❌'}`
+      ).join('\n')}`;
+      
+      alert(summaryMessage);
+      
+    } catch (error) {
+      console.error('❌ Error en procesamiento secuencial:', error);
+      throw error;
     }
   };
 
