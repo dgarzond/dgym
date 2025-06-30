@@ -393,7 +393,7 @@ This will help me create the perfect workout plan for you!`;
 If the text contains multiple days (Día 1, Day 1, etc.), return an array of workouts. If it's a single day, return a single workout object.
 
 CRITICAL: RESPOND ONLY WITH CLEAN, VALID JSON - NO MARKDOWN, NO EXPLANATIONS, NO OTHER TEXT:
-- Do NOT include ```json or ``` markdown blocks
+- Do NOT include backtick json or backtick markdown blocks
 - Do NOT include any text before or after the JSON
 - Ensure all strings are properly quoted
 - Ensure no trailing commas
