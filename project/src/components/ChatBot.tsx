@@ -570,11 +570,19 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
       console.log(`✅ ${processedWorkouts.length} workout(s) procesado(s) exitosamente`);
 
       // 📤 SEND TO PARENT COMPONENT
+      console.log('=== 📤 CHATBOT ENVIANDO WORKOUTS AL PARENT ===');
+      console.log('📊 Enviando', processedWorkouts.length, 'workout(s)');
+      console.log('📋 Workouts a enviar:', processedWorkouts.map(w => `"${w.name}" (ID: ${w.id}, DayId: ${w.dayId})`));
+      
       if (processedWorkouts.length === 1) {
+        console.log('📦 Enviando workout único...');
         onWorkoutGenerated(processedWorkouts[0]);
       } else {
+        console.log('📦 Enviando array de workouts...');
         onWorkoutGenerated(processedWorkouts);
       }
+      
+      console.log('✅ WORKOUTS ENVIADOS AL PARENT COMPONENT');
 
       // 🎉 SUCCESS MESSAGE
       const totalExercises = processedWorkouts.reduce((sum, workout) => {
@@ -582,7 +590,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
           typeSum + (type?.exercises?.length || 0), 0);
       }, 0);
 
-      const successMessage = `🎉 ¡IMPORTACIÓN EXITOSA!\n\n📊 Resumen:\n• ${processedWorkouts.length} rutina(s) creada(s)\n• ${totalExercises} ejercicios en total\n• Duración estimada promedio: 45-60 min\n\n📅 Rutinas:\n${processedWorkouts.map((w, i) => `${i + 1}. ${w.name} (${w.dayId})`).join('\n')}`;
+      const successMessage = `🎉 ¡IMPORTACIÓN EXITOSA!\n\n📊 Resumen:\n• ${processedWorkouts.length} rutina(s) creada(s)\n• ${totalExercises} ejercicios en total\n• Duración estimada promedio: 45-60 min\n\n📅 Rutinas:\n${processedWorkouts.map((w, i) => `${i + 1}. ${w.name} (${w.dayId})`).join('\n')}\n\n🔍 Revisa la consola para logs detallados.`;
 
       alert(successMessage);
       console.log('🎊 IMPORTACIÓN COMPLETADA EXITOSAMENTE');
@@ -727,7 +735,14 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
         completed: false
       };
 
-      console.log(`✅ Workout creado: "${newWorkout.name}" (${newWorkout.dayId})`);
+      console.log(`✅ WORKOUT CREADO EXITOSAMENTE:`);
+      console.log(`   🆔 ID: ${newWorkout.id}`);
+      console.log(`   📝 Name: ${newWorkout.name}`);
+      console.log(`   🏷️ DayId: ${newWorkout.dayId}`);
+      console.log(`   📅 Date: ${newWorkout.date}`);
+      console.log(`   📊 Exercise Types: ${newWorkout.exerciseTypes.length}`);
+      console.log(`   ✅ Completed: ${newWorkout.completed}`);
+      
       return newWorkout;
 
     } catch (error) {

@@ -161,24 +161,26 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   };
 
   const handleWorkoutGenerated = (workoutData: Workout | Workout[]) => {
-    console.log('=== 🚀 INICIANDO IMPORTACIÓN DE WORKOUT(S) ===');
+    console.log('=== 🚀 WEEKLY PLAN MANAGER - INICIANDO IMPORTACIÓN ===');
     
     // Determinar si es un workout único o un array de workouts
     const workoutsToProcess = Array.isArray(workoutData) ? workoutData : [workoutData];
     
-    console.log('📊 Total de workouts a procesar:', workoutsToProcess.length);
+    console.log('📊 Total de workouts recibidos:', workoutsToProcess.length);
+    console.log('📋 Workouts recibidos:', workoutsToProcess.map(w => `"${w.name}" (${w.dayId || 'NO DAYID'})`));
     
+    // Add ALL workouts to main list FIRST using the array
+    console.log('⚡ ENVIANDO TODOS LOS WORKOUTS A APP.TSX...');
+    onAddWorkout(workoutData); // Pass original data (single or array)
+    console.log('✅ WORKOUTS ENVIADOS A APP.TSX');
+    
+    // Then process each workout for weekly plans
     workoutsToProcess.forEach((workout, index) => {
-      console.log(`=== 📅 PROCESANDO WORKOUT ${index + 1}/${workoutsToProcess.length} ===`);
-      console.log('📅 Workout recibido:', workout.name);
-      console.log('🆔 DayId del workout:', workout.dayId || 'SIN DAYID');
+      console.log(`=== 📅 PROCESANDO WORKOUT ${index + 1}/${workoutsToProcess.length} PARA PLAN SEMANAL ===`);
+      console.log('📅 Workout:', workout.name);
+      console.log('🆔 DayId:', workout.dayId || 'SIN DAYID');
       console.log('📊 Tipos de ejercicio:', workout.exerciseTypes?.length || 0);
       console.log('🗓️ Semana actual:', currentWeek.toLocaleDateString());
-
-      // Add workout to main list immediately
-      console.log('⚡ Agregando workout a lista principal...');
-      onAddWorkout(workout);
-      console.log('✅ Workout agregado a lista principal:', workout.name);
 
     // Update weekly plans using functional state update to avoid race conditions
       setWeeklyPlans(currentPlans => {

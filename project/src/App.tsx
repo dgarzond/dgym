@@ -95,8 +95,65 @@ function App() {
     }
   };
 
-  const handleAddWorkout = (newWorkout: Workout) => {
-    setWorkouts([...workouts, newWorkout]);
+  const handleAddWorkout = (newWorkout: Workout | Workout[]) => {
+    console.log('=== 🎯 APP.TSX - HANDLE ADD WORKOUT ===');
+    
+    // Handle both single workout and array of workouts
+    const workoutsToAdd = Array.isArray(newWorkout) ? newWorkout : [newWorkout];
+    
+    console.log('📊 Total workouts to add to main list:', workoutsToAdd.length);
+    console.log('📋 Current workouts in main list before adding:', workouts.length);
+    
+    workoutsToAdd.forEach((workout, index) => {
+      console.log(`=== 📅 ADDING WORKOUT ${index + 1}/${workoutsToAdd.length} TO MAIN LIST ===`);
+      console.log('🆔 Workout ID:', workout.id);
+      console.log('📝 Workout Name:', workout.name);
+      console.log('🏷️ Workout DayId:', workout.dayId || 'NO DAYID');
+      console.log('📊 Exercise Types Count:', workout.exerciseTypes?.length || 0);
+      console.log('📅 Workout Date:', workout.date);
+      
+      // Check for duplicates in main list
+      const existsInMain = workouts.some(existing => 
+        existing.id === workout.id || 
+        (existing.dayId && workout.dayId && existing.dayId === workout.dayId)
+      );
+      
+      console.log('🔍 Duplicate check in main list:', existsInMain ? 'DUPLICATE FOUND' : 'UNIQUE WORKOUT');
+      
+      if (existsInMain) {
+        console.warn('⚠️ DUPLICATE WORKOUT DETECTED IN MAIN LIST - SKIPPING');
+      }
+    });
+    
+    // Add all workouts to main list (remove duplicates first)
+    const currentWorkoutIds = new Set(workouts.map(w => w.id));
+    const currentDayIds = new Set(workouts.map(w => w.dayId).filter(Boolean));
+    
+    const uniqueWorkouts = workoutsToAdd.filter(workout => {
+      const idExists = currentWorkoutIds.has(workout.id);
+      const dayIdExists = workout.dayId && currentDayIds.has(workout.dayId);
+      return !idExists && !dayIdExists;
+    });
+    
+    console.log('✅ Unique workouts to add:', uniqueWorkouts.length);
+    
+    if (uniqueWorkouts.length > 0) {
+      const updatedWorkouts = [...workouts, ...uniqueWorkouts];
+      console.log('🚀 UPDATING MAIN WORKOUTS LIST');
+      console.log('📊 New total count will be:', updatedWorkouts.length);
+      setWorkouts(updatedWorkouts);
+      
+      // Log the final state
+      setTimeout(() => {
+        console.log('=== 🏁 FINAL STATE CHECK ===');
+        console.log('📋 Workouts in state after update:', updatedWorkouts.length);
+        updatedWorkouts.forEach((w, i) => {
+          console.log(`   ${i + 1}. "${w.name}" (ID: ${w.id}, DayId: ${w.dayId || 'NO DAYID'})`);
+        });
+      }, 100);
+    } else {
+      console.warn('⚠️ NO UNIQUE WORKOUTS TO ADD - ALL WERE DUPLICATES');
+    }
   };
 
   if (selectedWorkout && currentExercise !== null) {
