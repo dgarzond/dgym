@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, User, Loader, Import, Download } from 'lucide-react';
 import type { Workout, ExerciseType, Exercise, Set } from '../types';
-import { ApiKeyManager } from '../utils/config';
+import { ConfigManager } from '../utils/config';
 
 interface Message {
   id: string;
@@ -54,7 +54,7 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
   const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
-    const key = ApiKeyManager.getInstance().getApiKey();
+    const key = ConfigManager.getInstance().getApiKey();
     if (key) {
       setApiKey(key);
     } else {
@@ -100,7 +100,7 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
   const handleApiKeySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (apiKey.trim() && apiKey.startsWith('sk-')) {
-      ApiKeyManager.getInstance().setApiKey(apiKey);
+      ConfigManager.getInstance().setApiKey(apiKey);
       setShowApiKeyInput(false);
     } else {
       alert('Por favor, ingresa una API key válida que comience con "sk-"');
