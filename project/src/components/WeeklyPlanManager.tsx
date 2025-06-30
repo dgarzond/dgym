@@ -167,11 +167,12 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     console.log('📊 Tipos de ejercicio:', workout.exerciseTypes?.length || 0);
     console.log('🗓️ Semana actual:', currentWeek.toLocaleDateString());
 
-    // FIXED: Add ALL workouts to main list - let user manage them from "Your Workouts" section
+    // Add workout to main list immediately
+    console.log('⚡ Agregando workout a lista principal...');
     onAddWorkout(workout);
     console.log('✅ Workout agregado a lista principal:', workout.name);
 
-    // Update weekly plans immediately using functional state update
+    // Update weekly plans using functional state update to avoid race conditions
     setWeeklyPlans(currentPlans => {
       console.log('=== 📋 ACTUALIZANDO PLANES SEMANALES ===');
       console.log('📅 Total planes existentes:', currentPlans.length);
@@ -190,19 +191,20 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       }
 
       if (currentPlan) {
-        console.log('=== 🔍 VERIFICANDO DUPLICADOS ===');
+        console.log('=== 🔍 VERIFICANDO DUPLICADOS EN PLAN SEMANAL ===');
         
-        // SIMPLIFIED: Only check for exact ID matches to avoid false positives
+        // Check for duplicates using both ID and dayId to ensure accuracy
         const workoutExists = currentPlan.workouts.some(existingWorkout => {
           const idMatch = workout.id === existingWorkout.id;
-          console.log(`🔍 Comparando IDs: "${existingWorkout.id}" vs "${workout.id}" = ${idMatch ? 'DUPLICADO' : 'DIFERENTE'}`);
-          return idMatch;
+          const dayIdMatch = workout.dayId && existingWorkout.dayId && workout.dayId === existingWorkout.dayId;
+          console.log(`🔍 Comparando: ID(${idMatch}) DayId(${dayIdMatch}) - "${existingWorkout.name}" vs "${workout.name}"`);
+          return idMatch || dayIdMatch;
         });
 
         console.log(`🎯 Resultado de verificación: ${workoutExists ? 'DUPLICADO ENCONTRADO' : 'WORKOUT ÚNICO'}`);
 
         if (!workoutExists) {
-          console.log('=== ✅ AGREGANDO WORKOUT AL PLAN ===');
+          console.log('=== ✅ AGREGANDO WORKOUT AL PLAN SEMANAL ===');
           
           const updatedWorkouts = [...currentPlan.workouts, workout];
           const updatedPlan = {
@@ -214,16 +216,16 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
             plan.id === currentPlan.id ? updatedPlan : plan
           );
 
-          console.log('📊 Plan actualizado exitosamente:');
+          console.log('📊 Plan semanal actualizado exitosamente:');
           console.log(`   • Total workouts en plan: ${updatedWorkouts.length}`);
           updatedWorkouts.forEach((w, index) => {
             console.log(`   • Workout ${index + 1}: "${w.name}" (dayId: ${w.dayId || 'SIN DAYID'})`);
           });
 
-          console.log('=== ✅ IMPORTACIÓN COMPLETADA EXITOSAMENTE ===');
+          console.log('=== ✅ ACTUALIZACIÓN DE PLAN SEMANAL COMPLETADA ===');
           return updatedPlans;
         } else {
-          console.log('=== ❌ IMPORTACIÓN CANCELADA - DUPLICADO DETECTADO ===');
+          console.log('=== ⚠️ WORKOUT YA EXISTE EN PLAN SEMANAL - SALTANDO ===');
           return currentPlans; // Return unchanged state
         }
       } else {
@@ -239,7 +241,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
         
         const newPlans = [...currentPlans, newPlan];
         
-        console.log('✅ Nuevo plan creado exitosamente:');
+        console.log('✅ Nuevo plan semanal creado exitosamente:');
         console.log(`   • ID del plan: ${newPlan.id}`);
         console.log(`   • Semana: ${newPlan.weekStart.toLocaleDateString()}`);
         console.log(`   • Primer workout: "${workout.name}" (dayId: ${workout.dayId || 'SIN DAYID'})`);

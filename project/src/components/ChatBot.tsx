@@ -619,27 +619,45 @@ RULES:
           }
         }
 
-        // Now call onWorkoutGenerated for each imported workout
+        // Process all workouts sequentially to ensure proper import
         if (importedWorkouts.length > 0) {
           console.log('=== 🚀 INICIANDO IMPORTACIÓN MÚLTIPLE ===');
           console.log(`📅 Total workouts a importar: ${importedWorkouts.length}`);
+          console.log('🔄 Iniciando procesamiento secuencial...');
           
-          // FIXED: Import all workouts immediately without delays to avoid race conditions
-          importedWorkouts.forEach((workout, index) => {
-            console.log(`=== 📋 PROCESANDO WORKOUT ${index + 1}/${importedWorkouts.length} ===`);
+          // Process each workout with detailed logging
+          for (let i = 0; i < importedWorkouts.length; i++) {
+            const workout = importedWorkouts[i];
+            console.log(`\n=== 📋 PROCESANDO WORKOUT ${i + 1}/${importedWorkouts.length} ===`);
             console.log(`   • Nombre: "${workout.name}"`);
             console.log(`   • DayId: ${workout.dayId || 'SIN DAYID'}`);
             console.log(`   • ID único: ${workout.id}`);
             console.log(`   • Tipos de ejercicio: ${workout.exerciseTypes?.length || 0}`);
             
-            // Import immediately - no delays
-            console.log(`⚡ Ejecutando importación inmediata del workout ${index + 1}: "${workout.name}"`);
-            onWorkoutGenerated(workout);
-            console.log(`✅ Importación ${index + 1} completada`);
-          });
+            // Validate workout structure before import
+            if (!workout.id || !workout.name || !workout.exerciseTypes) {
+              console.error(`❌ Workout ${i + 1} tiene estructura inválida, saltando...`);
+              continue;
+            }
+            
+            console.log(`⚡ Ejecutando importación del workout ${i + 1}: "${workout.name}"`);
+            
+            try {
+              // Call onWorkoutGenerated for this specific workout
+              onWorkoutGenerated(workout);
+              console.log(`✅ Importación ${i + 1} completada exitosamente`);
+              
+              // Small delay to ensure state updates are processed
+              await new Promise(resolve => setTimeout(resolve, 10));
+              
+            } catch (error) {
+              console.error(`❌ Error importando workout ${i + 1}:`, error);
+            }
+          }
           
-          console.log('=== ✅ TODAS LAS IMPORTACIONES COMPLETADAS ===');
-          console.log(`📊 Total: ${importedWorkouts.length} workouts procesados`);
+          console.log('\n=== ✅ TODAS LAS IMPORTACIONES COMPLETADAS ===');
+          console.log(`📊 Total procesado: ${importedWorkouts.length} workouts`);
+          console.log('🎯 Verificar "Your Workouts" y "Weekly Plan" para confirmar importación');
         }
 
         if (importedWorkouts.length === 0) {
