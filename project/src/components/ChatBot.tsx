@@ -400,23 +400,23 @@ RULES:
 
       const data = await response.json();
       const jsonContent = data.choices[0]?.message?.content?.trim();
-      
+
       if (!jsonContent) {
         throw new Error('No content received from AI');
       }
 
       console.log('AI generated JSON:', jsonContent);
-      
+
       // Clean the JSON content to ensure it's valid
       let cleanJsonContent = jsonContent;
-      
+
       // Remove markdown code blocks if present
       if (cleanJsonContent.includes('```json')) {
         cleanJsonContent = cleanJsonContent.replace(/```json\s*/, '').replace(/\s*```$/, '');
       } else if (cleanJsonContent.includes('```')) {
         cleanJsonContent = cleanJsonContent.replace(/```\s*/, '').replace(/\s*```$/, '');
       }
-      
+
       return JSON.parse(cleanJsonContent);
 
     } catch (error) {
@@ -454,11 +454,11 @@ RULES:
       if (workoutData.workouts && Array.isArray(workoutData.workouts)) {
         // Multiple days - import each day as separate workout
         console.log('Processing multiple days:', workoutData.workouts.length);
-        
+
         const importedWorkouts = [];
         for (let dayIndex = 0; dayIndex < workoutData.workouts.length; dayIndex++) {
           const dayWorkout = workoutData.workouts[dayIndex];
-          
+
           if (!dayWorkout.exerciseTypes || !Array.isArray(dayWorkout.exerciseTypes)) {
             console.warn(`Day ${dayIndex + 1} has invalid exercise types, skipping`);
             continue;
@@ -501,30 +501,7 @@ RULES:
     } catch (error) {
       console.error('Error importing workout:', error);
       alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nIntentando con método de respaldo...`);
-      
-      // Try fallback method if AI conversion fails
-      try {
-        const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
-        if (lastAssistantMessage?.content) {
-          handleImportWorkoutFallback(lastAssistantMessage.content);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
-        alert('Error: No se pudo procesar la rutina con ningún método disponible.');
-      }
-    }
-  };
 
-  // Helper function to process workout data
-  const processWorkoutData = (workoutData: any, dayNumber: number) => {
-    try {
-
-      return processedWorkout;
-
-    } catch (error) {
-      console.error('Error importing workout:', error);
-      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nIntentando con método de respaldo...`);
-      
       // Try fallback method if AI conversion fails
       try {
         const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
@@ -587,7 +564,7 @@ RULES:
 
           // Validate exercise sub type
           const exerciseSubType = exercise.exerciseSubType === 'duration' ? 'duration' : 'reps';
-          
+
           // Validate exercise type data
           const typeData = {
             id: exerciseType.id || 'power',
@@ -674,28 +651,11 @@ RULES:
     }
   };
 
-    } catch (error) {
-      console.error('Error importing workout:', error);
-      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nIntentando con método de respaldo...`);
-      
-      // Try fallback method if AI conversion fails
-      try {
-        const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
-        if (lastAssistantMessage?.content) {
-          handleImportWorkoutFallback(lastAssistantMessage.content);
-        }
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
-        alert('Error: No se pudo procesar la rutina con ningún método disponible.');
-      }
-    }
-  };
-
   // Fallback function for text parsing (keeping the old method as backup)
   const handleImportWorkoutFallback = (textToProcess: string) => {
     try {
       console.log('Using fallback text parsing method...');
-      
+
       // Clean text from HTML and markdown formatting
       const cleanText = textToProcess
         .replace(/<[^>]*>/g, '') // Remove HTML tags
@@ -705,7 +665,7 @@ RULES:
 
       // Extract exercises using the old method
       const exercises = extractExercisesFromText(cleanText, 0);
-      
+
       if (exercises.length === 0) {
         alert('No se pudieron extraer ejercicios del plan. Pide al asistente que use el formato JSON estructurado.');
         return;
@@ -719,7 +679,7 @@ RULES:
           console.warn('Invalid exercise found, skipping:', exercise);
           return;
         }
-        
+
         const typeId = exercise.type.id;
         if (!exerciseTypesMap[typeId]) {
           exerciseTypesMap[typeId] = {
@@ -854,7 +814,7 @@ RULES:
           [, exerciseName, sets, , amount, unit, weight] = exerciseMatch;
           weight = weight ? parseInt(weight) : 0;
         } else if (patternIndex === 1) {
-          // Time/distance format: "Exercise: 20 minutes" (cardio without sets)
+          // Time/distance format: "Exercise: 20 minutes" or "Exercise: 5 kilometers" (cardio without sets)
           [, exerciseName, amount, unit] = exerciseMatch;
           sets = 1;
         } else if (patternIndex === 2) {
