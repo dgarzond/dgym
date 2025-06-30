@@ -562,8 +562,11 @@ RULES:
         // Now call onWorkoutGenerated for each imported workout immediately
         if (importedWorkouts.length > 0) {
           importedWorkouts.forEach((workout, index) => {
-            console.log(`Calling onWorkoutGenerated for workout ${index + 1}:`, workout.name);
-            onWorkoutGenerated(workout);
+            console.log(`Calling onWorkoutGenerated for workout ${index + 1}:`, workout.name, 'dayId:', workout.dayId);
+            // Add a small delay to ensure proper state updates
+            setTimeout(() => {
+              onWorkoutGenerated(workout);
+            }, index * 100); // 100ms delay between each workout
           });
         }
 
@@ -725,7 +728,13 @@ RULES:
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
       
       // Extract dayId if present in workoutData, or generate one as fallback
-      const dayId = workoutData.dayId || `DAY${String(dayNumber).padStart(3, '0')}`;
+      let dayId = workoutData.dayId;
+      if (!dayId) {
+        dayId = `DAY${String(dayNumber).padStart(3, '0')}`;
+        console.log(`Generated dayId for day ${dayNumber}:`, dayId);
+      } else {
+        console.log(`Using provided dayId for day ${dayNumber}:`, dayId);
+      }
 
       // Create workout object with unique ID that includes timestamp and day
       const uniqueId = `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}`;
