@@ -492,8 +492,12 @@ RULES:
           if (processedWorkout) {
             importedWorkouts.push(processedWorkout);
             console.log(`Calling onWorkoutGenerated for day ${dayIndex + 1}:`, processedWorkout.name);
-            onWorkoutGenerated(processedWorkout);
-            console.log(`Successfully processed day ${dayIndex + 1}:`, processedWorkout.name);
+            
+            // Add a small delay between imports to ensure they are processed correctly
+            setTimeout(() => {
+              onWorkoutGenerated(processedWorkout);
+              console.log(`Successfully processed day ${dayIndex + 1}:`, processedWorkout.name);
+            }, dayIndex * 100); // 100ms delay between each day
           } else {
             console.warn(`Failed to process day ${dayIndex + 1}`);
           }

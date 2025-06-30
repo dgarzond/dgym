@@ -75,9 +75,8 @@ export const EXERCISE_TYPES = {
   }
 };
 
-// Sample workouts data
-export const defaultWorkouts: Workout[] = [
-];
+// Sample workouts data - completely empty
+export const defaultWorkouts: Workout[] = [];
 
-// Sample exercises for testing
+// Sample exercises for testing - completely empty  
 export const SAMPLE_EXERCISES: Exercise[] = [];
