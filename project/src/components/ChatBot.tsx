@@ -156,6 +156,26 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
 
 Create engaging, friendly responses with emojis explaining workout plans. Use this specific format for exercises:
 
+MULTI-DAY FORMAT:
+When creating plans with multiple days, clearly separate them:
+
+Día 1:
+🔥 Calentamiento:
+- Exercise: sets x reps/duration
+
+💪 Fuerza:
+- Exercise: sets x reps/duration
+
+⚡ Cardio:
+- Exercise: sets x duration
+
+✅ Estiramiento:
+- Exercise: sets x duration
+
+Día 2:
+🔥 Calentamiento:
+... (continue format)
+
 EXERCISE FORMAT:
 Use sections with emojis:
 🔥 Calentamiento: (for warm-up exercises)
@@ -178,6 +198,7 @@ RULES:
 - For time-based exercises: use "seconds" or "minutes"
 - For cardio distance: use "meters" or "kilometers"
 - Include weight if relevant: "- Press militar: 3 sets x 10 reps @ 20 kg"
+- When creating multiple days, clearly label each as "Día 1:", "Día 2:", etc.
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level.
 
@@ -305,34 +326,55 @@ This will help me create the perfect workout plan for you!`;
               role: 'system',
               content: `You are a workout parser. Convert the provided workout text into a structured JSON format.
 
+If the text contains multiple days (Día 1, Day 1, etc.), return an array of workouts. If it's a single day, return a single workout object.
+
 RESPOND ONLY WITH VALID JSON - NO OTHER TEXT:
 
+For single day:
 {
   "workoutName": "extracted name or generate one",
   "estimatedDuration": "estimated duration",
-  "exerciseTypes": [
+  "exerciseTypes": [...]
+}
+
+For multiple days:
+{
+  "workouts": [
     {
-      "id": "warmup",
-      "name": "Warm-up", 
-      "nameSpanish": "Calentamiento",
-      "duration": "5-10 min",
-      "exercises": [
-        {
-          "name": "Exercise name",
-          "sets": number,
-          "reps": number (only for rep-based),
-          "duration": number (only for time-based),
-          "durationUnit": "seconds|minutes|meters|kilometers",
-          "exerciseSubType": "reps|duration",
-          "weight": number,
-          "weightUnit": "kg"
-        }
-      ]
+      "workoutName": "Day 1 name",
+      "estimatedDuration": "estimated duration",
+      "exerciseTypes": [...]
+    },
+    {
+      "workoutName": "Day 2 name", 
+      "estimatedDuration": "estimated duration",
+      "exerciseTypes": [...]
+    }
+  ]
+}
+
+Exercise format:
+{
+  "id": "warmup|power|cardio|stretching",
+  "name": "English name",
+  "nameSpanish": "Spanish name", 
+  "duration": "5-10 min",
+  "exercises": [
+    {
+      "name": "Exercise name",
+      "sets": number,
+      "reps": number (only for rep-based),
+      "duration": number (only for time-based),
+      "durationUnit": "seconds|minutes|meters|kilometers",
+      "exerciseSubType": "reps|duration",
+      "weight": number,
+      "weightUnit": "kg"
     }
   ]
 }
 
 RULES:
+- Detect patterns like "Día 1:", "Day 1:", "Día 2:", etc. to separate days
 - Use category IDs: "warmup", "power", "cardio", "stretching"
 - exerciseSubType: "reps" for strength exercises, "duration" for time/distance
 - For reps: include "reps", omit "duration" and "durationUnit"
@@ -346,7 +388,7 @@ RULES:
               content: `Convert this workout text to JSON:\n\n${textToProcess}`
             }
           ],
-          max_tokens: 1000,
+          max_tokens: 2000,
           temperature: 0.1
         })
       });
@@ -408,11 +450,97 @@ RULES:
       const workoutData = await convertTextToWorkoutJSON(textToProcess);
       console.log('AI converted workout data:', workoutData);
 
-      // Validate required fields
+      // Check if it's multiple days or single day
+      if (workoutData.workouts && Array.isArray(workoutData.workouts)) {
+        // Multiple days - import each day as separate workout
+        console.log('Processing multiple days:', workoutData.workouts.length);
+        
+        const importedWorkouts = [];
+        for (let dayIndex = 0; dayIndex < workoutData.workouts.length; dayIndex++) {
+          const dayWorkout = workoutData.workouts[dayIndex];
+          
+          if (!dayWorkout.exerciseTypes || !Array.isArray(dayWorkout.exerciseTypes)) {
+            console.warn(`Day ${dayIndex + 1} has invalid exercise types, skipping`);
+            continue;
+          }
+
+          const processedWorkout = processWorkoutData(dayWorkout, dayIndex + 1);
+          if (processedWorkout) {
+            importedWorkouts.push(processedWorkout);
+            onWorkoutGenerated(processedWorkout);
+          }
+        }
+
+        if (importedWorkouts.length === 0) {
+          throw new Error('No se pudieron procesar días válidos de la rutina');
+        }
+
+        const totalExercises = importedWorkouts.reduce((sum, workout) => {
+          return sum + (workout.exerciseTypes || []).reduce((typeSum, type) => typeSum + (type?.exercises?.length || 0), 0);
+        }, 0);
+
+        alert(`¡${importedWorkouts.length} rutinas importadas exitosamente!\n\n📊 Detalles:\n• ${totalExercises} ejercicios en total\n• ${importedWorkouts.length} días de entrenamiento\n• Rutinas creadas: ${importedWorkouts.map(w => `"${w.name}"`).join(', ')}`);
+        return;
+      }
+
+      // Single day workout
       if (!workoutData.exerciseTypes || !Array.isArray(workoutData.exerciseTypes)) {
         throw new Error('Formato JSON inválido: falta exerciseTypes o no es un array');
       }
 
+      const processedWorkout = processWorkoutData(workoutData, 1);
+      if (!processedWorkout) {
+        throw new Error('No se pudo procesar la rutina');
+      }
+
+      onWorkoutGenerated(processedWorkout);
+
+      const totalExercises = (processedWorkout.exerciseTypes || []).reduce((sum, type) => sum + (type?.exercises?.length || 0), 0);
+      alert(`¡Rutina "${processedWorkout.name}" importada exitosamente!\n\n📊 Detalles:\n• ${totalExercises} ejercicios\n• ${processedWorkout.exerciseTypes.length} categorías\n• Duración estimada: ${processedWorkout.name.match(/\(([^)]+)\)$/)?.[1] || 'N/A'}`);
+
+    } catch (error) {
+      console.error('Error importing workout:', error);
+      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nIntentando con método de respaldo...`);
+      
+      // Try fallback method if AI conversion fails
+      try {
+        const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
+        if (lastAssistantMessage?.content) {
+          handleImportWorkoutFallback(lastAssistantMessage.content);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        alert('Error: No se pudo procesar la rutina con ningún método disponible.');
+      }
+    }
+  };
+
+  // Helper function to process workout data
+  const processWorkoutData = (workoutData: any, dayNumber: number) => {
+    try {
+
+      return processedWorkout;
+
+    } catch (error) {
+      console.error('Error importing workout:', error);
+      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nIntentando con método de respaldo...`);
+      
+      // Try fallback method if AI conversion fails
+      try {
+        const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
+        if (lastAssistantMessage?.content) {
+          handleImportWorkoutFallback(lastAssistantMessage.content);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        alert('Error: No se pudo procesar la rutina con ningún método disponible.');
+      }
+    }
+  };
+
+  // Helper function to process workout data
+  const processWorkoutData = (workoutData: any, dayNumber: number) => {
+    try {
       // Process exercise types and exercises with proper validation
       const processedExerciseTypes = (workoutData.exerciseTypes || []).map((exerciseType: any, typeIndex: number) => {
         // Validate exerciseType
@@ -514,13 +642,18 @@ RULES:
         throw new Error('No se pudieron procesar ejercicios válidos de la rutina');
       }
 
-      const workoutName = String(workoutData.workoutName || 'Rutina IA').trim();
+      // Validate we have at least one valid exercise type
+      if (processedExerciseTypes.length === 0) {
+        throw new Error('No se pudieron procesar ejercicios válidos de la rutina');
+      }
+
+      const workoutName = String(workoutData.workoutName || `Rutina IA Día ${dayNumber}`).trim();
       const estimatedDuration = String(workoutData.estimatedDuration || '30-45 min').trim();
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
 
       // Create workout object with additional validation
       const newWorkout: Workout = {
-        id: `ai-workout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `ai-workout-${Date.now()}-${dayNumber}-${Math.random().toString(36).substr(2, 9)}`,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
         exerciseTypes: processedExerciseTypes,
@@ -532,15 +665,14 @@ RULES:
         throw new Error('Error en la estructura del workout creado');
       }
 
-      console.log('Final workout created:', newWorkout);
+      console.log(`Final workout created for day ${dayNumber}:`, newWorkout);
+      return newWorkout;
 
-      // Calculate totals for success message
-      const totalExercises = processedExerciseTypes.reduce((sum, type) => sum + (type?.exercises?.length || 0), 0);
-
-      // Call the parent function to add the workout
-      onWorkoutGenerated(newWorkout);
-
-      alert(`¡Rutina "${finalWorkoutName}" importada exitosamente!\n\n📊 Detalles:\n• ${totalExercises} ejercicios\n• ${processedExerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
+    } catch (error) {
+      console.error(`Error processing workout data for day ${dayNumber}:`, error);
+      return null;
+    }
+  };
 
     } catch (error) {
       console.error('Error importing workout:', error);
