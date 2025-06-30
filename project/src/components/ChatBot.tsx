@@ -501,12 +501,16 @@ RULES:
           }
         }
 
-        // Now call onWorkoutGenerated for each imported workout sequentially
+        // Now call onWorkoutGenerated for each imported workout sequentially with delays
         if (importedWorkouts.length > 0) {
-          importedWorkouts.forEach((workout, index) => {
+          for (let index = 0; index < importedWorkouts.length; index++) {
+            const workout = importedWorkouts[index];
             console.log(`Calling onWorkoutGenerated for workout ${index + 1}:`, workout.name);
+            
+            // Add delay between workouts to ensure proper state management
+            await new Promise(resolve => setTimeout(resolve, 200));
             onWorkoutGenerated(workout);
-          });
+          }
         }
 
         if (importedWorkouts.length === 0) {
