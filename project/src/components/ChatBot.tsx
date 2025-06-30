@@ -541,22 +541,44 @@ RULES:
       console.log('AI converted workout data (before dayId validation):', workoutData);
 
       // FORCE dayId generation if missing - this ensures we always have dayId
+      console.log('=== 🔧 VALIDANDO Y GENERANDO DAY IDs ===');
+      
       if (workoutData.workouts && Array.isArray(workoutData.workouts)) {
+        console.log(`📅 Procesando ${workoutData.workouts.length} días de workouts`);
+        
         // Multiple days - ensure each has dayId
         workoutData.workouts = workoutData.workouts.map((workout: any, index: number) => {
+          console.log(`🔍 Validando dayId para workout ${index + 1}: "${workout.workoutName || 'Sin nombre'}"`);
+          console.log(`   • DayId actual: ${workout.dayId || 'FALTANTE'}`);
+          
           if (!workout.dayId) {
             workout.dayId = `DAY${String(index + 1).padStart(3, '0')}`;
-            console.log(`🔧 Auto-generated dayId for workout ${index + 1}:`, workout.dayId);
+            console.log(`   • ✅ DayId auto-generado: ${workout.dayId}`);
+          } else {
+            console.log(`   • ✅ DayId existente válido: ${workout.dayId}`);
           }
+          
           return workout;
         });
+        
+        console.log('📋 Resumen de dayIds asignados:');
+        workoutData.workouts.forEach((workout: any, index: number) => {
+          console.log(`   • Día ${index + 1}: ${workout.dayId} - "${workout.workoutName}"`);
+        });
       } else {
+        console.log('📅 Procesando workout de un solo día');
+        console.log(`🔍 DayId actual: ${workoutData.dayId || 'FALTANTE'}`);
+        
         // Single day - ensure it has dayId
         if (!workoutData.dayId) {
           workoutData.dayId = 'DAY001';
-          console.log('🔧 Auto-generated dayId for single workout:', workoutData.dayId);
+          console.log(`✅ DayId auto-generado para workout único: ${workoutData.dayId}`);
+        } else {
+          console.log(`✅ DayId existente válido: ${workoutData.dayId}`);
         }
       }
+      
+      console.log('=== ✅ VALIDACIÓN DE DAY IDs COMPLETADA ===');
 
       console.log('AI converted workout data (after dayId validation):', workoutData);
 
@@ -599,13 +621,29 @@ RULES:
 
         // Now call onWorkoutGenerated for each imported workout immediately
         if (importedWorkouts.length > 0) {
+          console.log('=== 🚀 INICIANDO IMPORTACIÓN MÚLTIPLE ===');
+          console.log(`📅 Total workouts a importar: ${importedWorkouts.length}`);
+          
           importedWorkouts.forEach((workout, index) => {
-            console.log(`Calling onWorkoutGenerated for workout ${index + 1}:`, workout.name, 'dayId:', workout.dayId);
-            // Add a small delay to ensure proper state updates
+            console.log(`=== 📋 PROCESANDO WORKOUT ${index + 1}/${importedWorkouts.length} ===`);
+            console.log(`   • Nombre: "${workout.name}"`);
+            console.log(`   • DayId: ${workout.dayId || 'SIN DAYID'}`);
+            console.log(`   • ID único: ${workout.id}`);
+            console.log(`   • Tipos de ejercicio: ${workout.exerciseTypes?.length || 0}`);
+            
+            // Add a small delay to ensure proper state updates and avoid race conditions
             setTimeout(() => {
+              console.log(`⏰ Ejecutando importación del workout ${index + 1}: "${workout.name}"`);
               onWorkoutGenerated(workout);
-            }, index * 100); // 100ms delay between each workout
+              console.log(`✅ Importación ${index + 1} enviada al WeeklyPlanManager`);
+            }, index * 200); // 200ms delay between each workout for better state management
           });
+          
+          // Log completion after all timeouts
+          setTimeout(() => {
+            console.log('=== ✅ TODAS LAS IMPORTACIONES ENVIADAS ===');
+            console.log(`📊 Total: ${importedWorkouts.length} workouts procesados`);
+          }, importedWorkouts.length * 200 + 100);
         }
 
         if (importedWorkouts.length === 0) {

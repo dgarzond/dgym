@@ -161,78 +161,98 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   };
 
   const handleWorkoutGenerated = (workout: Workout) => {
-    console.log('WeeklyPlanManager receiving workout:', workout.name, 'with dayId:', workout.dayId);
+    console.log('=== 🚀 INICIANDO IMPORTACIÓN DE WORKOUT ===');
+    console.log('📅 Workout recibido:', workout.name);
+    console.log('🆔 DayId del workout:', workout.dayId || 'SIN DAYID');
+    console.log('📊 Tipos de ejercicio:', workout.exerciseTypes?.length || 0);
+    console.log('🗓️ Semana actual:', currentWeek.toLocaleDateString());
 
     // Add to main workouts list first
     onAddWorkout(workout);
-    console.log('Added workout to main list:', workout.name);
+    console.log('✅ Workout agregado a lista principal:', workout.name);
 
     // Update weekly plans immediately using functional state update
     setWeeklyPlans(currentPlans => {
+      console.log('=== 📋 ACTUALIZANDO PLANES SEMANALES ===');
+      console.log('📅 Total planes existentes:', currentPlans.length);
+      
       // Find current week plan using current state
       const currentPlan = currentPlans.find(plan => 
         plan.weekStart.getTime() === currentWeek.getTime()
       );
 
+      console.log('🔍 Plan de semana actual encontrado:', !!currentPlan);
       if (currentPlan) {
-        // Check for duplicate workouts using dayId (much more reliable)
+        console.log('📊 Workouts existentes en plan actual:', currentPlan.workouts.length);
+        currentPlan.workouts.forEach((w, index) => {
+          console.log(`   • Workout ${index + 1}: "${w.name}" (dayId: ${w.dayId || 'SIN DAYID'})`);
+        });
+      }
+
+      if (currentPlan) {
+        console.log('=== 🔍 VERIFICANDO DUPLICADOS ===');
+        
+        // Check for duplicate workouts using dayId (primary) or ID (fallback)
         const workoutExists = currentPlan.workouts.some(existingWorkout => {
-          // First check if both workouts have dayId - this is the primary check
+          console.log(`🔍 Comparando con workout existente: "${existingWorkout.name}"`);
+          console.log(`   • DayId existente: ${existingWorkout.dayId || 'SIN DAYID'}`);
+          console.log(`   • DayId nuevo: ${workout.dayId || 'SIN DAYID'}`);
+          console.log(`   • ID existente: ${existingWorkout.id}`);
+          console.log(`   • ID nuevo: ${workout.id}`);
+
+          // Primary check: dayId comparison (most reliable for multiple days)
           if (workout.dayId && existingWorkout.dayId) {
-            console.log('🔍 Comparing dayIds:', existingWorkout.dayId, 'vs', workout.dayId);
-            const isDuplicate = workout.dayId === existingWorkout.dayId;
-            if (isDuplicate) {
-              console.log('❌ Found duplicate dayId, skipping:', workout.dayId);
+            const dayIdMatch = workout.dayId === existingWorkout.dayId;
+            console.log(`   • Comparación por dayId: ${dayIdMatch ? 'DUPLICADO' : 'DIFERENTE'}`);
+            if (dayIdMatch) {
+              console.log('❌ DUPLICADO DETECTADO por dayId');
             }
-            return isDuplicate;
+            return dayIdMatch;
           }
 
-          // Log when dayId is missing
-          if (!workout.dayId) {
-            console.warn('⚠️ New workout missing dayId:', workout.name);
-          }
-          if (!existingWorkout.dayId) {
-            console.warn('⚠️ Existing workout missing dayId:', existingWorkout.name);
-          }
-
-          // Fallback to name comparison only if no dayId is available for either workout
-          if (!workout.dayId && !existingWorkout.dayId) {
-            console.log('🔍 Comparing names (no dayId available):', existingWorkout.name, 'vs', workout.name);
-            const nameMatch = existingWorkout.name === workout.name;
-            if (nameMatch) {
-              console.log('❌ Found duplicate name, skipping:', workout.name);
-            }
-            return nameMatch;
+          // Secondary check: ID comparison (unique workout identifier)
+          const idMatch = workout.id === existingWorkout.id;
+          console.log(`   • Comparación por ID: ${idMatch ? 'DUPLICADO' : 'DIFERENTE'}`);
+          if (idMatch) {
+            console.log('❌ DUPLICADO DETECTADO por ID');
           }
 
-          // If one has dayId and the other doesn't, they're different workouts
-          return false;
+          return idMatch;
         });
 
+        console.log(`🎯 Resultado de verificación de duplicados: ${workoutExists ? 'DUPLICADO ENCONTRADO' : 'WORKOUT ÚNICO'}`);
+
         if (!workoutExists) {
-          // Add workout to current plan
-          console.log('✅ ADDING WORKOUT TO PLAN (no duplicate found)');
+          console.log('=== ✅ AGREGANDO WORKOUT AL PLAN ===');
+          
+          const updatedWorkouts = [...currentPlan.workouts, workout];
           const updatedPlan = {
-            ...plan,
-            workouts: [...plan.workouts, workout]
+            ...currentPlan,
+            workouts: updatedWorkouts
           };
 
           const updatedPlans = currentPlans.map(plan => 
-            plan.id === plan.id ? updatedPlan : plan
+            plan.id === currentPlan.id ? updatedPlan : plan
           );
 
-          console.log('📊 Updated plan now has', updatedPlan.workouts.length, 'workouts:');
-          updatedPlan.workouts.forEach((w, index) => {
-            console.log(`   • Workout ${index + 1}: "${w.name}" (dayId: ${w.dayId || 'MISSING'})`);
+          console.log('📊 Plan actualizado exitosamente:');
+          console.log(`   • Total workouts en plan: ${updatedWorkouts.length}`);
+          updatedWorkouts.forEach((w, index) => {
+            console.log(`   • Workout ${index + 1}: "${w.name}" (dayId: ${w.dayId || 'SIN DAYID'})`);
           });
 
+          console.log('=== ✅ IMPORTACIÓN COMPLETADA EXITOSAMENTE ===');
           return updatedPlans;
         } else {
-          console.log('❌ Workout already exists in plan (duplicate detected):', workout.name, 'dayId:', workout.dayId);
+          console.log('=== ❌ IMPORTACIÓN CANCELADA - DUPLICADO DETECTADO ===');
+          console.log('❌ El workout ya existe en el plan actual');
+          console.log('❌ Nombre del workout:', workout.name);
+          console.log('❌ DayId del workout:', workout.dayId || 'SIN DAYID');
           return currentPlans; // Return unchanged state
         }
       } else {
-        // Create new plan
+        console.log('=== 🆕 CREANDO NUEVO PLAN SEMANAL ===');
+        
         const newPlan: WeeklyPlan = {
           id: `plan-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           weekStart: currentWeek,
@@ -240,8 +260,15 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
           createdAt: new Date(),
           isActive: true
         };
+        
         const newPlans = [...currentPlans, newPlan];
-        console.log('✅ Created new plan with workout:', workout.name, 'dayId:', workout.dayId);
+        
+        console.log('✅ Nuevo plan creado exitosamente:');
+        console.log(`   • ID del plan: ${newPlan.id}`);
+        console.log(`   • Semana: ${newPlan.weekStart.toLocaleDateString()}`);
+        console.log(`   • Primer workout: "${workout.name}" (dayId: ${workout.dayId || 'SIN DAYID'})`);
+        console.log('=== ✅ CREACIÓN DE PLAN COMPLETADA ===');
+        
         return newPlans;
       }
     });
