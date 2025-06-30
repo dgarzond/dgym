@@ -419,6 +419,11 @@ For multiple days:
   ]
 }
 
+MANDATORY FIELDS - DO NOT OMIT:
+- "dayId" is REQUIRED for every workout object
+- Use format "DAY001", "DAY002", "DAY003", etc.
+- Even single workouts MUST have "dayId": "DAY001"
+
 For single day:
 {
   "workoutName": "extracted name or generate one",
@@ -454,6 +459,8 @@ RULES:
 - CRITICAL: Extract day IDs [DAY###] from workout names. Pattern: "Workout name [DAY001]"
 - CRITICAL: If no day ID found in text, generate one automatically: "DAY001" for first/single day, "DAY002" for second day, etc.
 - CRITICAL: ALWAYS include "dayId" field in every workout object, even for single day workouts
+- MANDATORY: "dayId" is a REQUIRED field that cannot be omitted or null
+- MANDATORY: Use exact format "DAY001", "DAY002", "DAY003" (always 3 digits with leading zeros)
 - If exercise code found, include as "exerciseCode" field and remove code from exercise name
 - If day ID found, include as "dayId" field and remove code from workout name
 - Use category IDs: "warmup", "power", "cardio", "stretching"
@@ -530,8 +537,28 @@ RULES:
       }
 
       // Use AI to convert text to structured JSON
-      const workoutData = await convertTextToWorkoutJSON(textToProcess);
-      console.log('AI converted workout data:', workoutData);
+      let workoutData = await convertTextToWorkoutJSON(textToProcess);
+      console.log('AI converted workout data (before dayId validation):', workoutData);
+
+      // FORCE dayId generation if missing - this ensures we always have dayId
+      if (workoutData.workouts && Array.isArray(workoutData.workouts)) {
+        // Multiple days - ensure each has dayId
+        workoutData.workouts = workoutData.workouts.map((workout: any, index: number) => {
+          if (!workout.dayId) {
+            workout.dayId = `DAY${String(index + 1).padStart(3, '0')}`;
+            console.log(`🔧 Auto-generated dayId for workout ${index + 1}:`, workout.dayId);
+          }
+          return workout;
+        });
+      } else {
+        // Single day - ensure it has dayId
+        if (!workoutData.dayId) {
+          workoutData.dayId = 'DAY001';
+          console.log('🔧 Auto-generated dayId for single workout:', workoutData.dayId);
+        }
+      }
+
+      console.log('AI converted workout data (after dayId validation):', workoutData);
 
       // Check if it's multiple days or single day
       if (workoutData.workouts && Array.isArray(workoutData.workouts)) {
@@ -543,7 +570,18 @@ RULES:
         // Process all days first
         for (let dayIndex = 0; dayIndex < workoutData.workouts.length; dayIndex++) {
           const dayWorkout = workoutData.workouts[dayIndex];
-          console.log(`Processing day ${dayIndex + 1}:`, dayWorkout);
+          
+          // Double-check dayId exists (should be guaranteed by validation above)
+          if (!dayWorkout.dayId) {
+            dayWorkout.dayId = `DAY${String(dayIndex + 1).padStart(3, '0')}`;
+            console.warn(`⚠️ Missing dayId detected, auto-generated: ${dayWorkout.dayId}`);
+          }
+          
+          console.log(`Processing day ${dayIndex + 1}:`, {
+            workoutName: dayWorkout.workoutName,
+            dayId: dayWorkout.dayId,
+            exerciseTypesCount: dayWorkout.exerciseTypes?.length || 0
+          });
 
           if (!dayWorkout.exerciseTypes || !Array.isArray(dayWorkout.exerciseTypes)) {
             console.warn(`Day ${dayIndex + 1} has invalid exercise types, skipping`);
@@ -587,6 +625,12 @@ RULES:
       // Single day workout
       if (!workoutData.exerciseTypes || !Array.isArray(workoutData.exerciseTypes)) {
         throw new Error('Formato JSON inválido: falta exerciseTypes o no es un array');
+      }
+
+      // Double-check single workout has dayId (should be guaranteed by validation above)
+      if (!workoutData.dayId) {
+        workoutData.dayId = 'DAY001';
+        console.warn('⚠️ Missing dayId detected for single workout, auto-generated: DAY001');
       }
 
       const processedWorkout = processWorkoutData(workoutData, 1);
@@ -731,9 +775,9 @@ RULES:
       let dayId = workoutData.dayId;
       if (!dayId) {
         dayId = `DAY${String(dayNumber).padStart(3, '0')}`;
-        console.log(`Generated dayId for day ${dayNumber}:`, dayId);
+        console.warn(`⚠️ TRIPLE FALLBACK: Generated dayId for day ${dayNumber}:`, dayId);
       } else {
-        console.log(`Using provided dayId for day ${dayNumber}:`, dayId);
+        console.log(`✅ Using provided dayId for day ${dayNumber}:`, dayId);
       }
 
       // Create workout object with unique ID that includes timestamp and day

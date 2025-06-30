@@ -186,7 +186,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
             }
             return isDuplicate;
           }
-          
+
           // Log when dayId is missing
           if (!workout.dayId) {
             console.warn('⚠️ New workout missing dayId:', workout.name);
@@ -194,7 +194,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
           if (!existingWorkout.dayId) {
             console.warn('⚠️ Existing workout missing dayId:', existingWorkout.name);
           }
-          
+
           // Fallback to name comparison only if no dayId is available for either workout
           if (!workout.dayId && !existingWorkout.dayId) {
             console.log('🔍 Comparing names (no dayId available):', existingWorkout.name, 'vs', workout.name);
@@ -204,26 +204,28 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
             }
             return nameMatch;
           }
-          
+
           // If one has dayId and the other doesn't, they're different workouts
           return false;
         });
 
         if (!workoutExists) {
-          const updatedPlans = currentPlans.map(plan => {
-            if (plan.id === currentPlan.id) {
-              const updatedPlan = {
-                ...plan,
-                workouts: [...plan.workouts, workout]
-              };
-              console.log('✅ Updated plan with new workout count:', updatedPlan.workouts.length);
-              console.log('✅ Added workout:', workout.name, 'with dayId:', workout.dayId);
-              return updatedPlan;
-            }
-            return plan;
+          // Add workout to current plan
+          console.log('✅ ADDING WORKOUT TO PLAN (no duplicate found)');
+          const updatedPlan = {
+            ...plan,
+            workouts: [...plan.workouts, workout]
+          };
+
+          const updatedPlans = currentPlans.map(plan => 
+            plan.id === plan.id ? updatedPlan : plan
+          );
+
+          console.log('📊 Updated plan now has', updatedPlan.workouts.length, 'workouts:');
+          updatedPlan.workouts.forEach((w, index) => {
+            console.log(`   • Workout ${index + 1}: "${w.name}" (dayId: ${w.dayId || 'MISSING'})`);
           });
-          console.log('✅ Successfully added workout to existing plan:', workout.name);
-          console.log('✅ Total workouts in plan:', updatedPlans.find(p => p.id === currentPlan.id)?.workouts.length);
+
           return updatedPlans;
         } else {
           console.log('❌ Workout already exists in plan (duplicate detected):', workout.name, 'dayId:', workout.dayId);
