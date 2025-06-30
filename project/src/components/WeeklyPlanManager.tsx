@@ -183,8 +183,16 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
             return workout.dayId === existingWorkout.dayId;
           }
           
+          // Log when dayId is missing
+          if (!workout.dayId) {
+            console.warn('⚠️ New workout missing dayId:', workout.name);
+          }
+          if (!existingWorkout.dayId) {
+            console.warn('⚠️ Existing workout missing dayId:', existingWorkout.name);
+          }
+          
           // Fallback to name comparison if no dayId
-          console.log('🔍 Comparing names (no dayId):', existingWorkout.name, 'vs', workout.name);
+          console.log('🔍 Comparing names (no dayId available):', existingWorkout.name, 'vs', workout.name);
           return existingWorkout.name === workout.name;
         });
 

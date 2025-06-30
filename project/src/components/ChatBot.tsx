@@ -190,6 +190,7 @@ CRITICAL: When creating multiple-day workouts, assign a unique DAY ID to each da
 - Each day must have a unique day ID
 - Include the day ID in the workout name
 - This prevents duplicate days from being created
+- ALWAYS generate dayId even for single day workouts (use [DAY001])
 
 Example: "Día 1 - Tren Superior [DAY001]", "Día 2 - Tren Inferior [DAY002]"
 
@@ -418,6 +419,14 @@ For multiple days:
   ]
 }
 
+For single day:
+{
+  "workoutName": "extracted name or generate one",
+  "dayId": "DAY001",
+  "estimatedDuration": "estimated duration",
+  "exerciseTypes": [...]
+}
+
 Exercise format:
 {
   "id": "warmup|power|cardio|stretching",
@@ -443,6 +452,8 @@ RULES:
 - CRITICAL: Look for day separators like "Día 1:", "Day 1:", "Día 2:", "Day 2:", etc. If found, return multiple workouts array
 - CRITICAL: Extract exercise codes [EX###] from exercise names. Pattern: "Exercise name [EX001]"
 - CRITICAL: Extract day IDs [DAY###] from workout names. Pattern: "Workout name [DAY001]"
+- CRITICAL: If no day ID found in text, generate one automatically: "DAY001" for first/single day, "DAY002" for second day, etc.
+- CRITICAL: ALWAYS include "dayId" field in every workout object, even for single day workouts
 - If exercise code found, include as "exerciseCode" field and remove code from exercise name
 - If day ID found, include as "dayId" field and remove code from workout name
 - Use category IDs: "warmup", "power", "cardio", "stretching"
@@ -713,8 +724,8 @@ RULES:
       const estimatedDuration = String(workoutData.estimatedDuration || '30-45 min').trim();
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
       
-      // Extract dayId if present in workoutData
-      const dayId = workoutData.dayId || null;
+      // Extract dayId if present in workoutData, or generate one as fallback
+      const dayId = workoutData.dayId || `DAY${String(dayNumber).padStart(3, '0')}`;
 
       // Create workout object with unique ID that includes timestamp and day
       const uniqueId = `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}`;
@@ -732,7 +743,11 @@ RULES:
         throw new Error('Error en la estructura del workout creado');
       }
 
-      console.log(`Final workout created for day ${dayNumber}:`, newWorkout);
+      console.log(`Final workout created for day ${dayNumber}:`, {
+        name: newWorkout.name,
+        dayId: newWorkout.dayId,
+        exerciseTypesCount: newWorkout.exerciseTypes.length
+      });
       return newWorkout;
 
     } catch (error) {
