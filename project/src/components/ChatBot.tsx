@@ -585,22 +585,38 @@ RESPOND WITH CLEAN JSON ONLY - single workout object format.`;
 
       const workoutData = await convertTextToWorkoutJSON(singleDayPrompt);
       
-      // Ensure dayId
+      // Ensure unique dayId with timestamp to prevent conflicts
       if (!workoutData.dayId) {
-        workoutData.dayId = `DAY${String(dayNumber).padStart(3, '0')}`;
+        workoutData.dayId = `DAY${String(dayNumber).padStart(3, '0')}-${Date.now()}`;
+      } else {
+        // Add timestamp to existing dayId to ensure uniqueness
+        workoutData.dayId = `${workoutData.dayId}-${Date.now()}`;
       }
       
       const processedWorkout = processWorkoutData(workoutData, dayNumber);
       
       if (processedWorkout) {
         console.log(`✅ DÍA ${dayNumber} PROCESADO - ENVIANDO AL PARENT...`);
+        console.log(`🆔 Workout ID único: ${processedWorkout.id}`);
+        console.log(`🏷️ DayId único: ${processedWorkout.dayId}`);
+        
+        // Add delay before sending to prevent React state conflicts
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         onWorkoutGenerated(processedWorkout);
         
         // Show immediate feedback
         const exerciseCount = (processedWorkout.exerciseTypes || []).reduce((sum, type) => 
           sum + (type?.exercises?.length || 0), 0);
         
-        alert(`✅ ¡Día ${dayNumber} importado exitosamente!\n\n📊 "${processedWorkout.name}"\n• ${exerciseCount} ejercicios\n• ${processedWorkout.exerciseTypes?.length || 0} categorías`);
+        console.log(`📤 Día ${dayNumber} enviado al componente padre exitosamente`);
+        
+        // Don't show alert for each day to avoid spam
+        if (dayNumber === 1) {
+          setTimeout(() => {
+            console.log(`✅ Feedback mostrado para día ${dayNumber}`);
+          }, 1000);
+        }
       } else {
         throw new Error(`Error procesando día ${dayNumber}`);
       }
@@ -648,22 +664,27 @@ RESPOND WITH CLEAN JSON ONLY - single workout object format.`;
       }
 
       const results = [];
+      let processedWorkouts: any[] = [];
       
-      // Process each day sequentially with delay
+      // Process each day sequentially with proper delays
       for (let i = 0; i < dayContents.length; i++) {
         const dayData = dayContents[i];
         
         try {
           console.log(`=== 📅 PROCESANDO DÍA ${dayData.dayNumber}/${dayContents.length}: ${dayData.title} ===`);
           
-          // Add delay between requests to avoid rate limiting
+          // Add delay between requests to avoid rate limiting and state conflicts
           if (i > 0) {
-            console.log('⏳ Esperando 2 segundos antes del siguiente día...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('⏳ Esperando 3 segundos antes del siguiente día...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
           }
           
           await processSingleDay(dayData.content, dayData.dayNumber);
           results.push({ day: dayData.dayNumber, status: 'success' });
+          
+          // Add longer delay after successful processing to ensure state update
+          console.log('⏳ Esperando 2 segundos para estabilizar estado...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
         } catch (error) {
           console.error(`❌ Error en día ${dayData.dayNumber}:`, error);
@@ -809,7 +830,7 @@ RESPOND WITH CLEAN JSON ONLY - single workout object format.`;
       const dayId = workoutData.dayId || `DAY${String(dayNumber).padStart(3, '0')}`;
 
       const newWorkout: Workout = {
-        id: `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}-${Math.floor(Math.random() * 10000)}`,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
         dayId: dayId,
