@@ -624,38 +624,22 @@ RULES:
           console.log('=== 🚀 INICIANDO IMPORTACIÓN MÚLTIPLE ===');
           console.log(`📅 Total workouts a importar: ${importedWorkouts.length}`);
           
-          // For multi-day workouts, we need to handle them differently
-          if (importedWorkouts.length > 1) {
-            console.log('🔄 Detectado plan multi-día - usando importación secuencial');
+          // FIXED: Import all workouts immediately without delays to avoid race conditions
+          importedWorkouts.forEach((workout, index) => {
+            console.log(`=== 📋 PROCESANDO WORKOUT ${index + 1}/${importedWorkouts.length} ===`);
+            console.log(`   • Nombre: "${workout.name}"`);
+            console.log(`   • DayId: ${workout.dayId || 'SIN DAYID'}`);
+            console.log(`   • ID único: ${workout.id}`);
+            console.log(`   • Tipos de ejercicio: ${workout.exerciseTypes?.length || 0}`);
             
-            // Import all workouts sequentially with small delays
-            importedWorkouts.forEach((workout, index) => {
-              console.log(`=== 📋 PROCESANDO WORKOUT ${index + 1}/${importedWorkouts.length} ===`);
-              console.log(`   • Nombre: "${workout.name}"`);
-              console.log(`   • DayId: ${workout.dayId || 'SIN DAYID'}`);
-              console.log(`   • ID único: ${workout.id}`);
-              console.log(`   • Tipos de ejercicio: ${workout.exerciseTypes?.length || 0}`);
-              
-              // Smaller delay for better user experience
-              setTimeout(() => {
-                console.log(`⏰ Ejecutando importación del workout ${index + 1}: "${workout.name}"`);
-                onWorkoutGenerated(workout);
-                console.log(`✅ Importación ${index + 1} enviada al WeeklyPlanManager`);
-              }, index * 100); // Reduced to 100ms for faster import
-            });
-            
-            // Log completion after all timeouts
-            setTimeout(() => {
-              console.log('=== ✅ TODAS LAS IMPORTACIONES ENVIADAS ===');
-              console.log(`📊 Total: ${importedWorkouts.length} workouts procesados`);
-            }, importedWorkouts.length * 100 + 50);
-          } else {
-            // Single workout - import immediately
-            console.log('📋 Detectado workout único - importando inmediatamente');
-            const workout = importedWorkouts[0];
+            // Import immediately - no delays
+            console.log(`⚡ Ejecutando importación inmediata del workout ${index + 1}: "${workout.name}"`);
             onWorkoutGenerated(workout);
-            console.log(`✅ Workout único importado: "${workout.name}"`);
-          }
+            console.log(`✅ Importación ${index + 1} completada`);
+          });
+          
+          console.log('=== ✅ TODAS LAS IMPORTACIONES COMPLETADAS ===');
+          console.log(`📊 Total: ${importedWorkouts.length} workouts procesados`);
         }
 
         if (importedWorkouts.length === 0) {
@@ -821,17 +805,15 @@ RULES:
       const estimatedDuration = String(workoutData.estimatedDuration || '30-45 min').trim();
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
       
-      // Extract dayId if present in workoutData, or generate one as fallback
-      let dayId = workoutData.dayId;
-      if (!dayId) {
-        dayId = `DAY${String(dayNumber).padStart(3, '0')}`;
-        console.warn(`⚠️ TRIPLE FALLBACK: Generated dayId for day ${dayNumber}:`, dayId);
-      } else {
-        console.log(`✅ Using provided dayId for day ${dayNumber}:`, dayId);
-      }
+      // ALWAYS generate dayId to ensure uniqueness
+      const dayId = workoutData.dayId || `DAY${String(dayNumber).padStart(3, '0')}`;
+      console.log(`🆔 DayId asignado para día ${dayNumber}: ${dayId}`);
 
       // Create workout object with unique ID that includes timestamp and day
-      const uniqueId = `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}`;
+      const timestamp = Date.now();
+      const randomPart = Math.random().toString(36).substr(2, 9);
+      const uniqueId = `ai-workout-${timestamp}-day${dayNumber}-${randomPart}`;
+      
       const newWorkout: Workout = {
         id: uniqueId,
         date: new Date().toISOString().split('T')[0],
