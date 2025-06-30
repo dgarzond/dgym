@@ -43,6 +43,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Initialize API key from ConfigManager
   useEffect(() => {
@@ -449,6 +450,7 @@ RULES:
   };
 
   const handleImportWorkout = async (responseText?: string) => {
+    setIsImporting(true);
     try {
       let textToProcess = responseText;
 
@@ -550,6 +552,8 @@ RULES:
         console.error('Fallback also failed:', fallbackError);
         alert('Error: No se pudo procesar la rutina con ningún método disponible.');
       }
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -764,6 +768,8 @@ RULES:
     } catch (error) {
       console.error('Error in fallback parsing:', error);
       alert('Error al procesar la rutina. Pide al asistente que use el formato JSON estructurado.');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1070,10 +1076,20 @@ RULES:
           <div className="flex gap-2 mb-3">
             <button
               onClick={() => handleImportWorkout()}
-              className="flex items-center px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+              disabled={isImporting}
+              className="flex items-center px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              <Download className="w-4 h-4 mr-1" />
-              Import Workout
+              {isImporting ? (
+                <>
+                  <Loader className="w-4 h-4 mr-1 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-1" />
+                  Import Workout
+                </>
+              )}
             </button>
             <button
               onClick={clearChatHistory}
