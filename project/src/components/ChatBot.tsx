@@ -413,77 +413,129 @@ RULES:
         throw new Error('Formato JSON inválido: falta exerciseTypes o no es un array');
       }
 
-      // Process exercise types and exercises
-      const processedExerciseTypes = workoutData.exerciseTypes.map((exerciseType: any) => {
-        const processedExercises = (exerciseType.exercises || []).map((exercise: any) => {
-          const exerciseId = `ex-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Process exercise types and exercises with proper validation
+      const processedExerciseTypes = (workoutData.exerciseTypes || []).map((exerciseType: any, typeIndex: number) => {
+        // Validate exerciseType
+        if (!exerciseType || typeof exerciseType !== 'object') {
+          console.warn('Invalid exercise type at index', typeIndex);
+          return null;
+        }
+
+        const processedExercises = (exerciseType.exercises || []).map((exercise: any, exerciseIndex: number) => {
+          // Validate exercise
+          if (!exercise || typeof exercise !== 'object' || !exercise.name) {
+            console.warn('Invalid exercise at index', exerciseIndex, 'in type', exerciseType.id);
+            return null;
+          }
+
+          const exerciseId = `ex-${Date.now()}-${typeIndex}-${exerciseIndex}-${Math.random().toString(36).substr(2, 9)}`;
           const sets = Math.max(1, parseInt(exercise.sets || 1));
 
-          // Create set details
-          const setDetails = Array(sets).fill(null).map((_, setIndex) => ({
-            id: `${exerciseId}-set-${setIndex + 1}`,
-            weight: exercise.weight || 0,
-            completed: false,
-            weightUnit: exercise.weightUnit || 'kg',
-            ...(exercise.exerciseSubType === 'duration' ? {
-              duration: exercise.duration || 30,
-              durationUnit: exercise.durationUnit || 'seconds'
-            } : {
-              reps: exercise.reps || 10
-            })
-          }));
+          // Create set details with proper validation
+          const setDetails = Array(sets).fill(null).map((_, setIndex) => {
+            const setId = `${exerciseId}-set-${setIndex + 1}`;
+            const baseSet = {
+              id: setId,
+              weight: Math.max(0, parseInt(exercise.weight) || 0),
+              completed: false,
+              weightUnit: (exercise.weightUnit === 'lbs' ? 'lbs' : 'kg') as 'kg' | 'lbs'
+            };
 
-          return {
+            if (exercise.exerciseSubType === 'duration') {
+              return {
+                ...baseSet,
+                duration: Math.max(1, parseInt(exercise.duration) || 30),
+                durationUnit: (['seconds', 'minutes', 'meters', 'kilometers'].includes(exercise.durationUnit) 
+                  ? exercise.durationUnit 
+                  : 'seconds') as 'seconds' | 'minutes' | 'meters' | 'kilometers'
+              };
+            } else {
+              return {
+                ...baseSet,
+                reps: Math.max(1, parseInt(exercise.reps) || 10)
+              };
+            }
+          });
+
+          // Validate exercise sub type
+          const exerciseSubType = exercise.exerciseSubType === 'duration' ? 'duration' : 'reps';
+          
+          // Validate exercise type data
+          const typeData = {
+            id: exerciseType.id || 'power',
+            name: exerciseType.name || 'Power',
+            nameSpanish: exerciseType.nameSpanish || 'Fuerza',
+            duration: exerciseType.duration || '20-30 min'
+          };
+
+          const processedExercise = {
             id: exerciseId,
-            name: exercise.name || 'Ejercicio sin nombre',
+            name: String(exercise.name).trim() || 'Ejercicio sin nombre',
             sets: sets,
-            ...(exercise.exerciseSubType === 'duration' ? {
-              duration: exercise.duration || 30,
-              durationUnit: exercise.durationUnit || 'seconds'
-            } : {
-              reps: exercise.reps || 10
-            }),
-            exerciseSubType: exercise.exerciseSubType || 'reps',
-            weight: exercise.weight || 0,
-            weightUnit: exercise.weightUnit || 'kg',
+            exerciseSubType: exerciseSubType,
+            weight: Math.max(0, parseInt(exercise.weight) || 0),
+            weightUnit: (exercise.weightUnit === 'lbs' ? 'lbs' : 'kg') as 'kg' | 'lbs',
             completed: false,
-            type: {
-              id: exerciseType.id,
-              name: exerciseType.name,
-              nameSpanish: exerciseType.nameSpanish,
-              duration: exerciseType.duration
-            },
+            type: typeData,
             setDetails: setDetails,
             restTime: exerciseType.id === 'cardio' ? 0 : (sets > 1 ? 90 : 60)
           };
-        });
+
+          // Add duration or reps based on exercise type
+          if (exerciseSubType === 'duration') {
+            processedExercise.duration = Math.max(1, parseInt(exercise.duration) || 30);
+            processedExercise.durationUnit = (['seconds', 'minutes', 'meters', 'kilometers'].includes(exercise.durationUnit) 
+              ? exercise.durationUnit 
+              : 'seconds') as 'seconds' | 'minutes' | 'meters' | 'kilometers';
+          } else {
+            processedExercise.reps = Math.max(1, parseInt(exercise.reps) || 10);
+          }
+
+          return processedExercise;
+        }).filter(exercise => exercise !== null); // Remove invalid exercises
+
+        // Return null if no valid exercises
+        if (processedExercises.length === 0) {
+          console.warn('No valid exercises in exercise type', exerciseType.id);
+          return null;
+        }
 
         return {
-          id: exerciseType.id,
-          name: exerciseType.name,
-          nameSpanish: exerciseType.nameSpanish,
-          duration: exerciseType.duration,
+          id: exerciseType.id || 'power',
+          name: exerciseType.name || 'Power',
+          nameSpanish: exerciseType.nameSpanish || 'Fuerza',
+          duration: exerciseType.duration || '20-30 min',
           exercises: processedExercises
         };
-      });
+      }).filter(type => type !== null); // Remove invalid exercise types
 
-      const workoutName = workoutData.workoutName || 'Rutina IA';
-      const estimatedDuration = workoutData.estimatedDuration || '30-45 min';
+      // Validate we have at least one valid exercise type
+      if (processedExerciseTypes.length === 0) {
+        throw new Error('No se pudieron procesar ejercicios válidos de la rutina');
+      }
+
+      const workoutName = String(workoutData.workoutName || 'Rutina IA').trim();
+      const estimatedDuration = String(workoutData.estimatedDuration || '30-45 min').trim();
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
 
-      // Create workout object
+      // Create workout object with additional validation
       const newWorkout: Workout = {
-        id: `ai-workout-${Date.now()}`,
+        id: `ai-workout-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
         exerciseTypes: processedExerciseTypes,
         completed: false
       };
 
+      // Final validation of workout structure
+      if (!newWorkout.id || !newWorkout.name || !Array.isArray(newWorkout.exerciseTypes)) {
+        throw new Error('Error en la estructura del workout creado');
+      }
+
       console.log('Final workout created:', newWorkout);
 
       // Calculate totals for success message
-      const totalExercises = processedExerciseTypes.reduce((sum, type) => sum + type.exercises.length, 0);
+      const totalExercises = processedExerciseTypes.reduce((sum, type) => sum + (type?.exercises?.length || 0), 0);
 
       // Call the parent function to add the workout
       onWorkoutGenerated(newWorkout);
@@ -527,10 +579,15 @@ RULES:
         return;
       }
 
-      // Group exercises by type
+      // Group exercises by type with safety checks
       const exerciseTypesMap: { [key: string]: any } = {};
 
       exercises.forEach(exercise => {
+        if (!exercise || !exercise.type || !exercise.type.id) {
+          console.warn('Invalid exercise found, skipping:', exercise);
+          return;
+        }
+        
         const typeId = exercise.type.id;
         if (!exerciseTypesMap[typeId]) {
           exerciseTypesMap[typeId] = {
@@ -541,7 +598,9 @@ RULES:
         exerciseTypesMap[typeId].exercises.push(exercise);
       });
 
-      const exerciseTypes = Object.values(exerciseTypesMap);
+      const exerciseTypes = Object.values(exerciseTypesMap).filter(type => 
+        type && type.exercises && type.exercises.length > 0
+      );
 
       // Generate workout name from text
       let workoutName = 'Rutina IA (Texto Parseado)';
@@ -555,14 +614,24 @@ RULES:
 
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
 
+      // Validate we have exercise types before creating workout
+      if (exerciseTypes.length === 0) {
+        throw new Error('No se pudieron extraer ejercicios válidos del texto');
+      }
+
       // Create workout object
       const newWorkout: Workout = {
-        id: `ai-workout-${Date.now()}`,
+        id: `ai-workout-fallback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
         exerciseTypes: exerciseTypes,
         completed: false
       };
+
+      // Final validation
+      if (!newWorkout.exerciseTypes || newWorkout.exerciseTypes.length === 0) {
+        throw new Error('Error creando la rutina: estructura inválida');
+      }
 
       onWorkoutGenerated(newWorkout);
       alert(`¡Rutina importada con método de respaldo!\n\n📊 Detalles:\n• ${exercises.length} ejercicios\n• ${exerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
