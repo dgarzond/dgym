@@ -481,6 +481,7 @@ RULES:
         const importedWorkouts = [];
         for (let dayIndex = 0; dayIndex < workoutData.workouts.length; dayIndex++) {
           const dayWorkout = workoutData.workouts[dayIndex];
+          console.log(`Processing day ${dayIndex + 1}:`, dayWorkout);
 
           if (!dayWorkout.exerciseTypes || !Array.isArray(dayWorkout.exerciseTypes)) {
             console.warn(`Day ${dayIndex + 1} has invalid exercise types, skipping`);
@@ -490,6 +491,7 @@ RULES:
           const processedWorkout = processWorkoutData(dayWorkout, dayIndex + 1);
           if (processedWorkout) {
             importedWorkouts.push(processedWorkout);
+            console.log(`Calling onWorkoutGenerated for day ${dayIndex + 1}:`, processedWorkout.name);
             onWorkoutGenerated(processedWorkout);
             console.log(`Successfully processed day ${dayIndex + 1}:`, processedWorkout.name);
           } else {
