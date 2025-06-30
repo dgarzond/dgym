@@ -374,14 +374,15 @@ Exercise format:
 }
 
 RULES:
-- Detect patterns like "Día 1:", "Day 1:", "Día 2:", etc. to separate days
+- CRITICAL: Look for day separators like "Día 1:", "Day 1:", "Día 2:", "Day 2:", etc. If found, return multiple workouts array
 - Use category IDs: "warmup", "power", "cardio", "stretching"
 - exerciseSubType: "reps" for strength exercises, "duration" for time/distance
 - For reps: include "reps", omit "duration" and "durationUnit"
 - For time/distance: include "duration" and "durationUnit", omit "reps"
 - Extract weight from text like "@ 20 kg" or default to 0
 - Map Spanish categories: Calentamiento=warmup, Fuerza=power, Cardio=cardio, Estiramiento=stretching
-- Parse patterns like "3 sets x 12 reps", "3 sets x 30 seconds", "1 set x 20 minutes"`
+- Parse patterns like "3 sets x 12 reps", "3 sets x 30 seconds", "1 set x 20 minutes"
+- ALWAYS check for multiple days first - if "Día 1" and "Día 2" exist, use workouts array format`
             },
             {
               role: 'user',
@@ -468,6 +469,9 @@ RULES:
           if (processedWorkout) {
             importedWorkouts.push(processedWorkout);
             onWorkoutGenerated(processedWorkout);
+            console.log(`Successfully processed day ${dayIndex + 1}:`, processedWorkout.name);
+          } else {
+            console.warn(`Failed to process day ${dayIndex + 1}`);
           }
         }
 
