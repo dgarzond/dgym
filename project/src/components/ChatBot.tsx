@@ -479,6 +479,8 @@ RULES:
         console.log('Processing multiple days:', workoutData.workouts.length);
 
         const importedWorkouts = [];
+        
+        // Process all days first
         for (let dayIndex = 0; dayIndex < workoutData.workouts.length; dayIndex++) {
           const dayWorkout = workoutData.workouts[dayIndex];
           console.log(`Processing day ${dayIndex + 1}:`, dayWorkout);
@@ -491,16 +493,18 @@ RULES:
           const processedWorkout = processWorkoutData(dayWorkout, dayIndex + 1);
           if (processedWorkout) {
             importedWorkouts.push(processedWorkout);
-            console.log(`Calling onWorkoutGenerated for day ${dayIndex + 1}:`, processedWorkout.name);
-            
-            // Add a small delay between imports to ensure they are processed correctly
-            setTimeout(() => {
-              onWorkoutGenerated(processedWorkout);
-              console.log(`Successfully processed day ${dayIndex + 1}:`, processedWorkout.name);
-            }, dayIndex * 100); // 100ms delay between each day
+            console.log(`Successfully processed day ${dayIndex + 1}:`, processedWorkout.name);
           } else {
             console.warn(`Failed to process day ${dayIndex + 1}`);
           }
+        }
+
+        // Now call onWorkoutGenerated for each imported workout sequentially
+        if (importedWorkouts.length > 0) {
+          importedWorkouts.forEach((workout, index) => {
+            console.log(`Calling onWorkoutGenerated for workout ${index + 1}:`, workout.name);
+            onWorkoutGenerated(workout);
+          });
         }
 
         if (importedWorkouts.length === 0) {

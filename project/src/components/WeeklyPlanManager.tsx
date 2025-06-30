@@ -162,19 +162,27 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   };
 
   const handleWorkoutGenerated = (workout: Workout) => {
+    console.log('WeeklyPlanManager receiving workout:', workout.name);
+    
     const currentPlan = getCurrentWeekPlan();
 
     if (currentPlan) {
-      // Add to existing plan
-      const updatedPlan = {
-        ...currentPlan,
-        workouts: [...currentPlan.workouts, workout]
-      };
-      setWeeklyPlans(plans => 
-        plans.map(plan => 
-          plan.id === currentPlan.id ? updatedPlan : plan
-        )
-      );
+      // Add to existing plan - ensure we don't duplicate workouts
+      const workoutExists = currentPlan.workouts.some(w => w.id === workout.id);
+      if (!workoutExists) {
+        const updatedPlan = {
+          ...currentPlan,
+          workouts: [...currentPlan.workouts, workout]
+        };
+        setWeeklyPlans(plans => 
+          plans.map(plan => 
+            plan.id === currentPlan.id ? updatedPlan : plan
+          )
+        );
+        console.log('Added workout to existing plan:', workout.name);
+      } else {
+        console.log('Workout already exists in plan:', workout.name);
+      }
     } else {
       // Create new plan
       const newPlan: WeeklyPlan = {
@@ -185,10 +193,12 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
         isActive: true
       };
       setWeeklyPlans(plans => [...plans, newPlan]);
+      console.log('Created new plan with workout:', workout.name);
     }
 
-    // Only add to main workouts list, not duplicate in weekly plan
+    // Always add to main workouts list
     onAddWorkout(workout);
+    console.log('Added workout to main list:', workout.name);
   };
 
   const handleNewWeek = () => {
