@@ -160,8 +160,8 @@ CRITICAL FORMATTING RULES - ALWAYS FOLLOW:
 3. NEVER suggest an exercise without specifying exact sets and reps/time
 
 MANDATORY EXERCISE FORMAT:
-- For rep-based: "Exercise Name: X sets of Y reps" 
-- For time-based: "Exercise Name: X sets of Y seconds/minutes"
+- For rep-based: "Exercise Name: X sets of Y reps" or "Exercise Name: X sets de Y reps"
+- For time-based: "Exercise Name: X sets of Y seconds/minutes" or "Exercise Name: X sets de Y seconds/minutes"
 - Always include weight when applicable: "@ Z kg"
 
 REQUIRED CATEGORIES (use these exact headers with emojis):
@@ -185,14 +185,14 @@ REQUIRED CATEGORIES (use these exact headers with emojis):
 MANDATORY EXAMPLE FORMAT (copy this structure exactly):
 
 **🔥 Calentamiento:**
-- Círculos de brazos: 2 sets of 10 reps
-- Rotaciones de hombros: 2 sets of 10 reps
-- Rodillas al pecho: 2 sets of 8 reps
+- Círculos de brazos: 2 sets de 10 reps
+- Rotaciones de hombros: 2 sets de 10 reps
+- Rodillas al pecho: 2 sets de 8 reps
 
 **💪 Fuerza:**
-- Bench Press: 3 sets of 10 reps @ 60 kg
-- Squats: 3 sets of 12 reps @ 50 kg
-- Deadlift: 3 sets of 8 reps @ 70 kg
+- Bench Press: 3 sets de 10 reps @ 60 kg
+- Squats: 3 sets de 12 reps @ 50 kg
+- Deadlift: 3 sets de 8 reps @ 70 kg
 
 **⚡ Cardio:**
 - Caminata intensa: 20 minutes
@@ -201,9 +201,9 @@ MANDATORY EXAMPLE FORMAT (copy this structure exactly):
 - Sprint: 200 meters
 
 **✅ Estiramiento:**
-- Estiramiento de pecho: 2 sets of 30 seconds
-- Estiramiento de piernas: 2 sets of 30 seconds
-- Estiramiento de espalda: 2 sets of 45 seconds
+- Estiramiento de pecho: 2 sets de 30 seconds
+- Estiramiento de piernas: 2 sets de 30 seconds
+- Estiramiento de espalda: 2 sets de 45 seconds
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level (beginner, intermediate, advanced).
 
@@ -475,10 +475,10 @@ This will help me create the perfect workout plan for you!`;
         continue;
       }
 
-      // Enhanced exercise extraction patterns
+      // Enhanced exercise extraction patterns - bilingual support
       const exercisePatterns = [
-        // "- Exercise name: 3 sets of 12 reps @ 60 kg"
-        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
+        // "- Exercise name: 3 sets of 12 reps @ 60 kg" or "- Exercise name: 3 sets de 12 reps @ 60 kg"
+        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
         // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers"
         /^[-•*]?\s*([^:]+):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
         // "Exercise name: 3 x 12"
@@ -501,8 +501,8 @@ This will help me create the perfect workout plan for you!`;
         let exerciseName, sets, amount, unit = 'reps', weight = 0;
 
         if (patternIndex === 0) {
-          // Full format: "Exercise: 3 sets of 12 reps @ 60 kg"
-          [, exerciseName, sets, amount, unit, weight] = exerciseMatch;
+          // Full format: "Exercise: 3 sets of/de 12 reps @ 60 kg"
+          [, exerciseName, sets, , amount, unit, weight] = exerciseMatch;
           weight = weight ? parseInt(weight) : 0;
         } else if (patternIndex === 1) {
           // Time/distance format: "Exercise: 20 minutes"
