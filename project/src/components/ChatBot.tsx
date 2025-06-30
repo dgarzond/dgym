@@ -155,49 +155,55 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
               content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences.
 
 CRITICAL FORMATTING RULES - ALWAYS FOLLOW:
-1. EVERY exercise MUST use this EXACT format: "Ejercicio - X sets Y reps Z kg" or "Ejercicio - X sets Y segundos"
+1. EVERY exercise MUST have a specific format with sets and reps/duration
 2. Use emojis and **bold text** for engagement: 💪, 🏋️‍♂️, 🔥, ⚡, ✅, 🎯
-3. NEVER use colons (:) in exercise lines, always use dashes (-)
+3. NEVER suggest an exercise without specifying exact sets and reps/time
 
-MANDATORY EXERCISE FORMAT (use EXACTLY this pattern):
-- For rep-based: "Nombre del ejercicio - X sets Y reps Z kg"
-- For time-based: "Nombre del ejercicio - X sets Y segundos"
-- For cardio duration: "Nombre del ejercicio - X minutos"
+MANDATORY EXERCISE FORMAT:
+- For rep-based: "Exercise Name: X sets of Y reps" 
+- For time-based: "Exercise Name: X sets of Y seconds/minutes"
+- Always include weight when applicable: "@ Z kg"
 
 REQUIRED CATEGORIES (use these exact headers with emojis):
 
-**🔥 Calentamiento:**
-- Dynamic stretches and mobility exercises
+**🔥 Calentamiento (Warm-up):**
+- Dynamic stretches and mobility
+- Format: "X sets of Y reps" or "X sets of Y seconds"
 
-**💪 Fuerza:**
-- Compound and isolation movements with weights
+**💪 Fuerza (Power/Strength):**
+- Compound and isolation movements
+- Format: "X sets of Y reps @ Z kg"
 
 **⚡ Cardio:**
 - Cardiovascular exercises
+- Format: "X minutes", "X sets of Y minutes", "X meters", "X kilometers"
 
-**✅ Estiramiento:**
+**✅ Estiramiento (Stretching):**
 - Static stretches and cool-down
+- Format: "X sets of Y seconds"
 
 MANDATORY EXAMPLE FORMAT (copy this structure exactly):
 
 **🔥 Calentamiento:**
-- Círculos de brazos - 2 sets 10 reps
-- Rotaciones de hombros - 2 sets 10 reps
-- Rodillas al pecho - 2 sets 8 reps
+- Círculos de brazos: 2 sets of 10 reps
+- Rotaciones de hombros: 2 sets of 10 reps
+- Rodillas al pecho: 2 sets of 8 reps
 
 **💪 Fuerza:**
-- Bench Press - 3 sets 10 reps 60 kg
-- Squats - 3 sets 12 reps 50 kg
-- Deadlift - 3 sets 8 reps 70 kg
+- Bench Press: 3 sets of 10 reps @ 60 kg
+- Squats: 3 sets of 12 reps @ 50 kg
+- Deadlift: 3 sets of 8 reps @ 70 kg
 
 **⚡ Cardio:**
-- Caminata intensa - 20 minutos
-- Bicicleta estática - 15 minutos
+- Caminata intensa: 20 minutes
+- Bicicleta estática: 15 minutes
+- Correr en cinta: 5 kilometers
+- Sprint: 200 meters
 
 **✅ Estiramiento:**
-- Estiramiento de pecho - 2 sets 30 segundos
-- Estiramiento de piernas - 2 sets 30 segundos
-- Estiramiento de espalda - 2 sets 45 segundos
+- Estiramiento de pecho: 2 sets of 30 seconds
+- Estiramiento de piernas: 2 sets of 30 seconds
+- Estiramiento de espalda: 2 sets of 45 seconds
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level (beginner, intermediate, advanced).
 
@@ -438,20 +444,18 @@ This will help me create the perfect workout plan for you!`;
         continue;
       }
 
-      // Enhanced exercise extraction patterns - recognize new dash format
+      // Enhanced exercise extraction patterns - more flexible
       const exercisePatterns = [
-        // "- Exercise name - 3 sets 12 reps 60 kg"
-        /^[-•*]?\s*(.+?)\s*-\s*(\d+)\s*sets?\s+(\d+)\s+(reps?|repeticiones)\s+(\d+)\s*kg/i,
-        // "- Exercise name - 3 sets 12 reps" (no weight)
-        /^[-•*]?\s*(.+?)\s*-\s*(\d+)\s*sets?\s+(\d+)\s+(reps?|repeticiones)/i,
-        // "- Exercise name - 3 sets 30 segundos"
-        /^[-•*]?\s*(.+?)\s*-\s*(\d+)\s*sets?\s+(\d+)\s+(seconds?|segundos)/i,
-        // "- Exercise name - 20 minutos" (cardio format)
-        /^[-•*]?\s*(.+?)\s*-\s*(\d+)\s+(minutes?|minutos|mins?)/i,
-        // Legacy formats for backward compatibility
-        /^[-•*]?\s*(.+?):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos)(?:\s*@\s*(\d+)\s*kg)?/i,
-        /^[-•*]?\s*(.+?):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos)/i,
-        /^[-•*]?\s*(.+?):\s*(\d+)\s+(minutes?|minutos|mins?)/i
+        // "- Exercise name: 3 sets of 12 reps @ 60 kg"
+        /^[-•*]?\s*(.+?):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
+        // "Exercise name: 3 sets of 12 reps"
+        /^[-•*]?\s*(.+?):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)/i,
+        // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers"
+        /^[-•*]?\s*(.+?):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
+        // "Exercise name: 3 x 12"
+        /^[-•*]?\s*(.+?):\s*(\d+)\s*[x×]\s*(\d+)/i,
+        // Simple format "Exercise: X sets Y reps"
+        /^[-•*]?\s*(.+?):\s*(\d+)\s+(\d+)/i
       ];
 
       let exerciseMatch = null;
@@ -469,32 +473,18 @@ This will help me create the perfect workout plan for you!`;
       if (exerciseMatch && exerciseMatch.length >= 3) {
         let exerciseName, sets, amount, unit = 'reps', weight = 0;
 
-        if (patternIndex === 0) {
-          // "Exercise - 3 sets 12 reps 60 kg" format
-          [, exerciseName, sets, amount, unit, weight] = exerciseMatch;
-          weight = parseInt(weight) || 0;
-        } else if (patternIndex === 1) {
-          // "Exercise - 3 sets 12 reps" format (no weight)
-          [, exerciseName, sets, amount, unit] = exerciseMatch;
-          weight = 0;
-        } else if (patternIndex === 2) {
-          // "Exercise - 3 sets 30 segundos" format
-          [, exerciseName, sets, amount, unit] = exerciseMatch;
-          weight = 0;
-        } else if (patternIndex === 3) {
-          // "Exercise - 20 minutos" format (cardio)
+        if (patternIndex === 2) {
+          // "Exercise: 20 minutes" or "Exercise: 5 kilometers" format
           [, exerciseName, amount, unit] = exerciseMatch;
           sets = 1;
-          weight = 0;
-        } else if (patternIndex === 4 || patternIndex === 5) {
-          // Legacy formats with colons
+        } else if (patternIndex === 0 || patternIndex === 1) {
+          // Full format with sets and reps/duration
           [, exerciseName, sets, amount, unit, weight] = exerciseMatch;
           weight = weight ? parseInt(weight) : 0;
-        } else if (patternIndex === 6) {
-          // Legacy "Exercise: 20 minutes" format
-          [, exerciseName, amount, unit] = exerciseMatch;
-          sets = 1;
-          weight = 0;
+        } else {
+          // "Exercise: 3 x 12" or simple format
+          [, exerciseName, sets, amount] = exerciseMatch;
+          unit = 'reps';
         }
 
         if (exerciseName && exerciseName.trim()) {
@@ -550,34 +540,48 @@ This will help me create the perfect workout plan for you!`;
               break;
           }
 
-          // Determine if it's duration or reps based
+          // Determine if it's duration, distance, or reps based
           const unitLower = (unit || 'reps').toLowerCase();
           const isDuration = unitLower.includes('second') || 
                             unitLower.includes('minute') ||
                             unitLower.includes('segundo') ||
-                            unitLower.includes('minuto') ||
-                            currentCategory === 'cardio';
+                            unitLower.includes('minuto');
+          
+          const isDistance = unitLower.includes('meter') || 
+                            unitLower.includes('metro') ||
+                            unitLower.includes('kilometer') ||
+                            unitLower.includes('kilómetro') ||
+                            unitLower.includes('km');
 
-          const durationUnit = unitLower.includes('minute') || unitLower.includes('minuto') ? 'minutes' : 'seconds';
+          let durationUnit = 'seconds';
+          if (unitLower.includes('minute') || unitLower.includes('minuto')) {
+            durationUnit = 'minutes';
+          } else if (unitLower.includes('meter') || unitLower.includes('metro')) {
+            durationUnit = 'meters';
+          } else if (unitLower.includes('kilometer') || unitLower.includes('kilómetro') || unitLower.includes('km')) {
+            durationUnit = 'kilometers';
+          }
 
+          const isTimeBased = isDuration || isDistance || currentCategory === 'cardio';
+          
           const exercise: any = {
             id: exerciseId,
             name: cleanName,
             sets: exerciseSets,
-            ...(isDuration ? { duration: exerciseAmount, durationUnit } : { reps: exerciseAmount }),
-            exerciseSubType: isDuration ? 'duration' : 'reps',
+            ...(isTimeBased ? { duration: exerciseAmount, durationUnit } : { reps: exerciseAmount }),
+            exerciseSubType: isTimeBased ? 'duration' : 'reps',
             weight: exerciseWeight,
             weightUnit: 'kg',
             completed: false,
             type: exerciseType,
             setDetails: Array(exerciseSets).fill(null).map((_, setIndex) => ({
               id: `${exerciseId}-set-${setIndex + 1}`,
-              ...(isDuration ? { duration: exerciseAmount, durationUnit } : { reps: exerciseAmount }),
+              ...(isTimeBased ? { duration: exerciseAmount, durationUnit } : { reps: exerciseAmount }),
               weight: exerciseWeight,
               completed: false,
               weightUnit: 'kg'
             })),
-            restTime: isDuration ? 0 : (exerciseSets > 1 ? 60 : 30)
+            restTime: isTimeBased ? 0 : (exerciseSets > 1 ? 60 : 30)
           };
 
           console.log('Exercise created:', exercise);

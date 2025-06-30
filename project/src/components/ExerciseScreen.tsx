@@ -152,7 +152,9 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
                   {exercise.exerciseSubType === 'duration' ? (
                     <div>
                       <label className="block text-sm text-gray-600">
-                        Duración ({exercise.durationUnit === 'minutes' ? 'minutos' : 'segundos'})
+                        {exercise.durationUnit === 'meters' ? 'Distancia (metros)' : 
+                         exercise.durationUnit === 'kilometers' ? 'Distancia (kilómetros)' :
+                         exercise.durationUnit === 'minutes' ? 'Duración (minutos)' : 'Duración (segundos)'}
                       </label>
                       <input
                         type="number"

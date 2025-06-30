@@ -2,7 +2,7 @@ export interface Set {
   id?: string;
   reps?: number; // Optional for duration-based exercises
   duration?: number; // Duration in seconds for time-based exercises
-  durationUnit?: 'seconds' | 'minutes'; // Unit for duration-based exercises
+  durationUnit?: 'seconds' | 'minutes' | 'meters' | 'kilometers'; // Unit for duration/distance-based exercises
   weight: number;
   completed: boolean;
   actualReps?: number;
@@ -17,7 +17,7 @@ export interface Exercise {
   sets: number;
   reps?: number; // Optional for duration-based exercises
   duration?: number; // Duration value for time-based exercises
-  durationUnit?: 'seconds' | 'minutes'; // Unit for duration-based exercises
+  durationUnit?: 'seconds' | 'minutes' | 'meters' | 'kilometers'; // Unit for duration/distance-based exercises
   exerciseSubType: 'reps' | 'duration'; // New field to specify sub-type
   weight: number;
   weightUnit: 'kg' | 'lbs';
