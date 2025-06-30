@@ -321,82 +321,109 @@ This will help me create the perfect workout plan for you!`;
 
   const handleImportWorkout = (responseText?: string) => {
     try {
-      if (!responseText) {
-        if (!messages.length) {
-          alert('No hay mensaje para importar.');
-          return;
-        }
+      let textToProcess = responseText;
 
+      if (!textToProcess) {
         const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
-        if (!lastAssistantMessage) {
-          alert('No se encontró respuesta del asistente para importar.');
+        if (!lastAssistantMessage || !lastAssistantMessage.content) {
+          alert('No hay mensaje del asistente para importar.');
           return;
         }
-
-        responseText = lastAssistantMessage.content;
-        if (!responseText) {
-          alert('El contenido del mensaje está vacío.');
-          return;
-        }
+        textToProcess = lastAssistantMessage.content;
       }
 
-      console.log('Procesando texto:', responseText);
+      console.log('Processing text for import:', textToProcess);
 
-      // Limpiar el texto de HTML tags que puedan haber sido añadidos por el formateo
-      const cleanText = responseText.replace(/<[^>]*>/g, '');
+      // Clean text from HTML and markdown formatting
+      const cleanText = textToProcess
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/\*\*/g, '') // Remove bold markdown
+        .replace(/\*/g, '') // Remove italic markdown
+        .trim();
       
-      // Single-day routine processing
+      // Extract exercises
       const exercises = extractExercisesFromText(cleanText, 0);
-      console.log('Ejercicios extraídos:', exercises);
+      console.log('Exercises extracted:', exercises);
 
       if (exercises.length === 0) {
-        console.log('No se encontraron ejercicios. Texto analizado:', cleanText);
-        alert('No se pudieron extraer ejercicios del plan. Verifica que el formato incluya sets y repeticiones como "3 sets of 12 reps".');
+        alert('No se pudieron extraer ejercicios del plan. Asegúrate de que el formato incluya "sets of" y las repeticiones/tiempo (ej: "3 sets of 12 reps" o "20 minutes").');
         return;
       }
 
-      const exerciseTypes = groupExercisesByType(exercises);
-      console.log('Tipos de ejercicio agrupados:', exerciseTypes);
+      // Group exercises by type
+      const exerciseTypesMap: { [key: string]: any } = {};
+      
+      exercises.forEach(exercise => {
+        const typeId = exercise.type.id;
+        if (!exerciseTypesMap[typeId]) {
+          exerciseTypesMap[typeId] = {
+            ...exercise.type,
+            exercises: []
+          };
+        }
+        exerciseTypesMap[typeId].exercises.push(exercise);
+      });
+
+      const exerciseTypes = Object.values(exerciseTypesMap);
+      console.log('Exercise types grouped:', exerciseTypes);
 
       if (exerciseTypes.length === 0) {
-        alert('No se pudieron agrupar los ejercicios por tipo.');
+        alert('No se pudieron agrupar los ejercicios por categorías.');
         return;
       }
 
-      // Extract workout name from the text
-      let workoutName = 'AI Generated Workout';
+      // Generate workout name
+      let workoutName = 'Rutina IA';
       const lines = cleanText.split('\n');
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('*') && !trimmed.startsWith('-') && 
-            !trimmed.includes(':') && trimmed.length > 5 && trimmed.length < 50) {
+        if (trimmed && 
+            !trimmed.startsWith('*') && 
+            !trimmed.startsWith('-') && 
+            !trimmed.includes(':') && 
+            !trimmed.includes('sets') &&
+            !trimmed.includes('reps') &&
+            !trimmed.includes('🔥') &&
+            !trimmed.includes('💪') &&
+            !trimmed.includes('⚡') &&
+            !trimmed.includes('✅') &&
+            trimmed.length > 5 && 
+            trimmed.length < 60) {
           workoutName = trimmed;
           break;
         }
       }
 
-      // Estimate duration based on exercise count
-      const exerciseCount = exercises.length;
-      let duration = '30-45 min';
-      if (exerciseCount > 8) duration = '60-75 min';
-      else if (exerciseCount > 5) duration = '45-60 min';
+      // Calculate estimated duration
+      const totalExercises = exercises.length;
+      let estimatedDuration = '30-45 min';
+      if (totalExercises > 10) {
+        estimatedDuration = '60-75 min';
+      } else if (totalExercises > 6) {
+        estimatedDuration = '45-60 min';
+      }
 
-      const finalWorkoutName = `${workoutName} (${duration})`;
+      const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
 
+      // Create workout object
       const newWorkout: Workout = {
-        id: `workout-${Date.now()}`,
+        id: `ai-workout-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
-        exerciseTypes,
+        exerciseTypes: exerciseTypes,
         completed: false
       };
 
-      console.log('Rutina creada:', newWorkout);
+      console.log('Final workout created:', newWorkout);
+      
+      // Call the parent function to add the workout
       onWorkoutGenerated(newWorkout);
-      alert(`¡Rutina "${finalWorkoutName}" importada con ${exercises.length} ejercicios en ${exerciseTypes.length} categorías!`);
+      
+      alert(`¡Rutina "${finalWorkoutName}" importada exitosamente!\n\n📊 Detalles:\n• ${exercises.length} ejercicios\n• ${exerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
+      
     } catch (error) {
-      console.error('Error al importar rutina:', error);
-      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      console.error('Error importing workout:', error);
+      alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nAsegúrate de que el formato sea correcto.`);
     }
   };
 
@@ -404,8 +431,9 @@ This will help me create the perfect workout plan for you!`;
     const exercises: any[] = [];
     console.log('Extracting exercises from text:', text);
 
-    // Split by lines and process each line
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    // Clean text and split by lines
+    const cleanText = text.replace(/<[^>]*>/g, ''); // Remove HTML tags
+    const lines = cleanText.split('\n').filter(line => line.trim().length > 0);
     let currentCategory = 'power'; // default category
 
     for (let i = 0; i < lines.length; i++) {
@@ -415,8 +443,9 @@ This will help me create the perfect workout plan for you!`;
       // Skip empty lines and very short lines
       if (!trimmedLine || trimmedLine.length < 5) continue;
 
-      // Detect category headers with emojis and markdown
-      const categoryLower = trimmedLine.toLowerCase().replace(/\*\*/g, '');
+      // Detect category headers with emojis and markdown - more robust detection
+      const categoryLower = trimmedLine.toLowerCase().replace(/[*#]/g, '');
+      
       if (categoryLower.includes('🔥') || categoryLower.includes('calentamiento') || categoryLower.includes('warm')) {
         currentCategory = 'warmup';
         console.log('Category changed to warmup');
@@ -435,27 +464,25 @@ This will help me create the perfect workout plan for you!`;
         continue;
       }
 
-      // Skip headers and other non-exercise lines
-      if (trimmedLine.includes('**') && !trimmedLine.includes(':') ||
+      // Skip headers, instructions, and other non-exercise lines
+      if (trimmedLine.startsWith('**') && !trimmedLine.includes(':') ||
           trimmedLine.toLowerCase().includes('focus on') ||
           trimmedLine.toLowerCase().includes('enfócate en') ||
           trimmedLine.toLowerCase().includes('always end') ||
-          trimmedLine.length < 10) {
+          trimmedLine.toLowerCase().includes('import workout') ||
+          trimmedLine.toLowerCase().includes('click') ||
+          trimmedLine.length < 8) {
         continue;
       }
 
-      // Enhanced exercise extraction patterns - more flexible
+      // Enhanced exercise extraction patterns
       const exercisePatterns = [
         // "- Exercise name: 3 sets of 12 reps @ 60 kg"
-        /^[-•*]?\s*(.+?):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
-        // "Exercise name: 3 sets of 12 reps"
-        /^[-•*]?\s*(.+?):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)/i,
+        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
         // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers"
-        /^[-•*]?\s*(.+?):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
+        /^[-•*]?\s*([^:]+):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
         // "Exercise name: 3 x 12"
-        /^[-•*]?\s*(.+?):\s*(\d+)\s*[x×]\s*(\d+)/i,
-        // Simple format "Exercise: X sets Y reps"
-        /^[-•*]?\s*(.+?):\s*(\d+)\s+(\d+)/i
+        /^[-•*]?\s*([^:]+):\s*(\d+)\s*[x×]\s*(\d+)/i
       ];
 
       let exerciseMatch = null;
@@ -473,16 +500,16 @@ This will help me create the perfect workout plan for you!`;
       if (exerciseMatch && exerciseMatch.length >= 3) {
         let exerciseName, sets, amount, unit = 'reps', weight = 0;
 
-        if (patternIndex === 2) {
-          // "Exercise: 20 minutes" or "Exercise: 5 kilometers" format
-          [, exerciseName, amount, unit] = exerciseMatch;
-          sets = 1;
-        } else if (patternIndex === 0 || patternIndex === 1) {
-          // Full format with sets and reps/duration
+        if (patternIndex === 0) {
+          // Full format: "Exercise: 3 sets of 12 reps @ 60 kg"
           [, exerciseName, sets, amount, unit, weight] = exerciseMatch;
           weight = weight ? parseInt(weight) : 0;
-        } else {
-          // "Exercise: 3 x 12" or simple format
+        } else if (patternIndex === 1) {
+          // Time/distance format: "Exercise: 20 minutes"
+          [, exerciseName, amount, unit] = exerciseMatch;
+          sets = 1;
+        } else if (patternIndex === 2) {
+          // Short format: "Exercise: 3 x 12"
           [, exerciseName, sets, amount] = exerciseMatch;
           unit = 'reps';
         }
@@ -490,7 +517,7 @@ This will help me create the perfect workout plan for you!`;
         if (exerciseName && exerciseName.trim()) {
           const cleanName = exerciseName.trim()
             .replace(/^\d+\.\s*/, '')
-            .replace(/\*\*/g, '')
+            .replace(/[*]/g, '')
             .replace(/^[-•*]\s*/, '')
             .replace(/\s+/g, ' ')
             .trim();
@@ -504,56 +531,24 @@ This will help me create the perfect workout plan for you!`;
           const exerciseAmount = Math.max(1, parseInt(amount?.toString() || '10'));
 
           // Get exercise type based on current category
-          let exerciseType;
-          switch (currentCategory) {
-            case 'warmup':
-              exerciseType = { 
-                id: 'warmup', 
-                name: 'Warm-up', 
-                nameSpanish: 'Calentamiento', 
-                duration: '5-10 min' 
-              };
-              break;
-            case 'cardio':
-              exerciseType = { 
-                id: 'cardio', 
-                name: 'Cardio', 
-                nameSpanish: 'Cardio', 
-                duration: '15-25 min' 
-              };
-              break;
-            case 'stretching':
-              exerciseType = { 
-                id: 'stretching', 
-                name: 'Stretching', 
-                nameSpanish: 'Estiramiento', 
-                duration: '5-10 min' 
-              };
-              break;
-            default:
-              exerciseType = { 
-                id: 'power', 
-                name: 'Power', 
-                nameSpanish: 'Fuerza', 
-                duration: '20-30 min' 
-              };
-              break;
-          }
+          const EXERCISE_TYPES = {
+            warmup: { id: 'warmup', name: 'Warm-up', nameSpanish: 'Calentamiento', duration: '5-10 min' },
+            power: { id: 'power', name: 'Power', nameSpanish: 'Fuerza', duration: '20-30 min' },
+            cardio: { id: 'cardio', name: 'Cardio', nameSpanish: 'Cardio', duration: '15-25 min' },
+            stretching: { id: 'stretching', name: 'Stretching', nameSpanish: 'Estiramiento', duration: '5-10 min' }
+          };
 
-          // Determine if it's duration, distance, or reps based
+          const exerciseType = EXERCISE_TYPES[currentCategory as keyof typeof EXERCISE_TYPES] || EXERCISE_TYPES.power;
+
+          // Determine if it's duration/distance or reps based
           const unitLower = (unit || 'reps').toLowerCase();
-          const isDuration = unitLower.includes('second') || 
-                            unitLower.includes('minute') ||
-                            unitLower.includes('segundo') ||
-                            unitLower.includes('minuto');
-          
-          const isDistance = unitLower.includes('meter') || 
-                            unitLower.includes('metro') ||
-                            unitLower.includes('kilometer') ||
-                            unitLower.includes('kilómetro') ||
+          const isDuration = unitLower.includes('second') || unitLower.includes('minute') || 
+                            unitLower.includes('segundo') || unitLower.includes('minuto');
+          const isDistance = unitLower.includes('meter') || unitLower.includes('metro') ||
+                            unitLower.includes('kilometer') || unitLower.includes('kilómetro') || 
                             unitLower.includes('km');
 
-          let durationUnit = 'seconds';
+          let durationUnit: 'seconds' | 'minutes' | 'meters' | 'kilometers' = 'seconds';
           if (unitLower.includes('minute') || unitLower.includes('minuto')) {
             durationUnit = 'minutes';
           } else if (unitLower.includes('meter') || unitLower.includes('metro')) {
@@ -568,20 +563,30 @@ This will help me create the perfect workout plan for you!`;
             id: exerciseId,
             name: cleanName,
             sets: exerciseSets,
-            ...(isTimeBased ? { duration: exerciseAmount, durationUnit } : { reps: exerciseAmount }),
+            ...(isTimeBased ? { 
+              duration: exerciseAmount, 
+              durationUnit: durationUnit 
+            } : { 
+              reps: exerciseAmount 
+            }),
             exerciseSubType: isTimeBased ? 'duration' : 'reps',
             weight: exerciseWeight,
-            weightUnit: 'kg',
+            weightUnit: 'kg' as const,
             completed: false,
             type: exerciseType,
             setDetails: Array(exerciseSets).fill(null).map((_, setIndex) => ({
               id: `${exerciseId}-set-${setIndex + 1}`,
-              ...(isTimeBased ? { duration: exerciseAmount, durationUnit } : { reps: exerciseAmount }),
+              ...(isTimeBased ? { 
+                duration: exerciseAmount, 
+                durationUnit: durationUnit 
+              } : { 
+                reps: exerciseAmount 
+              }),
               weight: exerciseWeight,
               completed: false,
-              weightUnit: 'kg'
+              weightUnit: 'kg' as const
             })),
-            restTime: isTimeBased ? 0 : (exerciseSets > 1 ? 60 : 30)
+            restTime: currentCategory === 'cardio' ? 0 : (exerciseSets > 1 ? 90 : 60)
           };
 
           console.log('Exercise created:', exercise);
