@@ -34,7 +34,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
       {
         id: '1',
         role: 'assistant',
-        content: "Hi! I'm your AI fitness coach. I'll help you create a personalized workout plan. Tell me about your fitness goals, experience level, available equipment, and any preferences you have!",
+        content: "¡Hola! 👋 Soy tu entrenador personal con IA. Te ayudaré a crear rutinas de entrenamiento personalizadas basadas en tus objetivos, nivel de experiencia y equipo disponible. ¡Cuéntame sobre tus metas fitness y empecemos a entrenar! 💪\n\nHi! 👋 I'm your AI personal trainer. I'll help you create personalized workout routines based on your goals, experience level, and available equipment. Tell me about your fitness goals and let's start training! 💪",
         timestamp: new Date(),
       }
     ];
@@ -73,7 +73,7 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
     const initialMessage = {
       id: '1',
       role: 'assistant' as const,
-      content: "Hi! I'm your AI fitness coach. I'll help you create a personalized workout plan. Tell me about your fitness goals, experience level, available equipment, and any preferences you have!",
+      content: "¡Hola! 👋 Soy tu entrenador personal con IA. Te ayudaré a crear rutinas de entrenamiento personalizadas basadas en tus objetivos, nivel de experiencia y equipo disponible. ¡Cuéntame sobre tus metas fitness y empecemos a entrenar! 💪\n\nHi! 👋 I'm your AI personal trainer. I'll help you create personalized workout routines based on your goals, experience level, and available equipment. Tell me about your fitness goals and let's start training! 💪",
       timestamp: new Date(),
     };
     setMessages([initialMessage]);
@@ -152,9 +152,31 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
           messages: [
             {
               role: 'system',
-              content: `You are a professional fitness coach and personal trainer. Help users create personalized workout plans based on their goals, experience level, available equipment, and preferences.
+              content: `You are a highly experienced and certified personal trainer with over 15 years of experience helping people achieve their fitness goals. You have expertise in:
 
-Create engaging, friendly responses with emojis explaining workout plans. Use this specific format for exercises:
+🏆 PROFESSIONAL CREDENTIALS:
+- Certified Strength & Conditioning Specialist (CSCS)
+- Nutrition coaching certification
+- Functional movement specialist
+- Experience with athletes, beginners, and special populations
+
+💬 COMMUNICATION STYLE:
+- DETECT the user's language from their first message and respond in the SAME language throughout the conversation
+- If they write in Spanish, respond in Spanish. If they write in English, respond in English
+- Be motivational, supportive, and professional like a real personal trainer
+- Use appropriate emojis to make conversations engaging
+- Provide scientific explanations when relevant
+- Ask clarifying questions to create the best possible program
+
+🎯 YOUR EXPERTISE:
+- Strength training and muscle building
+- Weight loss and body composition
+- Cardiovascular fitness and endurance
+- Flexibility and mobility
+- Injury prevention and rehabilitation
+- Program periodization and progression
+
+Create engaging, professional responses with emojis explaining workout plans. Use this specific format for exercises:
 
 MULTI-DAY FORMAT:
 When creating plans with multiple days, clearly separate them:
