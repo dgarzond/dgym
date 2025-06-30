@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Workout, ExerciseType } from '../types';
@@ -32,12 +31,12 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
         if (!Array.isArray(parsedPlans)) {
           throw new Error('Invalid data format');
         }
-        
+
         const plans = parsedPlans.map((plan: any) => {
           if (!plan || typeof plan !== 'object') {
             return null;
           }
-          
+
           return {
             ...plan,
             weekStart: new Date(plan.weekStart),
@@ -46,7 +45,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
               if (!workout || typeof workout !== 'object') {
                 return null;
               }
-              
+
               // Migrate old structure to new structure
               if (workout.exercises && !workout.exerciseTypes) {
                 // Convert old exercises array to new exerciseTypes structure
@@ -69,7 +68,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                   completed: workout.completed || false
                 };
               }
-              
+
               // Return workout with new structure and safety checks
               const validExerciseTypes = (workout.exerciseTypes || []).map((type: any) => {
                 if (!type || typeof type !== 'object') return null;
@@ -78,7 +77,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                   exercises: (type.exercises || []).filter((ex: any) => ex && typeof ex === 'object')
                 };
               }).filter(Boolean);
-              
+
               return {
                 ...workout,
                 exerciseTypes: validExerciseTypes,
@@ -90,7 +89,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
             }).filter(Boolean)
           };
         }).filter(Boolean);
-        
+
         setWeeklyPlans(plans);
       } catch (error) {
         console.error('Error loading plans from localStorage:', error);
@@ -163,11 +162,11 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
   const handleWorkoutGenerated = (workout: Workout) => {
     console.log('WeeklyPlanManager receiving workout:', workout.name);
-    
+
     // Add to main workouts list first
     onAddWorkout(workout);
     console.log('Added workout to main list:', workout.name);
-    
+
     // Update weekly plans immediately using functional state update
     setWeeklyPlans(currentPlans => {
       // Find current week plan using current state
@@ -176,27 +175,66 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       );
 
       if (currentPlan) {
-        // Add to existing plan - check by workout name instead of ID to avoid duplicates
-        const workoutExists = currentPlan.workouts.some(w => 
-          w.name === workout.name || 
-          (w.name.includes("Día") && workout.name.includes("Día") && 
-           w.name.split("Día")[1]?.trim().split(" ")[0] === workout.name.split("Día")[1]?.trim().split(" ")[0])
-        );
-        
+        // Check for duplicate workouts using exercise composition comparison
+        const workoutExists = currentPlan.workouts.some(existingWorkout => {
+          // Get exercise codes from both workouts
+          const existingCodes = new Set();
+          const newCodes = new Set();
+
+          // Extract codes from existing workout
+          (existingWorkout.exerciseTypes || []).forEach(type => {
+            (type.exercises || []).forEach(ex => {
+              if (ex.exerciseCode) {
+                existingCodes.add(ex.exerciseCode);
+              } else {
+                // Fallback to exercise name if no code
+                existingCodes.add(ex.name);
+              }
+            });
+          });
+
+          // Extract codes from new workout
+          (workout.exerciseTypes || []).forEach(type => {
+            (type.exercises || []).forEach(ex => {
+              if (ex.exerciseCode) {
+                newCodes.add(ex.exerciseCode);
+              } else {
+                // Fallback to exercise name if no code
+                newCodes.add(ex.name);
+              }
+            });
+          });
+
+          // Compare sets of exercise codes - if 80% or more overlap, consider duplicate
+          const intersection = new Set([...existingCodes].filter(code => newCodes.has(code)));
+          const union = new Set([...existingCodes, ...newCodes]);
+          const similarity = intersection.size / union.size;
+
+          console.log('🔍 Comparing workouts:');
+          console.log('   Existing codes:', Array.from(existingCodes));
+          console.log('   New codes:', Array.from(newCodes));
+          console.log('   Similarity:', Math.round(similarity * 100) + '%');
+
+          return similarity > 0.8; // 80% similar = duplicate
+        });
+
         if (!workoutExists) {
           const updatedPlans = currentPlans.map(plan => {
             if (plan.id === currentPlan.id) {
-              return {
+              const updatedPlan = {
                 ...plan,
                 workouts: [...plan.workouts, workout]
               };
+              console.log('✅ Updated plan with new workout count:', updatedPlan.workouts.length);
+              return updatedPlan;
             }
             return plan;
           });
-          console.log('Added workout to existing plan:', workout.name);
+          console.log('✅ Added workout to existing plan:', workout.name);
+          console.log('✅ Total workouts in plan:', updatedPlans.find(p => p.id === currentPlan.id)?.workouts.length);
           return updatedPlans;
         } else {
-          console.log('Workout already exists in plan:', workout.name);
+          console.log('❌ Workout composition already exists in plan:', workout.name);
           return currentPlans; // Return unchanged state
         }
       } else {

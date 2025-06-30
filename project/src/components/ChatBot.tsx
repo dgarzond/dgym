@@ -177,23 +177,53 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
 - Injury prevention and rehabilitation
 - Program periodization and progression
 
-Create engaging, professional responses with emojis explaining workout plans. Use this specific format for exercises:
+🏷️ EXERCISE IDENTIFICATION SYSTEM:
+CRITICAL: For each exercise, assign a unique CODE in the format [EX001], [EX002], etc. This code must be:
+- Unique for each different exercise type
+- Stable (same exercise = same code across all workouts)
+- Included at the end of exercise name
+
+Example: "Sentadillas [EX001]: 3 sets x 12 reps"
+
+Standard exercise codes to use:
+- [EX001] Sentadillas/Squats
+- [EX002] Press de banca/Bench press
+- [EX003] Peso muerto/Deadlift
+- [EX004] Press militar/Military press
+- [EX005] Dominadas/Pull-ups
+- [EX006] Flexiones/Push-ups
+- [EX007] Plancha/Plank
+- [EX008] Burpees
+- [EX009] Caminata/Walking
+- [EX010] Trote/Jogging
+- [EX011] Bicicleta/Cycling
+- [EX012] Estiramiento de cuádriceps/Quad stretch
+- [EX013] Estiramiento de isquiotibiales/Hamstring stretch
+- [EX014] Remo con barra/Barbell row
+- [EX015] Curl de bíceps/Bicep curl
+- [EX016] Extensión de tríceps/Tricep extension
+- [EX017] Elevaciones laterales/Lateral raises
+- [EX018] Zancadas/Lunges
+- [EX019] Fondos/Dips
+- [EX020] Abdominales/Crunches
+
+For new exercises not in this list, assign the next available number (EX021, EX022, etc.)
 
 MULTI-DAY FORMAT:
 When creating plans with multiple days, clearly separate them:
 
 Día 1:
 🔥 Calentamiento:
-- Exercise: sets x reps/duration
+- Exercise name [EX###]: sets x reps/duration
 
 💪 Fuerza:
-- Exercise: sets x reps/duration
+- Exercise name [EX###]: sets x reps/duration
 
 ⚡ Cardio:
-- Exercise: sets x duration
+- Exercise name [EX###]: sets x duration
 
 ✅ Estiramiento:
-- Exercise: sets x duration
+- Exercise name [EX###]: sets x duration
 
 Día 2:
 🔥 Calentamiento:
@@ -207,21 +237,23 @@ Use sections with emojis:
 ✅ Estiramiento: (for stretching exercises)
 
 For each exercise, use this format:
-- Exercise name: sets x reps/duration
+- Exercise name [EX###]: sets x reps/duration
 
 Examples:
-- Sentadillas: 3 sets x 12 reps
-- Plancha: 3 sets x 30 seconds
-- Caminata: 1 set x 20 minutes
-- Bicicleta estática: 1 set x 5 kilometers
+- Sentadillas [EX001]: 3 sets x 12 reps
+- Plancha [EX007]: 3 sets x 30 seconds
+- Caminata [EX009]: 1 set x 20 minutes
+- Bicicleta estática [EX011]: 1 set x 5 kilometers
 
 RULES:
+- ALWAYS include exercise codes [EX###] at the end of exercise names
 - Always use "sets" and "x" between sets and reps/duration
 - For strength exercises: use "reps" 
 - For time-based exercises: use "seconds" or "minutes"
 - For cardio distance: use "meters" or "kilometers"
-- Include weight if relevant: "- Press militar: 3 sets x 10 reps @ 20 kg"
+- Include weight if relevant: "- Press militar [EX004]: 3 sets x 10 reps @ 20 kg"
 - When creating multiple days, clearly label each as "Día 1:", "Día 2:", etc.
+- Exercise codes ensure unique identification and prevent duplicates
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level.
 
@@ -385,6 +417,7 @@ Exercise format:
   "exercises": [
     {
       "name": "Exercise name",
+      "exerciseCode": "EX001|EX002|etc", 
       "sets": number,
       "reps": number (only for rep-based),
       "duration": number (only for time-based),
@@ -398,6 +431,8 @@ Exercise format:
 
 RULES:
 - CRITICAL: Look for day separators like "Día 1:", "Day 1:", "Día 2:", "Day 2:", etc. If found, return multiple workouts array
+- CRITICAL: Extract exercise codes [EX###] from exercise names. Pattern: "Exercise name [EX001]"
+- If exercise code found, include as "exerciseCode" field and remove code from exercise name
 - Use category IDs: "warmup", "power", "cardio", "stretching"
 - exerciseSubType: "reps" for strength exercises, "duration" for time/distance
 - For reps: include "reps", omit "duration" and "durationUnit"
@@ -618,6 +653,7 @@ RULES:
           const processedExercise = {
             id: exerciseId,
             name: String(exercise.name).trim() || 'Ejercicio sin nombre',
+            exerciseCode: exercise.exerciseCode || null, // Add exercise code field
             sets: sets,
             exerciseSubType: exerciseSubType,
             weight: Math.max(0, parseInt(exercise.weight) || 0),

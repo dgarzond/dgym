@@ -14,6 +14,7 @@ export interface Set {
 export interface Exercise {
   id: string;
   name: string;
+  exerciseCode?: string; // Unique code for exercise identification (e.g., "EX001")
   sets: number;
   reps?: number; // Optional for duration-based exercises
   duration?: number; // Duration value for time-based exercises
