@@ -84,16 +84,16 @@ export function ChatBot({ onWorkoutGenerated, onClose }: ChatBotProps) {
   const formatMessageContent = (content: string) => {
     // Convert **text** to bold
     let formatted = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
+
     // Convert *text* to italic
     formatted = formatted.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
-    
+
     // Preserve line breaks
     formatted = formatted.replace(/\n/g, '<br>');
-    
+
     // Add some emoji enhancements for fitness terms
     formatted = formatted.replace(/💪|🏋️‍♂️|🏋️‍♀️|🔥|⚡|✅|🎯/g, (match) => match);
-    
+
     return formatted;
   };
 
@@ -344,7 +344,7 @@ This will help me create the perfect workout plan for you!`;
         .replace(/\*\*/g, '') // Remove bold markdown
         .replace(/\*/g, '') // Remove italic markdown
         .trim();
-      
+
       // Extract exercises
       const exercises = extractExercisesFromText(cleanText, 0);
       console.log('Exercises extracted:', exercises);
@@ -356,7 +356,7 @@ This will help me create the perfect workout plan for you!`;
 
       // Group exercises by type
       const exerciseTypesMap: { [key: string]: any } = {};
-      
+
       exercises.forEach(exercise => {
         const typeId = exercise.type.id;
         if (!exerciseTypesMap[typeId]) {
@@ -419,12 +419,12 @@ This will help me create the perfect workout plan for you!`;
       };
 
       console.log('Final workout created:', newWorkout);
-      
+
       // Call the parent function to add the workout
       onWorkoutGenerated(newWorkout);
-      
+
       alert(`¡Rutina "${finalWorkoutName}" importada exitosamente!\n\n📊 Detalles:\n• ${exercises.length} ejercicios\n• ${exerciseTypes.length} categorías\n• Duración estimada: ${estimatedDuration}`);
-      
+
     } catch (error) {
       console.error('Error importing workout:', error);
       alert(`Error al importar la rutina: ${error instanceof Error ? error.message : 'Error desconocido'}\n\nAsegúrate de que el formato sea correcto.`);
@@ -449,7 +449,7 @@ This will help me create the perfect workout plan for you!`;
 
       // Detect category headers with emojis and markdown - more robust detection
       const categoryLower = trimmedLine.toLowerCase().replace(/[*#]/g, '');
-      
+
       if (categoryLower.includes('🔥') || categoryLower.includes('calentamiento') || categoryLower.includes('warm')) {
         currentCategory = 'warmup';
         console.log('Category changed to warmup');
@@ -479,21 +479,21 @@ This will help me create the perfect workout plan for you!`;
         continue;
       }
 
-      // Enhanced exercise extraction patterns - prioritize "sets de" format
+      // Enhanced exercise extraction patterns - bilingual support with better edge case handling
       const exercisePatterns = [
-        // "- Exercise name: 3 sets de 12 reps @ 60 kg" (primary format)
-        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+de\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos)(?:\s*@\s*(\d+)\s*kg)?/i,
-        // "- Exercise name: 3 sets of 12 reps @ 60 kg" (fallback format)
-        /^[-•*]?\s*([^:]+):\s*(\d+)\s*sets?\s+of\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos)(?:\s*@\s*(\d+)\s*kg)?/i,
-        // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers" (cardio format)
-        /^[-•*]?\s*([^:]+):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
+        // "- Exercise name: 3 sets de 12 reps @ 60 kg" or "- Exercise name: 3 sets of 12 reps @ 60 kg"
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?(?:\s*\([^)]*\))?/i,
+        // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers" (cardio without sets)
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)(?:\s*a\s*[^,\n]*)?/i,
         // "Exercise name: 3 x 12" (alternative format)
-        /^[-•*]?\s*([^:]+):\s*(\d+)\s*[x×]\s*(\d+)/i
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*[x×]\s*(\d+)/i,
+        // "Exercise name: 3 sets de 30 seconds" (time-based with sets but no cardio keywords)
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(seconds?|segundos|minutes?|minutos)/i
       ];
 
       let exerciseMatch = null;
       let patternIndex = -1;
-      
+
       for (let p = 0; p < exercisePatterns.length; p++) {
         exerciseMatch = trimmedLine.match(exercisePatterns[p]);
         if (exerciseMatch) {
@@ -506,18 +506,22 @@ This will help me create the perfect workout plan for you!`;
       if (exerciseMatch && exerciseMatch.length >= 3) {
         let exerciseName, sets, amount, unit = 'reps', weight = 0;
 
-        if (patternIndex === 0 || patternIndex === 1) {
-          // Full format: "Exercise: 3 sets de/of 12 reps @ 60 kg"
-          [, exerciseName, sets, amount, unit, weight] = exerciseMatch;
+        if (patternIndex === 0) {
+          // Full format: "Exercise: 3 sets of/de 12 reps @ 60 kg"
+          [, exerciseName, sets, , amount, unit, weight] = exerciseMatch;
           weight = weight ? parseInt(weight) : 0;
-        } else if (patternIndex === 2) {
-          // Time/distance format: "Exercise: 20 minutes"
+        } else if (patternIndex === 1) {
+          // Time/distance format: "Exercise: 20 minutes" (cardio without sets)
           [, exerciseName, amount, unit] = exerciseMatch;
           sets = 1;
-        } else if (patternIndex === 3) {
+        } else if (patternIndex === 2) {
           // Short format: "Exercise: 3 x 12"
           [, exerciseName, sets, amount] = exerciseMatch;
           unit = 'reps';
+        } else if (patternIndex === 3) {
+          // Time-based with sets: "Exercise: 3 sets de 30 seconds"
+          [, exerciseName, sets, , amount, unit] = exerciseMatch;
+          weight = 0;
         }
 
         if (exerciseName && exerciseName.trim()) {
@@ -564,7 +568,7 @@ This will help me create the perfect workout plan for you!`;
           }
 
           const isTimeBased = isDuration || isDistance || currentCategory === 'cardio';
-          
+
           const exercise: any = {
             id: exerciseId,
             name: cleanName,
@@ -607,7 +611,7 @@ This will help me create the perfect workout plan for you!`;
     return exercises;
   };
 
-  
+
 
   const parseExercises = (text: string, dayIndex: number) => {
     // Use the same function for consistency
@@ -772,7 +776,7 @@ This will help me create the perfect workout plan for you!`;
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50disabled:cursor-not-allowed transition-colors flex-shrink-0"
             >
               <Send className="w-4 h-4" />
             </button>
