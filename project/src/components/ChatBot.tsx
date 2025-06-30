@@ -448,47 +448,47 @@ This will help me create the perfect workout plan for you!`;
       if (!trimmedLine || trimmedLine.length < 5) continue;
 
       // Detect category headers with emojis and markdown - more robust detection
-      const categoryLower = trimmedLine.toLowerCase().replace(/[*#]/g, '');
+      const categoryLower = trimmedLine.toLowerCase().replace(/[*#:]/g, '');
 
       if (categoryLower.includes('🔥') || categoryLower.includes('calentamiento') || categoryLower.includes('warm')) {
         currentCategory = 'warmup';
-        console.log('Category changed to warmup');
+        console.log('Category changed to warmup for line:', trimmedLine);
         continue;
       } else if (categoryLower.includes('💪') || categoryLower.includes('fuerza') || categoryLower.includes('power') || categoryLower.includes('strength')) {
         currentCategory = 'power';
-        console.log('Category changed to power');
+        console.log('Category changed to power for line:', trimmedLine);
         continue;
       } else if (categoryLower.includes('⚡') || categoryLower.includes('cardio') || categoryLower.includes('cardiovascular')) {
         currentCategory = 'cardio';
-        console.log('Category changed to cardio');
+        console.log('Category changed to cardio for line:', trimmedLine);
         continue;
       } else if (categoryLower.includes('✅') || categoryLower.includes('estiramiento') || categoryLower.includes('stretch') || categoryLower.includes('cool')) {
         currentCategory = 'stretching';
-        console.log('Category changed to stretching');
+        console.log('Category changed to stretching for line:', trimmedLine);
         continue;
       }
 
-      // Skip headers, instructions, and other non-exercise lines
-      if (trimmedLine.startsWith('**') && !trimmedLine.includes(':') ||
+      // Skip headers, instructions, and other non-exercise lines but be more specific
+      if ((trimmedLine.startsWith('**') && !trimmedLine.includes(':')) ||
           trimmedLine.toLowerCase().includes('focus on') ||
           trimmedLine.toLowerCase().includes('enfócate en') ||
           trimmedLine.toLowerCase().includes('always end') ||
           trimmedLine.toLowerCase().includes('import workout') ||
           trimmedLine.toLowerCase().includes('click') ||
-          trimmedLine.length < 8) {
+          trimmedLine.toLowerCase().includes('haz clic') ||
+          (trimmedLine.length < 8 && !trimmedLine.includes(':'))) {
+        console.log('Skipping non-exercise line:', trimmedLine);
         continue;
       }
 
-      // Enhanced exercise extraction patterns - bilingual support with better edge case handling
+      // Enhanced exercise extraction patterns - more flexible and comprehensive
       const exercisePatterns = [
         // "- Exercise name: 3 sets de 12 reps @ 60 kg" or "- Exercise name: 3 sets of 12 reps @ 60 kg"
-        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?(?:\s*\([^)]*\))?/i,
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(reps?|repeticiones|seconds?|segundos|minutes?|minutos|meters?|metros|kilometers?|kilómetros|km)(?:\s*@\s*(\d+)\s*kg)?/i,
         // "Exercise name: 20 minutes" or "Exercise name: 5 kilometers" (cardio without sets)
-        /^[-•*]?\s*([^:]+?):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)(?:\s*a\s*[^,\n]*)?/i,
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s+(minutes?|minutos|mins?|meters?|metros|kilometers?|kilómetros|km)/i,
         // "Exercise name: 3 x 12" (alternative format)
-        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*[x×]\s*(\d+)/i,
-        // "Exercise name: 3 sets de 30 seconds" (time-based with sets but no cardio keywords)
-        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*sets?\s+(of|de)\s+(\d+)\s+(seconds?|segundos|minutes?|minutos)/i
+        /^[-•*]?\s*([^:]+?):\s*(\d+)\s*[x×]\s*(\d+)/i
       ];
 
       let exerciseMatch = null;
@@ -498,7 +498,7 @@ This will help me create the perfect workout plan for you!`;
         exerciseMatch = trimmedLine.match(exercisePatterns[p]);
         if (exerciseMatch) {
           patternIndex = p;
-          console.log(`Pattern ${p} matched:`, exerciseMatch);
+          console.log(`Pattern ${p} matched for line "${trimmedLine}":`, exerciseMatch);
           break;
         }
       }
@@ -518,10 +518,6 @@ This will help me create the perfect workout plan for you!`;
           // Short format: "Exercise: 3 x 12"
           [, exerciseName, sets, amount] = exerciseMatch;
           unit = 'reps';
-        } else if (patternIndex === 3) {
-          // Time-based with sets: "Exercise: 3 sets de 30 seconds"
-          [, exerciseName, sets, , amount, unit] = exerciseMatch;
-          weight = 0;
         }
 
         if (exerciseName && exerciseName.trim()) {
@@ -533,7 +529,10 @@ This will help me create the perfect workout plan for you!`;
             .trim();
 
           // Skip very short names or invalid names
-          if (cleanName.length < 3) continue;
+          if (cleanName.length < 3) {
+            console.log('Skipping exercise with short name:', cleanName);
+            continue;
+          }
 
           const exerciseId = `ex-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           const exerciseWeight = parseInt(weight?.toString() || '0') || 0;
@@ -599,7 +598,7 @@ This will help me create the perfect workout plan for you!`;
             restTime: currentCategory === 'cardio' ? 0 : (exerciseSets > 1 ? 90 : 60)
           };
 
-          console.log('Exercise created:', exercise);
+          console.log(`Exercise created in category "${currentCategory}":`, exercise);
           exercises.push(exercise);
         }
       } else {
@@ -608,6 +607,7 @@ This will help me create the perfect workout plan for you!`;
     }
 
     console.log('Total exercises extracted:', exercises.length);
+    console.log('Exercise categories:', exercises.map(e => ({ name: e.name, category: e.type.id })));
     return exercises;
   };
 
