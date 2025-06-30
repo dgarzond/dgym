@@ -619,31 +619,43 @@ RULES:
           }
         }
 
-        // Now call onWorkoutGenerated for each imported workout immediately
+        // Now call onWorkoutGenerated for each imported workout
         if (importedWorkouts.length > 0) {
           console.log('=== 🚀 INICIANDO IMPORTACIÓN MÚLTIPLE ===');
           console.log(`📅 Total workouts a importar: ${importedWorkouts.length}`);
           
-          importedWorkouts.forEach((workout, index) => {
-            console.log(`=== 📋 PROCESANDO WORKOUT ${index + 1}/${importedWorkouts.length} ===`);
-            console.log(`   • Nombre: "${workout.name}"`);
-            console.log(`   • DayId: ${workout.dayId || 'SIN DAYID'}`);
-            console.log(`   • ID único: ${workout.id}`);
-            console.log(`   • Tipos de ejercicio: ${workout.exerciseTypes?.length || 0}`);
+          // For multi-day workouts, we need to handle them differently
+          if (importedWorkouts.length > 1) {
+            console.log('🔄 Detectado plan multi-día - usando importación secuencial');
             
-            // Add a small delay to ensure proper state updates and avoid race conditions
+            // Import all workouts sequentially with small delays
+            importedWorkouts.forEach((workout, index) => {
+              console.log(`=== 📋 PROCESANDO WORKOUT ${index + 1}/${importedWorkouts.length} ===`);
+              console.log(`   • Nombre: "${workout.name}"`);
+              console.log(`   • DayId: ${workout.dayId || 'SIN DAYID'}`);
+              console.log(`   • ID único: ${workout.id}`);
+              console.log(`   • Tipos de ejercicio: ${workout.exerciseTypes?.length || 0}`);
+              
+              // Smaller delay for better user experience
+              setTimeout(() => {
+                console.log(`⏰ Ejecutando importación del workout ${index + 1}: "${workout.name}"`);
+                onWorkoutGenerated(workout);
+                console.log(`✅ Importación ${index + 1} enviada al WeeklyPlanManager`);
+              }, index * 100); // Reduced to 100ms for faster import
+            });
+            
+            // Log completion after all timeouts
             setTimeout(() => {
-              console.log(`⏰ Ejecutando importación del workout ${index + 1}: "${workout.name}"`);
-              onWorkoutGenerated(workout);
-              console.log(`✅ Importación ${index + 1} enviada al WeeklyPlanManager`);
-            }, index * 200); // 200ms delay between each workout for better state management
-          });
-          
-          // Log completion after all timeouts
-          setTimeout(() => {
-            console.log('=== ✅ TODAS LAS IMPORTACIONES ENVIADAS ===');
-            console.log(`📊 Total: ${importedWorkouts.length} workouts procesados`);
-          }, importedWorkouts.length * 200 + 100);
+              console.log('=== ✅ TODAS LAS IMPORTACIONES ENVIADAS ===');
+              console.log(`📊 Total: ${importedWorkouts.length} workouts procesados`);
+            }, importedWorkouts.length * 100 + 50);
+          } else {
+            // Single workout - import immediately
+            console.log('📋 Detectado workout único - importando inmediatamente');
+            const workout = importedWorkouts[0];
+            onWorkoutGenerated(workout);
+            console.log(`✅ Workout único importado: "${workout.name}"`);
+          }
         }
 
         if (importedWorkouts.length === 0) {

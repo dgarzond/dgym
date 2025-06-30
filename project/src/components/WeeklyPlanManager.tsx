@@ -167,9 +167,17 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     console.log('📊 Tipos de ejercicio:', workout.exerciseTypes?.length || 0);
     console.log('🗓️ Semana actual:', currentWeek.toLocaleDateString());
 
-    // Add to main workouts list first
-    onAddWorkout(workout);
-    console.log('✅ Workout agregado a lista principal:', workout.name);
+    // CRITICAL: Only add to main workouts list if this is NOT a multi-day workout part
+    // Multi-day workouts should only exist in weekly plans, not in main workout list
+    const isMultiDayWorkout = workout.dayId && workout.dayId !== 'DAY001';
+    
+    if (!isMultiDayWorkout) {
+      // Only add single workouts or first day of multi-day plans to main list
+      onAddWorkout(workout);
+      console.log('✅ Workout agregado a lista principal:', workout.name);
+    } else {
+      console.log('⚠️ Workout de múltiples días - SOLO se agrega al plan semanal:', workout.name);
+    }
 
     // Update weekly plans immediately using functional state update
     setWeeklyPlans(currentPlans => {
@@ -240,6 +248,14 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
           updatedWorkouts.forEach((w, index) => {
             console.log(`   • Workout ${index + 1}: "${w.name}" (dayId: ${w.dayId || 'SIN DAYID'})`);
           });
+
+          // Additional validation: Make sure we're not creating duplicates
+          const uniqueDayIds = new Set(updatedWorkouts.map(w => w.dayId).filter(Boolean));
+          const uniqueWorkoutNames = new Set(updatedWorkouts.map(w => w.name));
+          
+          console.log('🔍 Validación de duplicados:');
+          console.log(`   • DayIds únicos: ${uniqueDayIds.size}/${updatedWorkouts.length}`);
+          console.log(`   • Nombres únicos: ${uniqueWorkoutNames.size}/${updatedWorkouts.length}`);
 
           console.log('=== ✅ IMPORTACIÓN COMPLETADA EXITOSAMENTE ===');
           return updatedPlans;
