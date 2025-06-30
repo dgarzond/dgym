@@ -164,6 +164,10 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   const handleWorkoutGenerated = (workout: Workout) => {
     console.log('WeeklyPlanManager receiving workout:', workout.name);
     
+    // Always add to main workouts list first
+    onAddWorkout(workout);
+    console.log('Added workout to main list:', workout.name);
+    
     const currentPlan = getCurrentWeekPlan();
 
     if (currentPlan) {
@@ -195,10 +199,6 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
       setWeeklyPlans(plans => [...plans, newPlan]);
       console.log('Created new plan with workout:', workout.name);
     }
-
-    // Always add to main workouts list
-    onAddWorkout(workout);
-    console.log('Added workout to main list:', workout.name);
   };
 
   const handleNewWeek = () => {
