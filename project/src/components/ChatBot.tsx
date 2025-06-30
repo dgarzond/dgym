@@ -392,7 +392,12 @@ This will help me create the perfect workout plan for you!`;
 
 If the text contains multiple days (Día 1, Day 1, etc.), return an array of workouts. If it's a single day, return a single workout object.
 
-RESPOND ONLY WITH VALID JSON - NO OTHER TEXT:
+CRITICAL: RESPOND ONLY WITH CLEAN, VALID JSON - NO MARKDOWN, NO EXPLANATIONS, NO OTHER TEXT:
+- Do NOT include ```json or ``` markdown blocks
+- Do NOT include any text before or after the JSON
+- Ensure all strings are properly quoted
+- Ensure no trailing commas
+- Ensure proper JSON syntax throughout
 
 For single day:
 {
@@ -506,7 +511,66 @@ RULES:
         cleanJsonContent = cleanJsonContent.replace(/```\s*/, '').replace(/\s*```$/, '');
       }
 
-      return JSON.parse(cleanJsonContent);
+      // Additional cleaning for common JSON issues
+      cleanJsonContent = cleanJsonContent
+        .trim()
+        .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+        .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+        .replace(/\n\s*\n/g, '\n') // Remove extra line breaks
+        .replace(/^\s+|\s+$/gm, ''); // Remove leading/trailing whitespace from each line
+
+      // Try to find the JSON object/array bounds more precisely
+      let startIndex = cleanJsonContent.indexOf('{');
+      let bracketStartIndex = cleanJsonContent.indexOf('[');
+      
+      // Use whichever comes first (object or array)
+      if (bracketStartIndex !== -1 && (startIndex === -1 || bracketStartIndex < startIndex)) {
+        startIndex = bracketStartIndex;
+      }
+      
+      if (startIndex !== -1) {
+        cleanJsonContent = cleanJsonContent.substring(startIndex);
+        
+        // Find the matching closing bracket/brace
+        let braceCount = 0;
+        let bracketCount = 0;
+        let endIndex = -1;
+        
+        for (let i = 0; i < cleanJsonContent.length; i++) {
+          const char = cleanJsonContent[i];
+          if (char === '{') braceCount++;
+          if (char === '}') braceCount--;
+          if (char === '[') bracketCount++;
+          if (char === ']') bracketCount--;
+          
+          if (braceCount === 0 && bracketCount === 0 && i > 0) {
+            endIndex = i + 1;
+            break;
+          }
+        }
+        
+        if (endIndex !== -1) {
+          cleanJsonContent = cleanJsonContent.substring(0, endIndex);
+        }
+      }
+
+      console.log('Cleaned JSON content:', cleanJsonContent);
+
+      try {
+        return JSON.parse(cleanJsonContent);
+      } catch (parseError) {
+        console.error('JSON parse failed, attempting manual fixes...', parseError);
+        
+        // Try to fix common JSON issues
+        let fixedJson = cleanJsonContent
+          .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+          .replace(/([}\]])(\s*)([{\[])/g, '$1,$2$3') // Add missing commas between objects/arrays
+          .replace(/"\s*:\s*([^",{\[\d][^",}]*[^",}])\s*([,}])/g, '": "$1"$2') // Quote unquoted string values
+          .replace(/:\s*([^",{\[\d\s][^",}]*)\s*,/g, ': "$1",'); // Quote more unquoted values
+
+        console.log('Attempting to parse fixed JSON:', fixedJson);
+        return JSON.parse(fixedJson);
+      }
 
     } catch (error) {
       console.error('Error in AI conversion:', error);
@@ -536,8 +600,29 @@ RULES:
         return handleImportWorkoutFallback(textToProcess);
       }
 
-      // Use AI to convert text to structured JSON
-      let workoutData = await convertTextToWorkoutJSON(textToProcess);
+      // Use AI to convert text to structured JSON with retry logic
+      let workoutData;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          workoutData = await convertTextToWorkoutJSON(textToProcess);
+          break; // Success, exit retry loop
+        } catch (error) {
+          retryCount++;
+          console.log(`AI conversion attempt ${retryCount} failed:`, error);
+          
+          if (retryCount > maxRetries) {
+            console.error('All AI conversion attempts failed, using fallback...');
+            throw new Error(`Error de conversión AI después de ${maxRetries + 1} intentos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+          }
+          
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log(`Reintentando conversión AI (intento ${retryCount + 1}/${maxRetries + 1})...`);
+        }
+      }
       console.log('AI converted workout data (before dayId validation):', workoutData);
 
       // FORCE dayId generation if missing - this ensures we always have dayId
