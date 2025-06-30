@@ -501,16 +501,12 @@ RULES:
           }
         }
 
-        // Now call onWorkoutGenerated for each imported workout sequentially with delays
+        // Now call onWorkoutGenerated for each imported workout immediately
         if (importedWorkouts.length > 0) {
-          for (let index = 0; index < importedWorkouts.length; index++) {
-            const workout = importedWorkouts[index];
+          importedWorkouts.forEach((workout, index) => {
             console.log(`Calling onWorkoutGenerated for workout ${index + 1}:`, workout.name);
-            
-            // Add delay between workouts to ensure proper state management
-            await new Promise(resolve => setTimeout(resolve, 200));
             onWorkoutGenerated(workout);
-          }
+          });
         }
 
         if (importedWorkouts.length === 0) {
@@ -669,9 +665,10 @@ RULES:
       const estimatedDuration = String(workoutData.estimatedDuration || '30-45 min').trim();
       const finalWorkoutName = `${workoutName} (${estimatedDuration})`;
 
-      // Create workout object with additional validation
+      // Create workout object with unique ID that includes timestamp and day
+      const uniqueId = `ai-workout-${Date.now()}-day${dayNumber}-${Math.random().toString(36).substr(2, 9)}`;
       const newWorkout: Workout = {
-        id: `ai-workout-${Date.now()}-${dayNumber}-${Math.random().toString(36).substr(2, 9)}`,
+        id: uniqueId,
         date: new Date().toISOString().split('T')[0],
         name: finalWorkoutName,
         exerciseTypes: processedExerciseTypes,

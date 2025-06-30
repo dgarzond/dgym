@@ -164,33 +164,40 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
   const handleWorkoutGenerated = (workout: Workout) => {
     console.log('WeeklyPlanManager receiving workout:', workout.name);
     
-    // Add to main workouts list
+    // Add to main workouts list first
     onAddWorkout(workout);
     console.log('Added workout to main list:', workout.name);
     
-    // Use setTimeout to ensure state updates are processed properly
-    setTimeout(() => {
-      const currentPlan = getCurrentWeekPlan();
+    // Update weekly plans immediately using functional state update
+    setWeeklyPlans(currentPlans => {
+      // Find current week plan using current state
+      const currentPlan = currentPlans.find(plan => 
+        plan.weekStart.getTime() === currentWeek.getTime()
+      );
 
       if (currentPlan) {
-        // Add to existing plan - ensure we don't duplicate workouts
-        const workoutExists = currentPlan.workouts.some(w => w.id === workout.id);
+        // Add to existing plan - check by workout name instead of ID to avoid duplicates
+        const workoutExists = currentPlan.workouts.some(w => 
+          w.name === workout.name || 
+          (w.name.includes("Día") && workout.name.includes("Día") && 
+           w.name.split("Día")[1]?.trim().split(" ")[0] === workout.name.split("Día")[1]?.trim().split(" ")[0])
+        );
+        
         if (!workoutExists) {
-          setWeeklyPlans(plans => {
-            const updatedPlans = plans.map(plan => {
-              if (plan.id === currentPlan.id) {
-                return {
-                  ...plan,
-                  workouts: [...plan.workouts, workout]
-                };
-              }
-              return plan;
-            });
-            console.log('Added workout to existing plan:', workout.name);
-            return updatedPlans;
+          const updatedPlans = currentPlans.map(plan => {
+            if (plan.id === currentPlan.id) {
+              return {
+                ...plan,
+                workouts: [...plan.workouts, workout]
+              };
+            }
+            return plan;
           });
+          console.log('Added workout to existing plan:', workout.name);
+          return updatedPlans;
         } else {
           console.log('Workout already exists in plan:', workout.name);
+          return currentPlans; // Return unchanged state
         }
       } else {
         // Create new plan
@@ -201,13 +208,11 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
           createdAt: new Date(),
           isActive: true
         };
-        setWeeklyPlans(plans => {
-          const newPlans = [...plans, newPlan];
-          console.log('Created new plan with workout:', workout.name);
-          return newPlans;
-        });
+        const newPlans = [...currentPlans, newPlan];
+        console.log('Created new plan with workout:', workout.name);
+        return newPlans;
       }
-    }, 100); // Small delay to allow state updates
+    });
   };
 
   const handleNewWeek = () => {
