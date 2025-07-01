@@ -9,15 +9,7 @@ run = ["sh", "-c", "cd project && npm run build && npx serve dist -s -l 5000 -H 
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 5173
 externalPort = 80
-
-[[ports]]
-localPort = 35467
-externalPort = 3000
 
 [workflows]
 runButton = "Run"
