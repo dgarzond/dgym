@@ -46,6 +46,14 @@ export class ConfigManager {
 
   private loadConfig(): void {
     try {
+      // Priorizar variable de entorno de Replit Secrets
+      const envApiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (envApiKey && envApiKey.startsWith('sk-')) {
+        this.apiKey = envApiKey;
+        return;
+      }
+
+      // Fallback a localStorage si no hay variable de entorno
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const config = JSON.parse(stored);
