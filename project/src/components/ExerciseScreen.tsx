@@ -20,6 +20,17 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
   const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
 
+  // Reset state when exercise changes
+  useEffect(() => {
+    setCurrentSet(0);
+    setTimer(0);
+    setIsResting(false);
+    setRestTimer(60);
+    setSetDetails(exercise.setDetails || []);
+    setWeightUnit(exercise.weightUnit || 'kg');
+    setCurrentWeight(exercise.weight || 0);
+  }, [exercise.id]);
+
   useEffect(() => {
     let interval: number | undefined;
     if (!isResting) {
