@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, User, Loader, Import, Download } from 'lucide-react';
 import type { Workout, ExerciseType, Exercise, Set } from '../types';
@@ -140,6 +139,7 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
     setIsLoading(true);
 
     try {
+      const apiKey = ConfigManager.getInstance().getApiKey();
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -230,6 +230,7 @@ Always end your response by telling users they can click the "Import Workout" bu
       console.log('🤖 INICIANDO CONVERSIÓN CON IA PARA DÍA INDIVIDUAL...');
       console.log('📝 Texto a procesar:', workoutText.substring(0, 200) + '...');
 
+      const apiKey = ConfigManager.getInstance().getApiKey();
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -332,68 +333,68 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
 
   const cleanAndParseJSON = (jsonString: string) => {
     let cleaned = jsonString.trim();
-    
+
     // Remove markdown code blocks
     cleaned = cleaned.replace(/```json\s*/, '').replace(/\s*```$/, '');
     cleaned = cleaned.replace(/```\s*/, '').replace(/\s*```$/, '');
-    
+
     // Find JSON start
     const jsonStart = Math.min(
       cleaned.indexOf('{') === -1 ? Infinity : cleaned.indexOf('{'),
       cleaned.indexOf('[') === -1 ? Infinity : cleaned.indexOf('[')
     );
-    
+
     if (jsonStart !== Infinity) {
       cleaned = cleaned.substring(jsonStart);
     }
-    
+
     // Find JSON end
     let braceCount = 0;
     let bracketCount = 0;
     let jsonEnd = -1;
-    
+
     for (let i = 0; i < cleaned.length; i++) {
       const char = cleaned[i];
       if (char === '{') braceCount++;
       if (char === '}') braceCount--;
       if (char === '[') bracketCount++;
       if (char === ']') bracketCount--;
-      
+
       if (braceCount === 0 && bracketCount === 0 && i > 0) {
         jsonEnd = i + 1;
         break;
       }
     }
-    
+
     if (jsonEnd !== -1) {
       cleaned = cleaned.substring(0, jsonEnd);
     }
-    
+
     // Fix common JSON issues
     cleaned = cleaned.replace(/,\s*([}\]])/g, '$1').replace(/([}\]])\s*([{\[])/g, '$1,$2');
-    
+
     console.log('🧹 Final cleaned JSON:', cleaned);
-    
+
     try {
       return JSON.parse(cleaned);
     } catch (error) {
       console.error('❌ JSON parse failed:', error);
       console.log('🔧 Attempting advanced fixes...');
-      
+
       // Try to fix unquoted values
       let fixed = cleaned.replace(/:\s*([a-zA-Z][^",}]*)\s*([,}])/g, ': "$1"$2');
       fixed = fixed.replace(/"\s*:\s*"([^"]*)"([^",}])/g, '": "$1$2"');
-      
+
       return JSON.parse(fixed);
     }
   };
 
   const handleImportWorkout = async () => {
     setIsImporting(true);
-    
+
     try {
       console.log('🚀 INICIANDO IMPORTACIÓN SECUENCIAL DÍA POR DÍA...');
-      
+
       const lastMessage = messages[messages.length - 1];
       if (!lastMessage || lastMessage.role !== 'assistant') {
         throw new Error('No hay mensaje del asistente para procesar');
@@ -405,15 +406,15 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
       // Detectar si es múltiples días
       const dayMatches = workoutText.match(/d[íi]a\s*\d+|day\s*\d+/gi) || [];
       const isDays = dayMatches.length > 1;
-      
+
       console.log('🔍 Días detectados:', dayMatches.length, isDays ? 'MÚLTIPLES DÍAS' : 'DÍA ÚNICO');
 
       if (isDays) {
         // Procesamiento secuencial para múltiples días
         console.log('📅 PROCESANDO MÚLTIPLES DÍAS SECUENCIALMENTE...');
-        
+
         const processedWorkouts: Workout[] = [];
-        
+
         // Dividir el texto por días
         const daysSplit = workoutText.split(/(?=d[íi]a\s*\d+|day\s*\d+)/gi).filter(day => day.trim());
         console.log('📊 Días divididos:', daysSplit.length);
@@ -428,7 +429,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
           try {
             const workoutData = await convertTextToWorkoutJSON(dayText);
             const processedWorkout = processWorkoutData(workoutData, i);
-            
+
             if (processedWorkout && processedWorkout.id && processedWorkout.name) {
               processedWorkouts.push(processedWorkout);
               console.log(`✅ DÍA ${i + 1} PROCESADO EXITOSAMENTE:`, processedWorkout.name);
@@ -448,16 +449,16 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
           processedWorkouts.forEach((workout, index) => {
             console.log(`   ${index + 1}. "${workout.name}" (ID: ${workout.id}, DayId: ${workout.dayId})`);
           });
-          
+
           // Validar que todos los workouts tengan datos mínimos requeridos
           const validWorkouts = processedWorkouts.filter(w => 
             w && w.id && w.name && w.exerciseTypes && Array.isArray(w.exerciseTypes)
           );
-          
+
           if (validWorkouts.length > 0) {
             onWorkoutGenerated(validWorkouts);
             console.log('✅ TODOS LOS WORKOUTS ENVIADOS EXITOSAMENTE');
-            
+
             // Mensaje de éxito al usuario
             const successMessage: Message = {
               id: (Date.now() + 2).toString(),
@@ -478,12 +479,12 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
         console.log('📅 PROCESANDO DÍA ÚNICO...');
         const workoutData = await convertTextToWorkoutJSON(workoutText);
         const processedWorkout = processWorkoutData(workoutData, 0);
-        
+
         if (processedWorkout && processedWorkout.id && processedWorkout.name) {
           console.log('🚀 ENVIANDO WORKOUT ÚNICO...');
           onWorkoutGenerated(processedWorkout);
           console.log('✅ WORKOUT ÚNICO ENVIADO EXITOSAMENTE');
-          
+
           // Mensaje de éxito al usuario
           const successMessage: Message = {
             id: (Date.now() + 2).toString(),
@@ -500,7 +501,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
     } catch (error) {
       console.error('❌ Error importing workout:', error);
       const errorDetails = error instanceof Error ? error.message : 'Error desconocido';
-      
+
       // Mensaje de error al usuario
       const errorMessage: Message = {
         id: (Date.now() + 3).toString(),
@@ -509,7 +510,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
-      
+
       // No mostrar alert para evitar interrumpir la UX
     } finally {
       setIsImporting(false);
@@ -519,16 +520,16 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
   const processWorkoutData = (data: any, dayIndex: number): Workout | null => {
     try {
       console.log(`🔄 Procesando datos del workout día ${dayIndex + 1}:`, data);
-      
+
       if (!data || typeof data !== 'object') {
         console.error('❌ Datos de workout inválidos:', data);
         return null;
       }
-      
+
       const timestamp = Date.now() + dayIndex * 1000; // Mayor separación entre IDs
       const uniqueId = `workout-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
       const dayId = `day-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(dayIndex + 1).padStart(3, '0')}`;
-      
+
       console.log(`🆔 IDs generados - WorkoutId: ${uniqueId}, DayId: ${dayId}`);
 
       const workout: Workout = {
