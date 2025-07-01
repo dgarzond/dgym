@@ -1,5 +1,5 @@
 modules = ["nodejs-20", "web"]
-run = "npm run dev"
+run = "cd project && npm run build && npm run preview"
 
 [nix]
 channel = "stable-24_05"
