@@ -540,7 +540,6 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
                     exerciseSubType: exercise.exerciseSubType || 'reps',
                     restTime: Number(exercise.restTime) || 60,
                     completed: false,
-                    type: exerciseType,
                     setDetails: []
                   };
 
