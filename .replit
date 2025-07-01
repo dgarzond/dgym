@@ -5,7 +5,7 @@ run = "cd project && npm run build && npm run preview"
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "cd project && npm run build && npm run preview"]
+run = ["sh", "-c", "cd project && npm run build && npx serve dist -s -l 5000 -H 0.0.0.0"]
 
 [[ports]]
 localPort = 5000
