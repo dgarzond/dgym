@@ -13,6 +13,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
+    allowedHosts: ['dgym-garzonduarted.replit.app']
   },
   server: {
     host: '0.0.0.0',
