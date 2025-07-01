@@ -5,11 +5,16 @@ run = "cd project && npm run build && npm run preview"
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "cd project && npm run build && npx serve dist -s -l 5000 -H 0.0.0.0"]
+run = ["sh", "-c", "npx serve dist -s -l 5000"]
+build = ["sh", "-c", "cd project && npm run build"]
 
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
 
 [workflows]
 runButton = "Run"
