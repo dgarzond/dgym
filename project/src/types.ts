@@ -25,7 +25,7 @@ export interface Exercise {
   completed: boolean;
   setDetails: Set[];
   restTime?: number; // in seconds
-  type: ExerciseType; // New field to categorize exercises
+  type?: ExerciseType; // Optional field to categorize exercises - made optional to prevent circular references
 }
 
 export interface ExerciseType {
