@@ -57,7 +57,9 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
     const key = ConfigManager.getInstance().getApiKey();
     if (key) {
       setApiKey(key);
+      console.log('✅ API key loaded successfully');
     } else {
+      console.log('⚠️ No API key found - showing input form');
       setShowApiKeyInput(true);
     }
   }, []);

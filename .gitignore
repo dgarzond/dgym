@@ -1,3 +1,4 @@
+
 # Logs
 logs
 *.log
@@ -7,9 +8,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnpm
+.npm
+
+# Build outputs
 dist
 dist-ssr
+build
 *.local
 
 # Environment variables and API keys
@@ -17,8 +24,9 @@ dist-ssr
 .env.local
 .env.production
 .env.development
+.env.test
 
-# Editor directories and files
+# IDE and editor files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -28,3 +36,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary files
+*.tmp
+*.temp
+.cache
+
+# OS generated files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Project specific
+project/dist/
+project/node_modules/
