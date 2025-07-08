@@ -1,6 +1,4 @@
-The code is modified to pass the current exercise stage to the ExerciseScreen component.
-```
-```replit_final_file
+
 import React, { useState, useEffect } from 'react';
 // CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
@@ -170,6 +168,17 @@ function App() {
       return null;
     }
 
+    // Get the current exercise type for stage display
+    let currentStage = 'Ejercicio';
+    if (selectedWorkout.exerciseTypes) {
+      for (const exerciseType of selectedWorkout.exerciseTypes) {
+        if (exerciseType.exercises?.some(ex => ex.id === exercise.id)) {
+          currentStage = exerciseType.name;
+          break;
+        }
+      }
+    }
+
     return (
       <ExerciseScreen
         exercise={exercise}
@@ -178,6 +187,7 @@ function App() {
         onNext={handleNextExercise}
         isLast={currentExercise === allExercises.length - 1}
         totalWorkoutTime={totalWorkoutTime}
+        currentStage={currentStage}
       />
     );
   }
