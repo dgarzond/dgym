@@ -171,13 +171,13 @@ Guidelines for your responses:
    - **CARDIO** (15-25 min cardiovascular exercises)
    - **ESTIRAMIENTOS** (5-10 min stretching/cooldown exercises)
 4. MANDATORY: Specify sets, reps, rest periods (in seconds), and weights when applicable
-5. Always include specific rest times for each exercise (30-120 seconds typically)
-5. Explain the purpose of each exercise
-6. Give safety tips and form cues
-7. Suggest modifications for different fitness levels
-8. Be encouraging and motivational
-9. Use emojis to make responses engaging
-10. Provide structured workout data that can be imported
+5. CRITICAL: ALWAYS include specific rest times for each exercise between sets
+6. Explain the purpose of each exercise
+7. Give safety tips and form cues
+8. Suggest modifications for different fitness levels
+9. Be encouraging and motivational
+10. Use emojis to make responses engaging
+11. Provide structured workout data that can be imported
 
 When creating workouts, ALWAYS organize exercises into these 4 sections with clear headers. Each section should have appropriate exercises for that category.
 
@@ -185,14 +185,22 @@ Focus on proper form, safety, and progressive overload. Adapt recommendations ba
 
 Always end your response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.
 
-IMPORTANT: For each exercise, specify:
-- Number of sets
-- Reps per set (or duration for cardio/time-based exercises)
-- Rest time between sets (typically 30-60 seconds for endurance, 60-120 seconds for strength)
-- Weight recommendations when applicable
+CRITICAL REST TIME REQUIREMENTS:
+- CALENTAMIENTO: 15-30 seconds rest between exercises
+- FUERZA: 60-120 seconds rest between sets (longer for heavy compound movements)
+- CARDIO: 30-60 seconds rest between intervals
+- ESTIRAMIENTOS: 10-15 seconds rest between stretches
 
-Example format:
-Exercise Name: 3 sets x 12 reps, 60 seconds rest, 20kg`
+MANDATORY FORMAT for each exercise:
+Exercise Name: [sets] sets x [reps] reps, [rest_time] seconds rest, [weight]kg
+
+Examples:
+- Sentadillas: 3 sets x 12 reps, 90 seconds rest, 20kg
+- Flexiones: 3 sets x 15 reps, 60 seconds rest, bodyweight
+- Plancha: 3 sets x 30 seconds, 45 seconds rest, bodyweight
+- Burpees: 4 sets x 8 reps, 60 seconds rest, bodyweight
+
+NEVER omit rest times - they are essential for workout structure and safety.`
             },
             ...messages.map(msg => ({
               role: msg.role,
@@ -257,7 +265,7 @@ Exercise Name: 3 sets x 12 reps, 60 seconds rest, 20kg`
 🎯 CRITICAL REQUIREMENTS:
 1. Generate UNIQUE dayId (format: day-YYYYMMDD-UNIQUEID)
 2. Create proper exercise hierarchy: exerciseTypes -> exercises -> setDetails
-3. Each exercise MUST have unique id, name, setDetails array
+3. Each exercise MUST have unique id, name, setDetails array, and MANDATORY restTime
 4. setDetails format: [{"set": 1, "reps": 12, "weight": "bodyweight", "completed": false}]
 5. MANDATORY: Use ONLY these 4 exercise categories in SPANISH:
 
@@ -266,6 +274,12 @@ MANDATORY EXERCISE CATEGORIES (USE EXACTLY THESE):
 - "Fuerza" (for strength/power exercises) 
 - "Cardio" (for cardiovascular exercises)
 - "Estiramientos" (for stretching/cooldown exercises)
+
+CRITICAL: EVERY exercise MUST include restTime field with appropriate values:
+- Calentamiento: 15-30 seconds
+- Fuerza: 60-120 seconds
+- Cardio: 30-60 seconds
+- Estiramientos: 10-15 seconds
 
 EXACT JSON STRUCTURE REQUIRED:
 {
@@ -280,31 +294,30 @@ EXACT JSON STRUCTURE REQUIRED:
       "name": "Calentamiento",
       "nameSpanish": "Calentamiento",
       "duration": "5-10 min",
-      "exercises": [...]
-    },
-    {
-      "id": "power-TIMESTAMP", 
-      "name": "Fuerza",
-      "nameSpanish": "Fuerza",
-      "duration": "20-30 min",
-      "exercises": [...]
-    },
-    {
-      "id": "cardio-TIMESTAMP",
-      "name": "Cardio", 
-      "nameSpanish": "Cardio",
-      "duration": "15-25 min",
-      "exercises": [...]
-    },
-    {
-      "id": "stretching-TIMESTAMP",
-      "name": "Estiramientos",
-      "nameSpanish": "Estiramientos", 
-      "duration": "5-10 min",
-      "exercises": [...]
+      "exercises": [
+        {
+          "id": "exercise-TIMESTAMP",
+          "name": "Exercise Name",
+          "exerciseCode": "EX001",
+          "sets": 3,
+          "reps": 12,
+          "weight": 0,
+          "weightUnit": "kg",
+          "exerciseSubType": "reps",
+          "restTime": 60,
+          "completed": false,
+          "setDetails": [
+            {"set": 1, "reps": 12, "weight": "bodyweight", "completed": false},
+            {"set": 2, "reps": 12, "weight": "bodyweight", "completed": false},
+            {"set": 3, "reps": 12, "weight": "bodyweight", "completed": false}
+          ]
+        }
+      ]
     }
   ]
 }
+
+NEVER omit restTime - it is MANDATORY for every exercise. Extract rest times from text like "60 seconds rest" or "90 segundos descanso".
 
 RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTER`
             },
@@ -568,6 +581,18 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
               exerciseType.exercises = type.exercises
                 .filter((exercise: any) => exercise && typeof exercise === 'object' && exercise.name)
                 .map((exercise: any, exerciseIndex: number) => {
+                  // Determinar tiempo de descanso por defecto basado en el tipo de ejercicio
+                  const getDefaultRestTime = (exerciseTypeName: string) => {
+                    const typeName = exerciseTypeName.toLowerCase();
+                    if (typeName.includes('calentamiento')) return 20;
+                    if (typeName.includes('fuerza')) return 90;
+                    if (typeName.includes('cardio')) return 45;
+                    if (typeName.includes('estiramiento')) return 15;
+                    return 60; // Default fallback
+                  };
+
+                  const defaultRestTime = getDefaultRestTime(type.nameSpanish || type.name || '');
+
                   const processedExercise = {
                     id: exercise.id || `exercise-${timestamp}-${typeIndex}-${exerciseIndex}-${Math.random().toString(36).substr(2, 5)}`,
                     name: exercise.name || `Ejercicio ${exerciseIndex + 1}`,
@@ -577,7 +602,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
                     weight: Number(exercise.weight) || 0,
                     weightUnit: exercise.weightUnit || 'kg',
                     exerciseSubType: exercise.exerciseSubType || 'reps',
-                    restTime: Number(exercise.restTime) || 60,
+                    restTime: Number(exercise.restTime) || defaultRestTime,
                     completed: false,
                     setDetails: []
                   };
