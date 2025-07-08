@@ -10,9 +10,10 @@ interface ExerciseScreenProps {
   onNext: () => void;
   isLast: boolean;
   totalWorkoutTime?: number;
+  currentStage?: string; // Nueva prop para mostrar la etapa actual
 }
 
-export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, totalWorkoutTime = 0 }: ExerciseScreenProps) {
+export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, totalWorkoutTime = 0, currentStage }: ExerciseScreenProps) {
   const [currentSet, setCurrentSet] = useState(0);
   const [timer, setTimer] = useState(0);
   const [isResting, setIsResting] = useState(false);
@@ -134,7 +135,14 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back
           </button>
-          <h1 className="text-2xl font-bold text-center text-gray-900">{exercise.name}</h1>
+          <div className="text-center">
+            {currentStage && (
+              <div className="text-sm font-medium text-blue-600 mb-1">
+                Parte de rutina: {currentStage}
+              </div>
+            )}
+            <h1 className="text-2xl font-bold text-gray-900">{exercise.name}</h1>
+          </div>
           <div className="w-20" />
         </div>
 
@@ -165,37 +173,58 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Indicador del tipo de ejercicio */}
+              <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <div className="flex items-center">
+                  <Timer className="w-5 h-5 text-blue-600 mr-2" />
+                  <span className="font-medium text-blue-800">
+                    {exercise.exerciseSubType === 'duration' 
+                      ? `Ejercicio por tiempo/distancia`
+                      : `Ejercicio por repeticiones`
+                    }
+                  </span>
+                </div>
+                <p className="text-sm text-blue-600 mt-1">
+                  {exercise.exerciseSubType === 'duration' 
+                    ? `Mantén la actividad durante el tiempo/distancia especificado`
+                    : `Completa el número de repeticiones indicado`
+                  }
+                </p>
+              </div>
+
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h3 className="text-lg font-medium mb-4">Target</h3>
+                <h3 className="text-lg font-medium mb-4">Objetivo del Set</h3>
                 <div className="grid grid-cols-2 gap-4">
                   {exercise.exerciseSubType === 'duration' ? (
                     <div>
-                      <label className="block text-sm text-gray-600">
-                        {exercise.durationUnit === 'meters' ? 'Distancia (metros)' : 
-                         exercise.durationUnit === 'kilometers' ? 'Distancia (kilómetros)' :
-                         exercise.durationUnit === 'minutes' ? 'Duración (minutos)' : 'Duración (segundos)'}
+                      <label className="block text-sm font-medium text-gray-700">
+                        {exercise.durationUnit === 'meters' ? '🏃‍♂️ Distancia (metros)' : 
+                         exercise.durationUnit === 'kilometers' ? '🏃‍♂️ Distancia (kilómetros)' :
+                         exercise.durationUnit === 'minutes' ? '⏱️ Duración (minutos)' : '⏱️ Duración (segundos)'}
                       </label>
                       <input
                         type="number"
                         defaultValue={exercise.duration}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-lg"
                         id="duration-input"
                       />
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-sm text-gray-600">Reps</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        🔢 Repeticiones
+                      </label>
                       <input
                         type="number"
                         defaultValue={exercise.reps || 10}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-lg"
                         id="reps-input"
                       />
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm text-gray-600">
-                      Weight ({weightUnit})
+                    <label className="block text-sm font-medium text-gray-700">
+                      💪 Peso ({weightUnit})
                       <button
                         onClick={handleWeightUnitToggle}
                         className="ml-2 text-blue-600 hover:text-blue-800"
@@ -207,9 +236,16 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                       type="number"
                       value={currentWeight}
                       onChange={(e) => setCurrentWeight(Number(e.target.value))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-lg"
                     />
                   </div>
+                </div>
+                
+                {/* Información del descanso */}
+                <div className="mt-4 p-3 bg-yellow-50 rounded-md">
+                  <p className="text-sm text-yellow-800">
+                    ⏳ Tiempo de descanso después del set: <span className="font-medium">{exercise.restTime || 60} segundos</span>
+                  </p>
                 </div>
               </div>
 
@@ -223,9 +259,12 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                     handleSetComplete(Number(repsInput.value), currentWeight);
                   }
                 }}
-                className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
               >
-                Complete Set
+                {exercise.exerciseSubType === 'duration' 
+                  ? '✅ Completar Tiempo/Distancia'
+                  : '✅ Completar Repeticiones'
+                }
               </button>
             </div>
           )}

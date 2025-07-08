@@ -1,3 +1,6 @@
+The code is modified to pass the current exercise stage to the ExerciseScreen component.
+```
+```replit_final_file
 import React, { useState, useEffect } from 'react';
 // CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
