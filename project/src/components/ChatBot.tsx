@@ -170,7 +170,8 @@ Guidelines for your responses:
    - **FUERZA** (20-30 min strength/power exercises) 
    - **CARDIO** (15-25 min cardiovascular exercises)
    - **ESTIRAMIENTOS** (5-10 min stretching/cooldown exercises)
-4. Specify sets, reps, rest periods, and weights when applicable
+4. MANDATORY: Specify sets, reps, rest periods (in seconds), and weights when applicable
+5. Always include specific rest times for each exercise (30-120 seconds typically)
 5. Explain the purpose of each exercise
 6. Give safety tips and form cues
 7. Suggest modifications for different fitness levels
@@ -182,7 +183,16 @@ When creating workouts, ALWAYS organize exercises into these 4 sections with cle
 
 Focus on proper form, safety, and progressive overload. Adapt recommendations based on the user's fitness level.
 
-Always end your response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.`
+Always end your response by telling users they can click the "Import Workout" button to add the routine to their fitness tracker.
+
+IMPORTANT: For each exercise, specify:
+- Number of sets
+- Reps per set (or duration for cardio/time-based exercises)
+- Rest time between sets (typically 30-60 seconds for endurance, 60-120 seconds for strength)
+- Weight recommendations when applicable
+
+Example format:
+Exercise Name: 3 sets x 12 reps, 60 seconds rest, 20kg`
             },
             ...messages.map(msg => ({
               role: msg.role,

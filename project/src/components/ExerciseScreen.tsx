@@ -9,13 +9,14 @@ interface ExerciseScreenProps {
   onBack: () => void;
   onNext: () => void;
   isLast: boolean;
+  totalWorkoutTime?: number;
 }
 
-export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }: ExerciseScreenProps) {
+export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, totalWorkoutTime = 0 }: ExerciseScreenProps) {
   const [currentSet, setCurrentSet] = useState(0);
   const [timer, setTimer] = useState(0);
   const [isResting, setIsResting] = useState(false);
-  const [restTimer, setRestTimer] = useState(60);
+  const [restTimer, setRestTimer] = useState(exercise.restTime || 60);
   const [setDetails, setSetDetails] = useState<Set[]>(exercise.setDetails || []);
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
   const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
@@ -25,8 +26,21 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
     setCurrentSet(0);
     setTimer(0);
     setIsResting(false);
-    setRestTimer(60);
-    setSetDetails(exercise.setDetails || []);
+    setRestTimer(exercise.restTime || 60);
+    
+    // Initialize setDetails if empty or incomplete
+    const initialSetDetails = exercise.setDetails && exercise.setDetails.length > 0 
+      ? exercise.setDetails 
+      : Array.from({ length: exercise.sets }, (_, index) => ({
+          id: `set-${exercise.id}-${index}`,
+          set: index + 1,
+          reps: exercise.reps || 10,
+          weight: exercise.weight || 0,
+          completed: false,
+          weightUnit: exercise.weightUnit || 'kg'
+        }));
+    
+    setSetDetails(initialSetDetails);
     setWeightUnit(exercise.weightUnit || 'kg');
     setCurrentWeight(exercise.weight || 0);
   }, [exercise.id]);
@@ -49,7 +63,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
       }, 1000);
     } else if (restTimer === 0) {
       setIsResting(false);
-      setRestTimer(60);
+      setRestTimer(exercise.restTime || 60);
     }
     return () => clearInterval(interval);
   }, [isResting, restTimer]);
@@ -80,14 +94,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
 
   const handleSetComplete = (actualReps?: number, actualWeight?: number, actualDuration?: number) => {
     const newSetDetails = [...setDetails];
-    if (!newSetDetails[currentSet]) {
-      newSetDetails[currentSet] = {
-        id: `set-${currentSet}`,
-        weight: currentWeight,
-        completed: false,
-        weightUnit: weightUnit
-      };
-    }
+    
     if (exercise.exerciseSubType === 'duration') {
       newSetDetails[currentSet] = {
         ...newSetDetails[currentSet],
@@ -109,6 +116,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
 
     if (currentSet < exercise.sets - 1) {
       setIsResting(true);
+      setRestTimer(exercise.restTime || 60);
       setCurrentSet(prev => prev + 1);
     } else {
       onComplete(exercise.id, newSetDetails);
@@ -134,7 +142,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast }:
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
               <Timer className="w-5 h-5 mr-2 text-blue-600" />
-              <span className="text-lg">Workout Time: {formatTime(timer)}</span>
+              <span className="text-lg">Total Workout: {formatTime(totalWorkoutTime)}</span>
             </div>
             <span className="text-lg font-medium">
               Set {currentSet + 1} of {exercise.sets}
