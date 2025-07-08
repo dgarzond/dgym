@@ -36,6 +36,8 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
           id: `set-${exercise.id}-${index}`,
           set: index + 1,
           reps: exercise.reps || 10,
+          duration: exercise.duration || 30,
+          durationUnit: exercise.durationUnit || 'seconds',
           weight: exercise.weight || 0,
           completed: false,
           weightUnit: exercise.weightUnit || 'kg'
@@ -44,6 +46,12 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
     setSetDetails(initialSetDetails);
     setWeightUnit(exercise.weightUnit || 'kg');
     setCurrentWeight(exercise.weight || 0);
+    
+    // Reset to first uncompleted set
+    const firstUncompletedSet = initialSetDetails.findIndex(set => !set.completed);
+    if (firstUncompletedSet !== -1) {
+      setCurrentSet(firstUncompletedSet);
+    }
   }, [exercise.id]);
 
   useEffect(() => {
@@ -68,7 +76,11 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
       
       // Si estamos en la última serie y acabamos de terminar el descanso, completar el ejercicio
       if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
-        onComplete(exercise.id, setDetails);
+        // Verificar que todos los sets estén completados antes de finalizar
+        const allSetsCompleted = setDetails.every(set => set.completed);
+        if (allSetsCompleted) {
+          onComplete(exercise.id, setDetails);
+        }
       }
     }
     return () => clearInterval(interval);
@@ -179,7 +191,11 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                   
                   // Si estamos en la última serie, completar el ejercicio
                   if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
-                    onComplete(exercise.id, setDetails);
+                    // Verificar que todos los sets estén completados
+                    const allSetsCompleted = setDetails.every(set => set.completed);
+                    if (allSetsCompleted) {
+                      onComplete(exercise.id, setDetails);
+                    }
                   }
                 }}
                 className="flex items-center mx-auto text-blue-600 hover:text-blue-800"
@@ -221,7 +237,8 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                       </label>
                       <input
                         type="number"
-                        defaultValue={exercise.duration}
+                        defaultValue={exercise.duration || setDetails[currentSet]?.duration || 30}
+                        min="1"
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 text-lg"
                         id="duration-input"
                       />
@@ -302,7 +319,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
               />
             ))}
           </div>
-          {setDetails[Math.max(0, (exercise.sets || 1) - 1)] && setDetails[Math.max(0, (exercise.sets || 1) - 1)].completed && (
+          {setDetails.every(set => set.completed) && setDetails.length > 0 && (
             <button
               onClick={onNext}
               className="flex items-center text-white bg-blue-600 px-4 py-2 rounded-lg hover:bg-blue-700"

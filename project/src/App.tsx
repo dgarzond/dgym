@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 // CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
@@ -69,21 +68,50 @@ function App() {
     setTotalWorkoutTime(0); // Reset workout time when starting a new workout
   };
 
-  const handleExerciseComplete = (exerciseId: string, setDetails: Set[]) => {
-    if (selectedWorkout && selectedWorkout.exerciseTypes) {
-      const updatedWorkout = {
-        ...selectedWorkout,
-        exerciseTypes: selectedWorkout.exerciseTypes.map(exerciseType => ({
-          ...exerciseType,
-          exercises: (exerciseType.exercises || []).map(exercise => 
-            exercise && exercise.id === exerciseId
-              ? { ...exercise, setDetails, completed: true }
-              : exercise
-          )
-        }))
-      };
-      handleUpdateWorkout(updatedWorkout);
+  const handleExerciseComplete = (exerciseId: string, completedSetDetails: Set[]) => {
+    if (!selectedWorkout) return;
+
+    // Verificar que todos los sets estén realmente completados
+    const allSetsCompleted = completedSetDetails.every(set => set.completed);
+    if (!allSetsCompleted) {
+      console.warn('Intentando completar ejercicio con sets incompletos');
+      return;
     }
+
+    const updatedWorkout = {
+      ...selectedWorkout,
+      exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
+        ...exerciseType,
+        exercises: (exerciseType.exercises || []).map(exercise => {
+          if (exercise.id === exerciseId) {
+            return {
+              ...exercise,
+              setDetails: completedSetDetails,
+              completed: true
+            };
+          }
+          return exercise;
+        })
+      }))
+    };
+
+    // Verificar si todo el workout está completo
+    const allExercisesInWorkout = updatedWorkout.exerciseTypes.flatMap(type => type.exercises || []);
+    const workoutCompleted = allExercisesInWorkout.every(exercise => exercise.completed);
+
+    const finalUpdatedWorkout = {
+      ...updatedWorkout,
+      completed: workoutCompleted
+    };
+
+    const updatedWorkouts = workouts.map(w => 
+      w.id === selectedWorkout.id ? finalUpdatedWorkout : w
+    );
+    setWorkouts(updatedWorkouts);
+    setSelectedWorkout(finalUpdatedWorkout);
+
+    // Move to next exercise or finish workout
+    handleNextExercise();
   };
 
   const handleNextExercise = () => {
