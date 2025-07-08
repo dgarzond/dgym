@@ -65,9 +65,14 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
     } else if (restTimer === 0) {
       setIsResting(false);
       setRestTimer(exercise.restTime || 60);
+      
+      // Si estamos en la última serie y acabamos de terminar el descanso, completar el ejercicio
+      if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
+        onComplete(exercise.id, setDetails);
+      }
     }
     return () => clearInterval(interval);
-  }, [isResting, restTimer]);
+  }, [isResting, restTimer, currentSet, exercise.sets, setDetails, exercise.id, onComplete]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -115,12 +120,16 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
     }
     setSetDetails(newSetDetails);
 
+    // Siempre ir al descanso después de completar un set
+    setIsResting(true);
+    setRestTimer(exercise.restTime || 60);
+    
     if (currentSet < exercise.sets - 1) {
-      setIsResting(true);
-      setRestTimer(exercise.restTime || 60);
+      // No es la última serie, pasar al siguiente set
       setCurrentSet(prev => prev + 1);
     } else {
-      onComplete(exercise.id, newSetDetails);
+      // Es la última serie, marcar para completar el ejercicio después del descanso
+      // No incrementamos currentSet para que permanezca en la última serie
     }
   };
 
@@ -164,7 +173,15 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                 {formatTime(restTimer)}
               </div>
               <button
-                onClick={() => setIsResting(false)}
+                onClick={() => {
+                  setIsResting(false);
+                  setRestTimer(exercise.restTime || 60);
+                  
+                  // Si estamos en la última serie, completar el ejercicio
+                  if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
+                    onComplete(exercise.id, setDetails);
+                  }
+                }}
                 className="flex items-center mx-auto text-blue-600 hover:text-blue-800"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
