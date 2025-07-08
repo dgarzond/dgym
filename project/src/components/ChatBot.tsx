@@ -211,7 +211,7 @@ NEVER omit rest times - they are essential for workout structure and safety.`
               content: userMessage
             }
           ],
-          max_tokens: 1000,
+          max_tokens: 4000,
           temperature: 0.7
         })
       });
@@ -326,7 +326,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
               content: `Parse this single day workout text to structured JSON:\n\n${workoutText}`
             }
           ],
-          max_tokens: 2500,
+          max_tokens: 4000,
           temperature: 0.1
         })
       });
@@ -776,19 +776,30 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              type="text"
+          <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+            <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask about workouts, exercises, or fitness advice..."
-              className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e as any);
+                }
+              }}
+              placeholder="Ask about workouts, exercises, or fitness advice... (Press Enter to send, Shift+Enter for new line)"
+              className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none min-h-[60px] max-h-[200px] overflow-y-auto"
               disabled={isLoading}
+              rows={Math.min(Math.max(1, message.split('\n').length), 8)}
+              style={{
+                height: 'auto',
+                minHeight: '60px',
+                maxHeight: '200px'
+              }}
             />
             <button
               type="submit"
               disabled={isLoading || !message.trim()}
-              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-end"
             >
               <Send className="w-5 h-5" />
             </button>
