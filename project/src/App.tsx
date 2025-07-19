@@ -167,6 +167,46 @@ function App() {
   };
 
   const handleEndWorkout = () => {
+    // Marcar todos los ejercicios como completados al finalizar la rutina
+    if (selectedWorkout) {
+      const updatedWorkout = {
+        ...selectedWorkout,
+        completed: true,
+        exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
+          ...exerciseType,
+          exercises: (exerciseType.exercises || []).map(exercise => ({
+            ...exercise,
+            completed: true,
+            setDetails: (exercise.setDetails || []).map(set => ({
+              ...set,
+              completed: true,
+              actualReps: set.actualReps || exercise.reps,
+              actualWeight: set.actualWeight || exercise.weight,
+              actualDuration: set.actualDuration || exercise.duration
+            }))
+          }))
+        }))
+      };
+
+      // Actualizar los workouts con el workout completado
+      const updatedWorkouts = workouts.map(w => 
+        w.id === selectedWorkout.id ? updatedWorkout : w
+      );
+      setWorkouts(updatedWorkouts);
+
+      // Limpiar el progreso guardado de todos los ejercicios
+      try {
+        const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises || []);
+        allExercises.forEach(exercise => {
+          if (exercise) {
+            localStorage.removeItem(`gymTracker_exercise_${exercise.id}`);
+          }
+        });
+      } catch (error) {
+        console.error('Error clearing exercise progress:', error);
+      }
+    }
+
     setIsWorkoutActive(false);
     setWorkoutStartTime(null);
     setCurrentExercise(null);
