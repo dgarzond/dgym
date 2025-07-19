@@ -129,27 +129,36 @@ export function ExerciseScreen({
   }, [isResting]);
 
   useEffect(() => {
-    let interval: number | undefined;
+    let interval: NodeJS.Timeout;
+    
     if (isResting && restTimer > 0) {
       interval = setInterval(() => {
-        setRestTimer(prev => prev - 1);
+        setRestTimer(prev => {
+          if (prev <= 1) {
+            // Timer terminó
+            setIsResting(false);
+            
+            // Si era la última serie, completar el ejercicio
+            if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
+              setTimeout(() => {
+                clearExerciseProgress();
+                onComplete(exercise.id, setDetails);
+              }, 100);
+            }
+            
+            return exercise.restTime || 60; // Reset timer
+          }
+          return prev - 1;
+        });
       }, 1000);
-    } else if (isResting && restTimer <= 0) {
-      setIsResting(false);
-      setRestTimer(exercise.restTime || 60);
-
-      // Si estamos en la última serie y acabamos de terminar el descanso, completar el ejercicio
-      if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
-        clearExerciseProgress();
-        onComplete(exercise.id, setDetails);
-      }
     }
+    
     return () => {
       if (interval) {
         clearInterval(interval);
       }
     };
-  }, [isResting, restTimer, currentSet, exercise.sets, setDetails, exercise.id, onComplete, clearExerciseProgress]);
+  }, [isResting, currentSet, exercise.sets, setDetails, exercise.id, onComplete, clearExerciseProgress, exercise.restTime]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -195,18 +204,19 @@ export function ExerciseScreen({
         weightUnit: weightUnit,
       };
     }
+    
     setSetDetails(newSetDetails);
 
     const isLastSet = currentSet === exercise.sets - 1;
     
-    // Siempre iniciar el descanso después de completar un set
-    setIsResting(true);
-    setRestTimer(exercise.restTime || 60);
-    
-    // Si no es la última serie, avanzar al siguiente set
+    // Si no es la última serie, avanzar al siguiente set inmediatamente
     if (!isLastSet) {
       setCurrentSet(prev => prev + 1);
     }
+    
+    // Siempre iniciar el descanso después de completar un set
+    setIsResting(true);
+    setRestTimer(exercise.restTime || 60);
   };
 
   return (
@@ -255,8 +265,10 @@ export function ExerciseScreen({
 
                   // Si estamos en la última serie, completar el ejercicio
                   if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
-                    clearExerciseProgress();
-                    onComplete(exercise.id, setDetails);
+                    setTimeout(() => {
+                      clearExerciseProgress();
+                      onComplete(exercise.id, setDetails);
+                    }, 100);
                   }
                 }}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center mx-auto"
