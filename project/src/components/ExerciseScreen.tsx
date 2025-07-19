@@ -84,7 +84,7 @@ export function ExerciseScreen({
       console.error('Error clearing exercise progress:', error);
     }
   };
-  const [timer, setTimer] = useState(0);
+
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
   const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
 
