@@ -134,21 +134,21 @@ export function ExerciseScreen({
       interval = setInterval(() => {
         setRestTimer(prev => prev - 1);
       }, 1000);
-    } else if (isResting && restTimer === 0) {
+    } else if (isResting && restTimer <= 0) {
       setIsResting(false);
       setRestTimer(exercise.restTime || 60);
 
       // Si estamos en la última serie y acabamos de terminar el descanso, completar el ejercicio
       if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
         clearExerciseProgress();
-        // Verificar que todos los sets estén completados antes de finalizar
-        const allSetsCompleted = setDetails.every(set => set.completed);
-        if (allSetsCompleted) {
-          onComplete(exercise.id, setDetails);
-        }
+        onComplete(exercise.id, setDetails);
       }
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
   }, [isResting, restTimer, currentSet, exercise.sets, setDetails, exercise.id, onComplete, clearExerciseProgress]);
 
   const formatTime = (seconds: number) => {
@@ -197,18 +197,15 @@ export function ExerciseScreen({
     }
     setSetDetails(newSetDetails);
 
-    // Siempre ir al descanso después de completar un set (excepto si es el último ejercicio y último set)
     const isLastSet = currentSet === exercise.sets - 1;
     
+    // Siempre iniciar el descanso después de completar un set
+    setIsResting(true);
+    setRestTimer(exercise.restTime || 60);
+    
+    // Si no es la última serie, avanzar al siguiente set
     if (!isLastSet) {
-      // No es la última serie, ir al descanso y luego al siguiente set
-      setIsResting(true);
-      setRestTimer(exercise.restTime || 60);
       setCurrentSet(prev => prev + 1);
-    } else {
-      // Es la última serie, ir al descanso antes de completar el ejercicio
-      setIsResting(true);
-      setRestTimer(exercise.restTime || 60);
     }
   };
 
@@ -262,10 +259,10 @@ export function ExerciseScreen({
                     onComplete(exercise.id, setDetails);
                   }
                 }}
-                className="flex items-center mx-auto text-blue-600 hover:text-blue-800"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center mx-auto"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
-                Skip Rest
+                Saltar Descanso
               </button>
             </div>
           ) : (
