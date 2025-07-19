@@ -264,7 +264,11 @@ function App() {
       <ExerciseScreen
         exercise={exercise}
         onComplete={handleExerciseComplete}
-        onBack={() => setCurrentExercise(null)}
+        onBack={() => {
+          // Regresar a la pantalla de detalle del workout manteniendo el cronómetro activo
+          setCurrentExercise(null);
+          // NO cambiar isWorkoutActive ni workoutStartTime - mantener el cronómetro corriendo
+        }}
         onNext={handleNextExercise}
         onEndWorkout={handleEndWorkout}
         isLast={currentExercise === allExercises.length - 1}
@@ -276,7 +280,7 @@ function App() {
   }
 
   // Pantalla de finalización cuando se completan todos los ejercicios pero el cronómetro sigue activo
-  if (selectedWorkout && currentExercise === null && isWorkoutActive) {
+  if (selectedWorkout && currentExercise === null && isWorkoutActive && selectedWorkout.completed) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">

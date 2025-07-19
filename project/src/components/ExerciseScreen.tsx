@@ -236,7 +236,7 @@ export function ExerciseScreen({
             className="text-gray-600 hover:text-blue-600 flex items-center"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back
+            Volver a Rutina
           </button>
           <div className="text-center">
             {currentStage && (
