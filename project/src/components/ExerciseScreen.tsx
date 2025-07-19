@@ -13,12 +13,64 @@ interface ExerciseScreenProps {
   currentStage?: string; // Nueva prop para mostrar la etapa actual
 }
 
-export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, totalWorkoutTime = 0, currentStage }: ExerciseScreenProps) {
-  const [currentSet, setCurrentSet] = useState(0);
-  const [timer, setTimer] = useState(0);
+export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, totalWorkoutTime, currentStage }: ExerciseScreenProps) {
+  // Crear clave única para el progreso del ejercicio
+  const exerciseProgressKey = `gymTracker_exercise_${exercise.id}`;
+
+  // Cargar progreso guardado o usar valores por defecto
+  const [currentSet, setCurrentSet] = useState(() => {
+    try {
+      const saved = localStorage.getItem(exerciseProgressKey);
+      if (saved) {
+        const progress = JSON.parse(saved);
+        return progress.currentSet || 0;
+      }
+    } catch (error) {
+      console.error('Error loading exercise progress:', error);
+    }
+    return 0;
+  });
+
+  const [setDetails, setSetDetails] = useState<Set[]>(() => {
+    try {
+      const saved = localStorage.getItem(exerciseProgressKey);
+      if (saved) {
+        const progress = JSON.parse(saved);
+        return progress.setDetails || exercise.setDetails || [];
+      }
+    } catch (error) {
+      console.error('Error loading exercise progress:', error);
+    }
+    return exercise.setDetails || [];
+  });
+
   const [isResting, setIsResting] = useState(false);
   const [restTimer, setRestTimer] = useState(exercise.restTime || 60);
-  const [setDetails, setSetDetails] = useState<Set[]>(exercise.setDetails || []);
+  const [exerciseStartTime, setExerciseStartTime] = useState<number>(Date.now());
+
+  // Guardar progreso en localStorage
+  useEffect(() => {
+    try {
+      const progress = {
+        currentSet,
+        setDetails,
+        lastUpdated: Date.now()
+      };
+      localStorage.setItem(exerciseProgressKey, JSON.stringify(progress));
+    } catch (error) {
+      console.error('Error saving exercise progress:', error);
+    }
+  }, [currentSet, setDetails, exerciseProgressKey]);
+
+  // Limpiar progreso cuando se completa el ejercicio
+  const clearExerciseProgress = () => {
+    try {
+      localStorage.removeItem(exerciseProgressKey);
+    } catch (error) {
+      console.error('Error clearing exercise progress:', error);
+    }
+  };
+  const [timer, setTimer] = useState(0);
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
   const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
 
@@ -28,7 +80,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
     setTimer(0);
     setIsResting(false);
     setRestTimer(exercise.restTime || 60);
-    
+
     // Initialize setDetails if empty or incomplete
     const initialSetDetails = exercise.setDetails && exercise.setDetails.length > 0 
       ? exercise.setDetails 
@@ -42,11 +94,11 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
           completed: false,
           weightUnit: exercise.weightUnit || 'kg'
         }));
-    
+
     setSetDetails(initialSetDetails);
     setWeightUnit(exercise.weightUnit || 'kg');
     setCurrentWeight(exercise.weight || 0);
-    
+
     // Reset to first uncompleted set
     const firstUncompletedSet = initialSetDetails.findIndex(set => !set.completed);
     if (firstUncompletedSet !== -1) {
@@ -73,9 +125,10 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
     } else if (restTimer === 0) {
       setIsResting(false);
       setRestTimer(exercise.restTime || 60);
-      
+
       // Si estamos en la última serie y acabamos de terminar el descanso, completar el ejercicio
       if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
+        clearExerciseProgress();
         // Verificar que todos los sets estén completados antes de finalizar
         const allSetsCompleted = setDetails.every(set => set.completed);
         if (allSetsCompleted) {
@@ -112,7 +165,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
 
   const handleSetComplete = (actualReps?: number, actualWeight?: number, actualDuration?: number) => {
     const newSetDetails = [...setDetails];
-    
+
     if (exercise.exerciseSubType === 'duration') {
       newSetDetails[currentSet] = {
         ...newSetDetails[currentSet],
@@ -135,7 +188,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
     // Siempre ir al descanso después de completar un set
     setIsResting(true);
     setRestTimer(exercise.restTime || 60);
-    
+
     if (currentSet < exercise.sets - 1) {
       // No es la última serie, pasar al siguiente set
       setCurrentSet(prev => prev + 1);
@@ -188,9 +241,10 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                 onClick={() => {
                   setIsResting(false);
                   setRestTimer(exercise.restTime || 60);
-                  
+
                   // Si estamos en la última serie, completar el ejercicio
                   if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
+                    clearExerciseProgress();
                     // Verificar que todos los sets estén completados
                     const allSetsCompleted = setDetails.every(set => set.completed);
                     if (allSetsCompleted) {
@@ -274,7 +328,7 @@ export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, t
                     />
                   </div>
                 </div>
-                
+
                 {/* Información del descanso */}
                 <div className="mt-4 p-3 bg-yellow-50 rounded-md">
                   <p className="text-sm text-yellow-800">

@@ -73,8 +73,13 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
     scrollToBottom();
   }, [messages]);
 
+  // Guardar mensajes en localStorage cuando cambien
   useEffect(() => {
-    localStorage.setItem('chatBotMessages', JSON.stringify(messages));
+    try {
+      localStorage.setItem('gymTracker_chatMessages', JSON.stringify(messages));
+    } catch (error) {
+      console.error('Error saving chat messages to localStorage:', error);
+    }
   }, [messages]);
 
   const resetChat = () => {

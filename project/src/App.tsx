@@ -11,11 +11,32 @@ import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
 
 function App() {
-  const [workouts, setWorkouts] = useState<Workout[]>(defaultWorkouts);
+  // Cargar workouts desde localStorage o usar defaultWorkouts como fallback
+  const [workouts, setWorkouts] = useState<Workout[]>(() => {
+    try {
+      const savedWorkouts = localStorage.getItem('gymTracker_workouts');
+      if (savedWorkouts) {
+        return JSON.parse(savedWorkouts);
+      }
+    } catch (error) {
+      console.error('Error loading workouts from localStorage:', error);
+    }
+    return defaultWorkouts;
+  });
+  
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [currentExercise, setCurrentExercise] = useState<number | null>(null);
   const [showChatBot, setShowChatBot] = useState(false);
   const [totalWorkoutTime, setTotalWorkoutTime] = useState(0); // Total workout time
+
+  // Guardar workouts en localStorage cada vez que cambien
+  useEffect(() => {
+    try {
+      localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
+    } catch (error) {
+      console.error('Error saving workouts to localStorage:', error);
+    }
+  }, [workouts]);
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
