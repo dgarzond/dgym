@@ -134,7 +134,7 @@ export function ExerciseScreen({
       interval = setInterval(() => {
         setRestTimer(prev => prev - 1);
       }, 1000);
-    } else if (restTimer === 0) {
+    } else if (isResting && restTimer === 0) {
       setIsResting(false);
       setRestTimer(exercise.restTime || 60);
 
@@ -149,7 +149,7 @@ export function ExerciseScreen({
       }
     }
     return () => clearInterval(interval);
-  }, [isResting, restTimer, currentSet, exercise.sets, setDetails, exercise.id, onComplete]);
+  }, [isResting, restTimer, currentSet, exercise.sets, setDetails, exercise.id, onComplete, clearExerciseProgress]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -197,16 +197,18 @@ export function ExerciseScreen({
     }
     setSetDetails(newSetDetails);
 
-    // Siempre ir al descanso después de completar un set
-    setIsResting(true);
-    setRestTimer(exercise.restTime || 60);
-
-    if (currentSet < exercise.sets - 1) {
-      // No es la última serie, pasar al siguiente set
+    // Siempre ir al descanso después de completar un set (excepto si es el último ejercicio y último set)
+    const isLastSet = currentSet === exercise.sets - 1;
+    
+    if (!isLastSet) {
+      // No es la última serie, ir al descanso y luego al siguiente set
+      setIsResting(true);
+      setRestTimer(exercise.restTime || 60);
       setCurrentSet(prev => prev + 1);
     } else {
-      // Es la última serie, marcar para completar el ejercicio después del descanso
-      // No incrementamos currentSet para que permanezca en la última serie
+      // Es la última serie, ir al descanso antes de completar el ejercicio
+      setIsResting(true);
+      setRestTimer(exercise.restTime || 60);
     }
   };
 
@@ -257,11 +259,7 @@ export function ExerciseScreen({
                   // Si estamos en la última serie, completar el ejercicio
                   if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
                     clearExerciseProgress();
-                    // Verificar que todos los sets estén completados
-                    const allSetsCompleted = setDetails.every(set => set.completed);
-                    if (allSetsCompleted) {
-                      onComplete(exercise.id, setDetails);
-                    }
+                    onComplete(exercise.id, setDetails);
                   }
                 }}
                 className="flex items-center mx-auto text-blue-600 hover:text-blue-800"
