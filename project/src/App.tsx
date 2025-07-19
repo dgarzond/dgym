@@ -84,11 +84,15 @@ function App() {
     }
   }, [workouts]);
 
-  // Cronómetro global de la rutina
+  // Cronómetro global de la rutina - persistente usando timestamps
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (isWorkoutActive && workoutStartTime) {
+      // Actualizar inmediatamente
+      setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+      
+      // Continuar actualizando cada segundo
       interval = setInterval(() => {
         setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
       }, 1000);
@@ -98,6 +102,31 @@ function App() {
       if (interval) {
         clearInterval(interval);
       }
+    };
+  }, [isWorkoutActive, workoutStartTime]);
+
+  // Actualizar el cronómetro cuando la aplicación recibe foco
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isWorkoutActive && workoutStartTime) {
+        // Actualizar el tiempo cuando la aplicación vuelve a tener foco
+        setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+      }
+    };
+
+    const handleFocus = () => {
+      if (isWorkoutActive && workoutStartTime) {
+        // Actualizar el tiempo cuando la ventana recibe foco
+        setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [isWorkoutActive, workoutStartTime]);
 

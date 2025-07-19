@@ -56,9 +56,11 @@ export function ExerciseScreen({
     return exercise.setDetails || [];
   });
 
+  const [timer, setTimer] = useState(0);
   const [isResting, setIsResting] = useState(false);
   const [restTimer, setRestTimer] = useState(exercise.restTime || 60);
   const [exerciseStartTime, setExerciseStartTime] = useState<number>(Date.now());
+  const [restStartTime, setRestStartTime] = useState<number | null>(null);
 
   // Guardar progreso en localStorage
   useEffect(() => {
@@ -109,7 +111,7 @@ export function ExerciseScreen({
     // Reset to first uncompleted set
     const firstUncompletedSet = initialSetDetails.findIndex(set => !set.completed);
     setCurrentSet(firstUncompletedSet !== -1 ? firstUncompletedSet : 0);
-    
+
     // Reset all timers and states
     setTimer(0);
     setIsResting(false);
@@ -119,13 +121,13 @@ export function ExerciseScreen({
   // Timer de ejercicio (solo cuenta cuando NO está descansando)
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (!isResting) {
       interval = setInterval(() => {
         setTimer(prev => prev + 1);
       }, 1000);
     }
-    
+
     return () => {
       if (interval) {
         clearInterval(interval);
@@ -136,7 +138,7 @@ export function ExerciseScreen({
   // Timer de descanso
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isResting && restTimer > 0) {
       interval = setInterval(() => {
         setRestTimer(prev => prev - 1);
@@ -145,7 +147,7 @@ export function ExerciseScreen({
       // El descanso terminó automáticamente
       handleRestComplete();
     }
-    
+
     return () => {
       if (interval) {
         clearInterval(interval);
@@ -157,7 +159,7 @@ export function ExerciseScreen({
   const handleRestComplete = () => {
     setIsResting(false);
     setRestTimer(exercise.restTime || 60);
-    
+
     // Si acabamos de completar la última serie, terminar el ejercicio
     if (currentSet >= exercise.sets - 1 && setDetails[currentSet]?.completed) {
       clearExerciseProgress();
@@ -210,15 +212,22 @@ export function ExerciseScreen({
         weightUnit: weightUnit,
       };
     }
-    
+
     setSetDetails(newSetDetails);
+    
+    // Iniciar descanso si no es la última serie
+    if (currentSet < exercise.sets - 1) {
+      setIsResting(true);
+      setRestStartTime(Date.now());
+      setRestTimer(exercise.restTime || 60);
+    }
 
     const isLastSet = currentSet >= exercise.sets - 1;
-    
+
     // Siempre iniciar el descanso después de completar un set
     setIsResting(true);
     setRestTimer(exercise.restTime || 60);
-    
+
     // Si NO es la última serie, avanzar al siguiente set después de un pequeño delay
     if (!isLastSet) {
       setTimeout(() => {
