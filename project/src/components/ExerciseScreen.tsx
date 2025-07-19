@@ -88,11 +88,6 @@ export function ExerciseScreen({
 
   // Reset state when exercise changes
   useEffect(() => {
-    setCurrentSet(0);
-    setTimer(0);
-    setIsResting(false);
-    setRestTimer(exercise.restTime || 60);
-
     // Initialize setDetails if empty or incomplete
     const initialSetDetails = exercise.setDetails && exercise.setDetails.length > 0 
       ? exercise.setDetails 
@@ -113,43 +108,21 @@ export function ExerciseScreen({
 
     // Reset to first uncompleted set
     const firstUncompletedSet = initialSetDetails.findIndex(set => !set.completed);
-    if (firstUncompletedSet !== -1) {
-      setCurrentSet(firstUncompletedSet);
-    }
+    setCurrentSet(firstUncompletedSet !== -1 ? firstUncompletedSet : 0);
+    
+    // Reset all timers and states
+    setTimer(0);
+    setIsResting(false);
+    setRestTimer(exercise.restTime || 60);
   }, [exercise.id]);
 
-  useEffect(() => {
-    let interval: number | undefined;
-    if (!isResting) {
-      interval = setInterval(() => {
-        setTimer(prev => prev + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isResting]);
-
+  // Timer de ejercicio (solo cuenta cuando NO está descansando)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (isResting && restTimer > 0) {
+    if (!isResting) {
       interval = setInterval(() => {
-        setRestTimer(prev => {
-          if (prev <= 1) {
-            // Timer terminó
-            setIsResting(false);
-            
-            // Si era la última serie, completar el ejercicio
-            if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
-              setTimeout(() => {
-                clearExerciseProgress();
-                onComplete(exercise.id, setDetails);
-              }, 100);
-            }
-            
-            return exercise.restTime || 60; // Reset timer
-          }
-          return prev - 1;
-        });
+        setTimer(prev => prev + 1);
       }, 1000);
     }
     
@@ -158,7 +131,39 @@ export function ExerciseScreen({
         clearInterval(interval);
       }
     };
-  }, [isResting, currentSet, exercise.sets, setDetails, exercise.id, onComplete, clearExerciseProgress, exercise.restTime]);
+  }, [isResting]);
+
+  // Timer de descanso
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isResting && restTimer > 0) {
+      interval = setInterval(() => {
+        setRestTimer(prev => prev - 1);
+      }, 1000);
+    } else if (isResting && restTimer <= 0) {
+      // El descanso terminó automáticamente
+      handleRestComplete();
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isResting, restTimer]);
+
+  // Función para manejar el final del descanso
+  const handleRestComplete = () => {
+    setIsResting(false);
+    setRestTimer(exercise.restTime || 60);
+    
+    // Si acabamos de completar la última serie, terminar el ejercicio
+    if (currentSet >= exercise.sets - 1 && setDetails[currentSet]?.completed) {
+      clearExerciseProgress();
+      onComplete(exercise.id, setDetails);
+    }
+  };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -187,6 +192,7 @@ export function ExerciseScreen({
   const handleSetComplete = (actualReps?: number, actualWeight?: number, actualDuration?: number) => {
     const newSetDetails = [...setDetails];
 
+    // Completar el set actual
     if (exercise.exerciseSubType === 'duration') {
       newSetDetails[currentSet] = {
         ...newSetDetails[currentSet],
@@ -207,16 +213,18 @@ export function ExerciseScreen({
     
     setSetDetails(newSetDetails);
 
-    const isLastSet = currentSet === exercise.sets - 1;
-    
-    // Si no es la última serie, avanzar al siguiente set inmediatamente
-    if (!isLastSet) {
-      setCurrentSet(prev => prev + 1);
-    }
+    const isLastSet = currentSet >= exercise.sets - 1;
     
     // Siempre iniciar el descanso después de completar un set
     setIsResting(true);
     setRestTimer(exercise.restTime || 60);
+    
+    // Si NO es la última serie, avanzar al siguiente set después de un pequeño delay
+    if (!isLastSet) {
+      setTimeout(() => {
+        setCurrentSet(prev => prev + 1);
+      }, 100);
+    }
   };
 
   return (
@@ -259,18 +267,7 @@ export function ExerciseScreen({
                 {formatTime(restTimer)}
               </div>
               <button
-                onClick={() => {
-                  setIsResting(false);
-                  setRestTimer(exercise.restTime || 60);
-
-                  // Si estamos en la última serie, completar el ejercicio
-                  if (currentSet === exercise.sets - 1 && setDetails[currentSet]?.completed) {
-                    setTimeout(() => {
-                      clearExerciseProgress();
-                      onComplete(exercise.id, setDetails);
-                    }, 100);
-                  }
-                }}
+                onClick={handleRestComplete}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center mx-auto"
               >
                 <RotateCcw className="w-4 h-4 mr-2" />
