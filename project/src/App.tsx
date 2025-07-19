@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
-import { Dumbbell, Plus, Calendar, MessageSquare } from 'lucide-react';
+import { Dumbbell, Plus, Calendar, MessageSquare, CheckCircle } from 'lucide-react';
 import { WorkoutCard } from './components/WorkoutCard';
 import { WorkoutDetail } from './components/WorkoutDetail';
 import { ExerciseScreen } from './components/ExerciseScreen';
@@ -28,6 +28,8 @@ function App() {
   const [currentExercise, setCurrentExercise] = useState<number | null>(null);
   const [showChatBot, setShowChatBot] = useState(false);
   const [totalWorkoutTime, setTotalWorkoutTime] = useState(0); // Total workout time
+  const [isWorkoutActive, setIsWorkoutActive] = useState(false); // Estado del cronómetro global
+  const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(null);
 
   // Guardar workouts en localStorage cada vez que cambien
   useEffect(() => {
@@ -37,6 +39,23 @@ function App() {
       console.error('Error saving workouts to localStorage:', error);
     }
   }, [workouts]);
+
+  // Cronómetro global de la rutina
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isWorkoutActive && workoutStartTime) {
+      interval = setInterval(() => {
+        setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isWorkoutActive, workoutStartTime]);
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
@@ -86,7 +105,19 @@ function App() {
   const handleStartExercise = (workout: Workout) => {
     setSelectedWorkout(workout);
     setCurrentExercise(0);
-    setTotalWorkoutTime(0); // Reset workout time when starting a new workout
+    // Iniciar cronómetro global de rutina
+    const startTime = Date.now();
+    setWorkoutStartTime(startTime);
+    setTotalWorkoutTime(0);
+    setIsWorkoutActive(true);
+  };
+
+  const handleEndWorkout = () => {
+    setIsWorkoutActive(false);
+    setWorkoutStartTime(null);
+    setCurrentExercise(null);
+    setSelectedWorkout(null);
+    setTotalWorkoutTime(0);
   };
 
   const handleExerciseComplete = (exerciseId: string, completedSetDetails: Set[]) => {
@@ -141,8 +172,9 @@ function App() {
       if (currentExercise < allExercises.length - 1) {
         setCurrentExercise(currentExercise + 1);
       } else {
+        // Al finalizar el último ejercicio, seguir con el cronómetro activo
+        // El usuario deberá presionar el botón "Finalizar Rutina" para terminar completamente
         setCurrentExercise(null);
-        setSelectedWorkout(null);
       }
     }
   };
@@ -234,10 +266,53 @@ function App() {
         onComplete={handleExerciseComplete}
         onBack={() => setCurrentExercise(null)}
         onNext={handleNextExercise}
+        onEndWorkout={handleEndWorkout}
         isLast={currentExercise === allExercises.length - 1}
         totalWorkoutTime={totalWorkoutTime}
         currentStage={currentStage}
+        isWorkoutActive={isWorkoutActive}
       />
+    );
+  }
+
+  // Pantalla de finalización cuando se completan todos los ejercicios pero el cronómetro sigue activo
+  if (selectedWorkout && currentExercise === null && isWorkoutActive) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-10 h-10 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Rutina Completada!</h2>
+            <p className="text-gray-600 mb-6">
+              Has completado todos los ejercicios de "{selectedWorkout.name}"
+            </p>
+            
+            <div className="bg-blue-50 rounded-lg p-4 mb-6">
+              <div className="text-sm text-blue-600 mb-1">Tiempo total de rutina</div>
+              <div className="text-3xl font-bold text-blue-800">
+                {Math.floor(totalWorkoutTime / 60)}:{String(totalWorkoutTime % 60).padStart(2, '0')}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleEndWorkout}
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              >
+                Finalizar Rutina
+              </button>
+              <button
+                onClick={() => setCurrentExercise(0)}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Repetir Rutina
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -248,6 +323,9 @@ function App() {
         onBack={() => setSelectedWorkout(null)}
         onUpdateWorkout={handleUpdateWorkout}
         onStartExercise={() => handleStartExercise(selectedWorkout)}
+        onEndWorkout={handleEndWorkout}
+        isWorkoutActive={isWorkoutActive}
+        totalWorkoutTime={totalWorkoutTime}
       />
     );
   }

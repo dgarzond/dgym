@@ -8,12 +8,24 @@ interface ExerciseScreenProps {
   onComplete: (exerciseId: string, setDetails: Set[]) => void;
   onBack: () => void;
   onNext: () => void;
+  onEndWorkout: () => void;
   isLast: boolean;
-  totalWorkoutTime?: number;
-  currentStage?: string; // Nueva prop para mostrar la etapa actual
+  totalWorkoutTime: number;
+  currentStage: string;
+  isWorkoutActive: boolean;
 }
 
-export function ExerciseScreen({ exercise, onComplete, onBack, onNext, isLast, totalWorkoutTime, currentStage }: ExerciseScreenProps) {
+export function ExerciseScreen({ 
+  exercise, 
+  onComplete, 
+  onBack, 
+  onNext, 
+  onEndWorkout,
+  isLast, 
+  totalWorkoutTime, 
+  currentStage,
+  isWorkoutActive
+}: ExerciseScreenProps) {
   // Crear clave única para el progreso del ejercicio
   const exerciseProgressKey = `gymTracker_exercise_${exercise.id}`;
 

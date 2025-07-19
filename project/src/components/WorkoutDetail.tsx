@@ -7,9 +7,20 @@ interface WorkoutDetailProps {
   onBack: () => void;
   onUpdateWorkout: (workout: Workout) => void;
   onStartExercise: () => void;
+  onEndWorkout?: () => void;
+  isWorkoutActive?: boolean;
+  totalWorkoutTime?: number;
 }
 
-export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercise }: WorkoutDetailProps) {
+export function WorkoutDetail({ 
+  workout, 
+  onBack, 
+  onUpdateWorkout, 
+  onStartExercise, 
+  onEndWorkout,
+  isWorkoutActive = false,
+  totalWorkoutTime = 0
+}: WorkoutDetailProps) {
   const [activeExercise, setActiveExercise] = useState<string | null>(null);
 
   const handleSetComplete = (exerciseId: string, setId: string, setData?: Partial<Set>) => {
@@ -56,13 +67,31 @@ export function WorkoutDetail({ workout, onBack, onUpdateWorkout, onStartExercis
             <ArrowLeft className="w-5 h-5 mr-2" />
             Back to Workouts
           </button>
-          <button
-            onClick={onStartExercise}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <Play className="w-5 h-5 mr-2" />
-            Start Workout
-          </button>
+          <div className="flex items-center space-x-3">
+            {isWorkoutActive && (
+              <div className="flex flex-col items-center">
+                <div className="text-sm text-gray-500">Tiempo de rutina</div>
+                <div className="text-lg font-bold text-blue-600">
+                  {Math.floor(totalWorkoutTime / 60)}:{String(totalWorkoutTime % 60).padStart(2, '0')}
+                </div>
+              </div>
+            )}
+            {isWorkoutActive && onEndWorkout && (
+              <button
+                onClick={onEndWorkout}
+                className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Finalizar Rutina
+              </button>
+            )}
+            <button
+              onClick={onStartExercise}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Play className="w-5 h-5 mr-2" />
+              {isWorkoutActive ? 'Continuar Rutina' : 'Start Workout'}
+            </button>
+          </div>
         </div>
 
         <h1 className="text-3xl font-bold text-gray-900 mb-2">{workout.name}</h1>
