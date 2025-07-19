@@ -11,12 +11,47 @@ import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
 
 function App() {
+  // Función para sincronizar el estado de completitud desde localStorage
+  const syncExerciseCompletion = (workouts: Workout[]): Workout[] => {
+    return workouts.map(workout => ({
+      ...workout,
+      exerciseTypes: (workout.exerciseTypes || []).map(exerciseType => ({
+        ...exerciseType,
+        exercises: (exerciseType.exercises || []).map(exercise => {
+          try {
+            // Cargar progreso guardado del ejercicio
+            const savedProgress = localStorage.getItem(`gymTracker_exercise_${exercise.id}`);
+            if (savedProgress) {
+              const progress = JSON.parse(savedProgress);
+              const savedSetDetails = progress.setDetails || exercise.setDetails || [];
+              
+              // Verificar si todos los sets están completados
+              const allSetsCompleted = savedSetDetails.length > 0 && 
+                                     savedSetDetails.every((set: any) => set && set.completed);
+              
+              return {
+                ...exercise,
+                setDetails: savedSetDetails,
+                completed: allSetsCompleted
+              };
+            }
+          } catch (error) {
+            console.error(`Error loading progress for exercise ${exercise.id}:`, error);
+          }
+          return exercise;
+        })
+      }))
+    }));
+  };
+
   // Cargar workouts desde localStorage o usar defaultWorkouts como fallback
   const [workouts, setWorkouts] = useState<Workout[]>(() => {
     try {
       const savedWorkouts = localStorage.getItem('gymTracker_workouts');
       if (savedWorkouts) {
-        return JSON.parse(savedWorkouts);
+        const parsedWorkouts = JSON.parse(savedWorkouts);
+        // Sincronizar estado de completitud con el progreso guardado
+        return syncExerciseCompletion(parsedWorkouts);
       }
     } catch (error) {
       console.error('Error loading workouts from localStorage:', error);
@@ -35,6 +70,15 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
+      
+      // También sincronizar el estado de completitud cuando cambian los workouts
+      const syncedWorkouts = syncExerciseCompletion(workouts);
+      if (JSON.stringify(syncedWorkouts) !== JSON.stringify(workouts)) {
+        // Solo actualizar si hay diferencias para evitar loops infinitos
+        setTimeout(() => {
+          setWorkouts(syncedWorkouts);
+        }, 0);
+      }
     } catch (error) {
       console.error('Error saving workouts to localStorage:', error);
     }
@@ -56,6 +100,16 @@ function App() {
       }
     };
   }, [isWorkoutActive, workoutStartTime]);
+
+  // Sincronizar estado cuando el usuario vuelve a la aplicación
+  useEffect(() => {
+    const handleFocus = () => {
+      setWorkouts(currentWorkouts => syncExerciseCompletion(currentWorkouts));
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
@@ -161,6 +215,13 @@ function App() {
     );
     setWorkouts(updatedWorkouts);
     setSelectedWorkout(finalUpdatedWorkout);
+
+    // Limpiar el progreso guardado del ejercicio completado
+    try {
+      localStorage.removeItem(`gymTracker_exercise_${exerciseId}`);
+    } catch (error) {
+      console.error('Error clearing exercise progress:', error);
+    }
 
     // Move to next exercise or finish workout
     handleNextExercise();
