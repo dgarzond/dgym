@@ -466,6 +466,25 @@ function App() {
       }
     }
 
+    // Get next exercise info
+    let nextExerciseName = '';
+    let nextExerciseStage = '';
+    const nextExerciseIndex = currentExercise + 1;
+    if (nextExerciseIndex < allExercises.length) {
+      const nextExercise = allExercises[nextExerciseIndex];
+      nextExerciseName = nextExercise.name;
+      
+      // Find the stage of the next exercise
+      if (selectedWorkout.exerciseTypes) {
+        for (const exerciseType of selectedWorkout.exerciseTypes) {
+          if (exerciseType.exercises?.some(ex => ex.id === nextExercise.id)) {
+            nextExerciseStage = exerciseType.name;
+            break;
+          }
+        }
+      }
+    }
+
     return (
       <ExerciseScreen
         exercise={exercise}
@@ -481,6 +500,8 @@ function App() {
         totalWorkoutTime={totalWorkoutTime}
         currentStage={currentStage}
         isWorkoutActive={isWorkoutActive}
+        nextExerciseName={nextExerciseName}
+        nextExerciseStage={nextExerciseStage}
       />
     );
   }

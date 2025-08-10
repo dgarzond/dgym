@@ -13,6 +13,8 @@ interface ExerciseScreenProps {
   totalWorkoutTime: number;
   currentStage: string;
   isWorkoutActive: boolean;
+  nextExerciseName?: string;
+  nextExerciseStage?: string;
 }
 
 export function ExerciseScreen({ 
@@ -24,7 +26,9 @@ export function ExerciseScreen({
   isLast, 
   totalWorkoutTime, 
   currentStage,
-  isWorkoutActive
+  isWorkoutActive,
+  nextExerciseName,
+  nextExerciseStage
 }: ExerciseScreenProps) {
   // Crear clave única para el progreso del ejercicio
   const exerciseProgressKey = `gymTracker_exercise_${exercise.id}`;
@@ -275,6 +279,36 @@ export function ExerciseScreen({
               <div className="text-4xl font-bold text-blue-600 mb-4">
                 {formatTime(restTimer)}
               </div>
+              
+              {/* Mostrar próximo ejercicio si es la última serie y no es el último ejercicio */}
+              {currentSet >= exercise.sets - 1 && !isLast && nextExerciseName && (
+                <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="text-sm font-medium text-green-700 mb-1">
+                    Próximo ejercicio:
+                  </div>
+                  <div className="text-lg font-bold text-green-800 mb-1">
+                    {nextExerciseName}
+                  </div>
+                  {nextExerciseStage && (
+                    <div className="text-sm text-green-600">
+                      Parte: {nextExerciseStage}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mostrar mensaje si es el último ejercicio */}
+              {currentSet >= exercise.sets - 1 && isLast && (
+                <div className="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="text-sm font-medium text-yellow-700 mb-1">
+                    ¡Último ejercicio completado!
+                  </div>
+                  <div className="text-lg font-bold text-yellow-800">
+                    Rutina finalizada 🎉
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={handleRestComplete}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center mx-auto"
