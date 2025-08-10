@@ -24,11 +24,11 @@ function App() {
             if (savedProgress) {
               const progress = JSON.parse(savedProgress);
               const savedSetDetails = progress.setDetails || exercise.setDetails || [];
-              
+
               // Verificar si todos los sets están completados
               const allSetsCompleted = savedSetDetails.length > 0 && 
                                      savedSetDetails.every((set: any) => set && set.completed);
-              
+
               return {
                 ...exercise,
                 setDetails: savedSetDetails,
@@ -58,19 +58,35 @@ function App() {
     }
     return defaultWorkouts;
   });
-  
+
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [currentExercise, setCurrentExercise] = useState<number | null>(null);
   const [showChatBot, setShowChatBot] = useState(false);
   const [totalWorkoutTime, setTotalWorkoutTime] = useState(0); // Total workout time
-  const [isWorkoutActive, setIsWorkoutActive] = useState(false); // Estado del cronómetro global
-  const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(null);
+  const [isWorkoutActive, setIsWorkoutActive] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gymTracker_isWorkoutActive');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  }); // Estado del cronómetro global
+  const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(
+    () => {
+      try {
+        const saved = localStorage.getItem('gymTracker_workoutStartTime');
+        return saved ? parseInt(saved, 10) : null;
+      } catch {
+        return null;
+      }
+    }
+  );
 
   // Guardar workouts en localStorage cada vez que cambien
   useEffect(() => {
     try {
       localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
-      
+
       // También sincronizar el estado de completitud cuando cambian los workouts
       const syncedWorkouts = syncExerciseCompletion(workouts);
       if (JSON.stringify(syncedWorkouts) !== JSON.stringify(workouts)) {
@@ -84,20 +100,40 @@ function App() {
     }
   }, [workouts]);
 
+  // Guardar estado del cronómetro en localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('gymTracker_isWorkoutActive', isWorkoutActive.toString());
+      if (workoutStartTime !== null) {
+        localStorage.setItem('gymTracker_workoutStartTime', workoutStartTime.toString());
+      } else {
+        localStorage.removeItem('gymTracker_workoutStartTime');
+      }
+    } catch (error) {
+      console.error('Error saving workout timer state to localStorage:', error);
+    }
+  }, [isWorkoutActive, workoutStartTime]);
+
   // Cronómetro global de la rutina - persistente usando timestamps
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isWorkoutActive && workoutStartTime) {
-      // Actualizar inmediatamente
-      setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
-      
+      // Calcular el tiempo transcurrido desde el inicio
+      const elapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+      setTotalWorkoutTime(elapsedTime);
+
       // Continuar actualizando cada segundo
       interval = setInterval(() => {
-        setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+        setTotalWorkoutTime(prevTime => prevTime + 1);
       }, 1000);
+    } else if (!isWorkoutActive && workoutStartTime) {
+      // Si la actividad se detiene pero hay un workoutStartTime,
+      // significa que el usuario salió de la app, no que terminó el workout.
+      // El tiempo ya fue calculado al momento de perder el foco.
+      // No se limpia el interval aquí, se limpiará en el return.
     }
-    
+
     return () => {
       if (interval) {
         clearInterval(interval);
@@ -109,21 +145,23 @@ function App() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isWorkoutActive && workoutStartTime) {
-        // Actualizar el tiempo cuando la aplicación vuelve a tener foco
-        setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+        // Actualizar el tiempo inmediatamente cuando la aplicación vuelve a tener foco
+        const elapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+        setTotalWorkoutTime(elapsedTime);
       }
     };
 
     const handleFocus = () => {
       if (isWorkoutActive && workoutStartTime) {
         // Actualizar el tiempo cuando la ventana recibe foco
-        setTotalWorkoutTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+        const elapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+        setTotalWorkoutTime(elapsedTime);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
-    
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
@@ -191,7 +229,7 @@ function App() {
     // Iniciar cronómetro global de rutina
     const startTime = Date.now();
     setWorkoutStartTime(startTime);
-    setTotalWorkoutTime(0);
+    setTotalWorkoutTime(0); // Reiniciar el tiempo visual
     setIsWorkoutActive(true);
   };
 
@@ -422,7 +460,7 @@ function App() {
             <p className="text-gray-600 mb-6">
               Has completado todos los ejercicios de "{selectedWorkout.name}"
             </p>
-            
+
             <div className="bg-blue-50 rounded-lg p-4 mb-6">
               <div className="text-sm text-blue-600 mb-1">Tiempo total de rutina</div>
               <div className="text-3xl font-bold text-blue-800">
