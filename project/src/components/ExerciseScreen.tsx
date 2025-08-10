@@ -219,18 +219,12 @@ export function ExerciseScreen({
 
     setSetDetails(newSetDetails);
     
-    // Iniciar descanso si no es la última serie
-    if (currentSet < exercise.sets - 1) {
-      setIsResting(true);
-      setRestStartTime(Date.now());
-      setRestTimer(exercise.restTime || 60);
-    }
-
     const isLastSet = currentSet >= exercise.sets - 1;
 
-    // Siempre iniciar el descanso después de completar un set
+    // Siempre iniciar el descanso después de completar un set (incluso el último)
     setIsResting(true);
     setRestTimer(exercise.restTime || 60);
+    setRestStartTime(Date.now());
 
     // Si NO es la última serie, avanzar al siguiente set después de un pequeño delay
     if (!isLastSet) {
