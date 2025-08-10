@@ -62,7 +62,14 @@ function App() {
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
   const [currentExercise, setCurrentExercise] = useState<number | null>(null);
   const [showChatBot, setShowChatBot] = useState(false);
-  const [totalWorkoutTime, setTotalWorkoutTime] = useState(0); // Total workout time
+  const [totalWorkoutTime, setTotalWorkoutTime] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gymTracker_totalWorkoutTime');
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  }); // Total workout time
   const [isWorkoutActive, setIsWorkoutActive] = useState(() => {
     try {
       const saved = localStorage.getItem('gymTracker_isWorkoutActive');
@@ -81,6 +88,14 @@ function App() {
       }
     }
   );
+  const [pausedTime, setPausedTime] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gymTracker_pausedTime');
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  }); // Tiempo acumulado cuando está pausado
 
   // Guardar workouts en localStorage cada vez que cambien
   useEffect(() => {
@@ -104,6 +119,8 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem('gymTracker_isWorkoutActive', isWorkoutActive.toString());
+      localStorage.setItem('gymTracker_totalWorkoutTime', totalWorkoutTime.toString());
+      localStorage.setItem('gymTracker_pausedTime', pausedTime.toString());
       if (workoutStartTime !== null) {
         localStorage.setItem('gymTracker_workoutStartTime', workoutStartTime.toString());
       } else {
@@ -112,26 +129,24 @@ function App() {
     } catch (error) {
       console.error('Error saving workout timer state to localStorage:', error);
     }
-  }, [isWorkoutActive, workoutStartTime]);
+  }, [isWorkoutActive, workoutStartTime, totalWorkoutTime, pausedTime]);
 
-  // Cronómetro global de la rutina - persistente usando timestamps
+  // Cronómetro global de la rutina - persistente usando timestamps y tiempo acumulado
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     if (isWorkoutActive && workoutStartTime) {
-      // Calcular el tiempo transcurrido desde el inicio
-      const elapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-      setTotalWorkoutTime(elapsedTime);
+      // Calcular el tiempo transcurrido desde el último inicio + tiempo pausado acumulado
+      const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+      const totalElapsedTime = pausedTime + currentElapsedTime;
+      setTotalWorkoutTime(totalElapsedTime);
 
       // Continuar actualizando cada segundo
       interval = setInterval(() => {
-        setTotalWorkoutTime(prevTime => prevTime + 1);
+        const newCurrentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+        const newTotalElapsedTime = pausedTime + newCurrentElapsedTime;
+        setTotalWorkoutTime(newTotalElapsedTime);
       }, 1000);
-    } else if (!isWorkoutActive && workoutStartTime) {
-      // Si la actividad se detiene pero hay un workoutStartTime,
-      // significa que el usuario salió de la app, no que terminó el workout.
-      // El tiempo ya fue calculado al momento de perder el foco.
-      // No se limpia el interval aquí, se limpiará en el return.
     }
 
     return () => {
@@ -139,23 +154,25 @@ function App() {
         clearInterval(interval);
       }
     };
-  }, [isWorkoutActive, workoutStartTime]);
+  }, [isWorkoutActive, workoutStartTime, pausedTime]);
 
   // Actualizar el cronómetro cuando la aplicación recibe foco
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && isWorkoutActive && workoutStartTime) {
         // Actualizar el tiempo inmediatamente cuando la aplicación vuelve a tener foco
-        const elapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-        setTotalWorkoutTime(elapsedTime);
+        const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+        const totalElapsedTime = pausedTime + currentElapsedTime;
+        setTotalWorkoutTime(totalElapsedTime);
       }
     };
 
     const handleFocus = () => {
       if (isWorkoutActive && workoutStartTime) {
         // Actualizar el tiempo cuando la ventana recibe foco
-        const elapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-        setTotalWorkoutTime(elapsedTime);
+        const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+        const totalElapsedTime = pausedTime + currentElapsedTime;
+        setTotalWorkoutTime(totalElapsedTime);
       }
     };
 
@@ -166,7 +183,7 @@ function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isWorkoutActive, workoutStartTime]);
+  }, [isWorkoutActive, workoutStartTime, pausedTime]);
 
   // Sincronizar estado cuando el usuario vuelve a la aplicación
   useEffect(() => {
@@ -226,10 +243,22 @@ function App() {
   const handleStartExercise = (workout: Workout) => {
     setSelectedWorkout(workout);
     setCurrentExercise(0);
-    // Iniciar cronómetro global de rutina
+    
+    // Si ya hay una rutina activa, preservar el tiempo acumulado
+    if (isWorkoutActive && workoutStartTime) {
+      // Acumular el tiempo transcurrido hasta ahora
+      const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+      const newPausedTime = pausedTime + currentElapsedTime;
+      setPausedTime(newPausedTime);
+    } else {
+      // Si es una nueva rutina, reiniciar todo
+      setPausedTime(0);
+      setTotalWorkoutTime(0);
+    }
+    
+    // Establecer nuevo tiempo de inicio
     const startTime = Date.now();
     setWorkoutStartTime(startTime);
-    setTotalWorkoutTime(0); // Reiniciar el tiempo visual
     setIsWorkoutActive(true);
   };
 
@@ -279,6 +308,15 @@ function App() {
     setCurrentExercise(null);
     setSelectedWorkout(null);
     setTotalWorkoutTime(0);
+    setPausedTime(0);
+    
+    // Limpiar el estado del cronómetro de localStorage
+    try {
+      localStorage.removeItem('gymTracker_totalWorkoutTime');
+      localStorage.removeItem('gymTracker_pausedTime');
+    } catch (error) {
+      console.error('Error clearing workout timer from localStorage:', error);
+    }
   };
 
   const handleExerciseComplete = (exerciseId: string, completedSetDetails: Set[]) => {
