@@ -3,6 +3,7 @@ run = "cd project && npm run build && npm run preview"
 
 [nix]
 channel = "stable-24_05"
+packages = ["xsel"]
 
 [deployment]
 run = ["sh", "-c", "cd project && npx vite preview --host 0.0.0.0 --port 5000"]
