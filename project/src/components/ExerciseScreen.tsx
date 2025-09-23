@@ -118,20 +118,30 @@ export function ExerciseScreen({
     const firstUncompletedSet = initialSetDetails.findIndex(set => set && !set.completed);
     setCurrentSet(firstUncompletedSet !== -1 ? firstUncompletedSet : 0);
 
-    // Reset all timers and states
+    // Reset all timers and states with system time
     setTimer(0);
+    setExerciseStartTime(Date.now());
     setIsResting(false);
     setRestTimer(exercise.restTime || 60);
+    setRestStartTime(null);
   }, [exercise?.id]);
 
-  // Timer de ejercicio (solo cuenta cuando NO está descansando)
+  // Timer de ejercicio basado en tiempo del sistema
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     if (!isResting) {
-      interval = setInterval(() => {
-        setTimer(prev => prev + 1);
-      }, 1000);
+      const updateExerciseTimer = () => {
+        const currentTime = Date.now();
+        const elapsedTime = Math.floor((currentTime - exerciseStartTime) / 1000);
+        setTimer(elapsedTime);
+      };
+
+      // Actualizar inmediatamente
+      updateExerciseTimer();
+
+      // Actualizar cada segundo
+      interval = setInterval(updateExerciseTimer, 1000);
     }
 
     return () => {
@@ -139,19 +149,30 @@ export function ExerciseScreen({
         clearInterval(interval);
       }
     };
-  }, [isResting]);
+  }, [isResting, exerciseStartTime]);
 
-  // Timer de descanso
+  // Timer de descanso basado en tiempo del sistema
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (isResting && restTimer > 0) {
-      interval = setInterval(() => {
-        setRestTimer(prev => prev - 1);
-      }, 1000);
-    } else if (isResting && restTimer <= 0) {
-      // El descanso terminó automáticamente
-      handleRestComplete();
+    if (isResting && restStartTime) {
+      const updateRestTimer = () => {
+        const currentTime = Date.now();
+        const elapsedRestTime = Math.floor((currentTime - restStartTime) / 1000);
+        const remainingTime = Math.max(0, (exercise.restTime || 60) - elapsedRestTime);
+        
+        setRestTimer(remainingTime);
+        
+        if (remainingTime <= 0) {
+          handleRestComplete();
+        }
+      };
+
+      // Actualizar inmediatamente
+      updateRestTimer();
+
+      // Actualizar cada segundo
+      interval = setInterval(updateRestTimer, 1000);
     }
 
     return () => {
@@ -159,12 +180,16 @@ export function ExerciseScreen({
         clearInterval(interval);
       }
     };
-  }, [isResting, restTimer]);
+  }, [isResting, restStartTime, exercise.restTime]);
 
   // Función para manejar el final del descanso
   const handleRestComplete = () => {
     setIsResting(false);
     setRestTimer(exercise.restTime || 60);
+    setRestStartTime(null);
+    
+    // Reset exercise timer when resuming from rest
+    setExerciseStartTime(Date.now());
 
     // Si acabamos de completar la última serie, terminar el ejercicio
     if (currentSet >= exercise.sets - 1 && setDetails[currentSet]?.completed) {

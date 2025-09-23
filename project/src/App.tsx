@@ -198,16 +198,23 @@ function App() {
     }
   }, [isWorkoutActive, workoutStartTime, totalWorkoutTime, pausedTime]);
 
-  // Cronómetro global de la rutina - solo corre cuando el workout está activo
+  // Cronómetro global de la rutina - usa tiempo del sistema
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     if (isWorkoutActive && workoutStartTime) {
-      interval = setInterval(() => {
+      // Función para actualizar el tiempo basado en el tiempo del sistema
+      const updateTime = () => {
         const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
         const totalElapsedTime = pausedTime + currentElapsedTime;
         setTotalWorkoutTime(totalElapsedTime);
-      }, 1000);
+      };
+
+      // Actualizar inmediatamente
+      updateTime();
+
+      // Actualizar cada segundo
+      interval = setInterval(updateTime, 1000);
     }
 
     return () => {
@@ -217,36 +224,25 @@ function App() {
     };
   }, [isWorkoutActive, workoutStartTime, pausedTime]);
 
-  // Manejar visibilidad de la página para pausar/reanudar el cronómetro
+  // Sincronizar tiempo cuando la página recibe foco o se vuelve visible
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && isWorkoutActive && workoutStartTime) {
-        // Pausar: acumular tiempo transcurrido
-        const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-        const totalElapsedTime = pausedTime + currentElapsedTime;
-        setPausedTime(totalElapsedTime);
-        setWorkoutStartTime(null); // Pausar el cronómetro
-      } else if (document.visibilityState === 'visible' && isWorkoutActive && !workoutStartTime) {
-        // Reanudar: establecer nuevo tiempo de inicio
-        setWorkoutStartTime(Date.now());
-      }
-    };
-
-    const handleFocus = () => {
+    const handleVisibilityOrFocus = () => {
       if (isWorkoutActive && workoutStartTime) {
-        // Actualizar el tiempo cuando la ventana recibe foco
+        // Siempre sincronizar con el tiempo del sistema cuando la página es visible
         const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
         const totalElapsedTime = pausedTime + currentElapsedTime;
         setTotalWorkoutTime(totalElapsedTime);
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    window.addEventListener('pageshow', handleVisibilityOrFocus);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('pageshow', handleVisibilityOrFocus);
     };
   }, [isWorkoutActive, workoutStartTime, pausedTime]);
 
