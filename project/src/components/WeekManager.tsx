@@ -161,7 +161,7 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
   };
 
   const resetWeek = (weekId: string) => {
-    if (confirm('¿Estás seguro de que quieres reiniciar esta semana? Se eliminarán todos los días de entrenamiento y podrás usar el chatbot nuevamente.')) {
+    if (confirm('🔄 ¿Reiniciar semana?\n\n⚠️ Se eliminarán TODOS los días de entrenamiento de esta semana.\n✅ Podrás usar el ChatBot nuevamente.\n\n¿Continuar?')) {
       // Reiniciar la semana eliminando todos los workouts
       setWeeks(prev => prev.map(week => 
         week.id === weekId 
@@ -272,10 +272,10 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
                         setSelectedWeekForChat(week);
                         setShowChatBot(true);
                       }}
-                      className="p-2 text-gray-500 hover:text-blue-600"
+                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                       title="Usar ChatBot para agregar días"
                     >
-                      <Plus className="w-4 h-4" />
+                      Usar AI
                     </button>
                   ) : (
                     <button
@@ -283,10 +283,10 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
                         e.stopPropagation();
                         resetWeek(week.id);
                       }}
-                      className="p-2 text-gray-500 hover:text-orange-600"
+                      className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 transition-colors"
                       title="Reiniciar semana (permite usar ChatBot nuevamente)"
                     >
-                      <RotateCcw className="w-4 h-4" />
+                      Reset Week
                     </button>
                   )}
                   <button
@@ -341,42 +341,59 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
                         ))}
                       </div>
                       {!canUseChatBot(week.id) && (
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                          <p className="text-sm text-orange-700 mb-2">
-                            ChatBot ya usado esta semana. Para agregar más días:
-                          </p>
-                          <button
-                            onClick={() => resetWeek(week.id)}
-                            className="flex items-center text-sm text-orange-600 hover:text-orange-800"
-                          >
-                            <RotateCcw className="w-4 h-4 mr-1" />
-                            Reiniciar semana
-                          </button>
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-orange-800 mb-1">
+                                🤖 ChatBot ya usado esta semana
+                              </p>
+                              <p className="text-xs text-orange-600">
+                                Solo se permite usar el ChatBot una vez por semana
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => resetWeek(week.id)}
+                              className="flex items-center px-3 py-2 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 transition-colors font-medium"
+                            >
+                              <RotateCcw className="w-4 h-4 mr-1" />
+                              Reset Week
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No hay días de entrenamiento en esta semana</p>
+                    <div className="text-center py-8">
+                      <div className="text-gray-400 mb-4">
+                        <Calendar className="w-16 h-16 mx-auto mb-2" />
+                        <p className="text-lg font-medium text-gray-600">No hay días de entrenamiento</p>
+                        <p className="text-sm text-gray-500">Esta semana está vacía</p>
+                      </div>
+                      
                       {canUseChatBot(week.id) ? (
                         <button
                           onClick={() => {
                             setSelectedWeekForChat(week);
                             setShowChatBot(true);
                           }}
-                          className="mt-2 text-blue-600 hover:text-blue-800"
+                          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                         >
-                          Agregar días de entrenamiento
+                          🤖 Usar ChatBot para crear días
                         </button>
                       ) : (
-                        <div className="mt-2">
-                          <p className="text-sm text-orange-600 mb-2">ChatBot ya usado esta semana</p>
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 max-w-md mx-auto">
+                          <p className="text-sm font-medium text-orange-800 mb-2">
+                            🤖 ChatBot ya usado esta semana
+                          </p>
+                          <p className="text-xs text-orange-600 mb-3">
+                            Solo puedes usar el ChatBot una vez por semana. Si necesitas crear más días, reinicia la semana.
+                          </p>
                           <button
                             onClick={() => resetWeek(week.id)}
-                            className="flex items-center text-orange-600 hover:text-orange-800 mx-auto"
+                            className="px-4 py-2 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 transition-colors font-medium flex items-center mx-auto"
                           >
                             <RotateCcw className="w-4 h-4 mr-1" />
-                            Reiniciar semana
+                            Reset Week
                           </button>
                         </div>
                       )}
