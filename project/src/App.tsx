@@ -306,23 +306,59 @@ function App() {
     // Establecer el workout seleccionado primero
     setSelectedWorkout(workout);
     
-    // Buscar el primer ejercicio incompleto
-    let firstIncompleteExercise: Exercise | null = null;
+    // Limpiar todo el progreso guardado de ejercicios al iniciar una nueva rutina
+    try {
+      const allExercises = (workout.exerciseTypes || []).flatMap(type => type.exercises || []);
+      allExercises.forEach(exercise => {
+        if (exercise && exercise.id) {
+          localStorage.removeItem(`gymTracker_exercise_${exercise.id}`);
+        }
+      });
+    } catch (error) {
+      console.error('Error clearing exercise progress:', error);
+    }
+
+    // Resetear el estado de completitud de todos los ejercicios en el workout
+    const resetWorkout = {
+      ...workout,
+      completed: false,
+      exerciseTypes: (workout.exerciseTypes || []).map(exerciseType => ({
+        ...exerciseType,
+        exercises: (exerciseType.exercises || []).map(exercise => ({
+          ...exercise,
+          completed: false,
+          setDetails: (exercise.setDetails || []).map(set => ({
+            ...set,
+            completed: false,
+            actualReps: undefined,
+            actualWeight: undefined,
+            actualDuration: undefined
+          }))
+        }))
+      }))
+    };
+
+    // Actualizar el workout en el estado principal
+    setWorkouts(currentWorkouts => 
+      currentWorkouts.map(w => w.id === workout.id ? resetWorkout : w)
+    );
+    setSelectedWorkout(resetWorkout);
+    
+    // Buscar el primer ejercicio (ahora todos están incompletos)
+    let firstExercise: Exercise | null = null;
     let exerciseTypeStage = '';
 
-    for (const exerciseType of workout.exerciseTypes || []) {
-      const incompleteExercise = (exerciseType.exercises || []).find(
-        ex => ex && !ex.completed
-      );
-      if (incompleteExercise) {
-        firstIncompleteExercise = incompleteExercise;
+    for (const exerciseType of resetWorkout.exerciseTypes || []) {
+      const exercise = (exerciseType.exercises || [])[0];
+      if (exercise) {
+        firstExercise = exercise;
         exerciseTypeStage = exerciseType.nameSpanish || exerciseType.name || '';
         break;
       }
     }
 
-    if (firstIncompleteExercise) {
-      setCurrentExercise(firstIncompleteExercise.id);
+    if (firstExercise) {
+      setCurrentExercise(firstExercise.id);
       setCurrentExerciseStage(exerciseTypeStage);
       setCurrentView('exercise');
       
@@ -333,7 +369,7 @@ function App() {
       setWorkoutStartTime(startTime);
       setIsWorkoutActive(true);
     } else {
-      // Si no hay ejercicios incompletos, ir al detalle del workout
+      // Si no hay ejercicios, ir al detalle del workout
       setCurrentView('workoutDetail');
     }
   };

@@ -33,30 +33,11 @@ export function ExerciseScreen({
   // Crear clave única para el progreso del ejercicio
   const exerciseProgressKey = `gymTracker_exercise_${exercise.id}`;
 
-  // Cargar progreso guardado o usar valores por defecto
-  const [currentSet, setCurrentSet] = useState(() => {
-    try {
-      const saved = localStorage.getItem(exerciseProgressKey);
-      if (saved) {
-        const progress = JSON.parse(saved);
-        return progress.currentSet || 0;
-      }
-    } catch (error) {
-      console.error('Error loading exercise progress:', error);
-    }
-    return 0;
-  });
+  // Inicializar estado con valores del ejercicio (sin cargar progreso previo)
+  const [currentSet, setCurrentSet] = useState(0);
 
   const [setDetails, setSetDetails] = useState<Set[]>(() => {
-    try {
-      const saved = localStorage.getItem(exerciseProgressKey);
-      if (saved) {
-        const progress = JSON.parse(saved);
-        return progress.setDetails || exercise.setDetails || [];
-      }
-    } catch (error) {
-      console.error('Error loading exercise progress:', error);
-    }
+    // Siempre usar los datos frescos del ejercicio, no cargar progreso previo
     return exercise.setDetails || [];
   });
 
@@ -114,9 +95,8 @@ export function ExerciseScreen({
     setWeightUnit(exercise.weightUnit || 'kg');
     setCurrentWeight(exercise.weight || 0);
 
-    // Reset to first uncompleted set
-    const firstUncompletedSet = initialSetDetails.findIndex(set => set && !set.completed);
-    setCurrentSet(firstUncompletedSet !== -1 ? firstUncompletedSet : 0);
+    // Siempre empezar desde el primer set en una nueva sesión
+    setCurrentSet(0);
 
     // Reset all timers and states with system time
     setTimer(0);
