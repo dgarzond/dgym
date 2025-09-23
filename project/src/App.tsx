@@ -281,6 +281,9 @@ function App() {
   };
 
   const handleStartExercise = (workout: Workout) => {
+    // Establecer el workout seleccionado primero
+    setSelectedWorkout(workout);
+    
     // Buscar el primer ejercicio incompleto
     let firstIncompleteExercise: Exercise | null = null;
     let exerciseTypeStage = '';
@@ -297,21 +300,23 @@ function App() {
     }
 
     if (firstIncompleteExercise) {
-      setCurrentExercise(firstIncompleteExercise.id); // Set the index/id of the first incomplete exercise
+      setCurrentExercise(firstIncompleteExercise.id);
       setCurrentExerciseStage(exerciseTypeStage);
       setCurrentView('exercise');
+      
+      // Solo iniciar el cronómetro si no está ya activo
+      if (!isWorkoutActive) {
+        // Iniciar nueva rutina
+        setPausedTime(0);
+        setTotalWorkoutTime(0);
+        const startTime = Date.now();
+        setWorkoutStartTime(startTime);
+        setIsWorkoutActive(true);
+      }
+    } else {
+      // Si no hay ejercicios incompletos, ir al detalle del workout
+      setCurrentView('workoutDetail');
     }
-
-    // Solo iniciar el cronómetro si no está ya activo
-    if (!isWorkoutActive) {
-      // Iniciar nueva rutina
-      setPausedTime(0);
-      setTotalWorkoutTime(0);
-      const startTime = Date.now();
-      setWorkoutStartTime(startTime);
-      setIsWorkoutActive(true);
-    }
-    // Si ya está activo, solo cambiar la vista sin reiniciar el cronómetro
   };
 
 
@@ -434,32 +439,35 @@ function App() {
   const handleNextExercise = () => {
     if (selectedWorkout && currentExerciseIndex !== null) {
       const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
-      const currentIndex = allExercises.findIndex(ex => ex.id === currentExerciseIndex);
+      const currentIndex = allExercises.findIndex(ex => ex && ex.id === currentExerciseIndex);
 
       if (currentIndex !== -1 && currentIndex < allExercises.length - 1) {
         const nextExercise = allExercises[currentIndex + 1];
-        setCurrentExercise(nextExercise.id);
+        if (nextExercise) {
+          setCurrentExercise(nextExercise.id);
 
-        // Find the stage of the next exercise
-        let nextExerciseStage = '';
-        if (selectedWorkout.exerciseTypes) {
-          for (const exerciseType of selectedWorkout.exerciseTypes) {
-            if (exerciseType.exercises?.some(ex => ex.id === nextExercise.id)) {
-              nextExerciseStage = exerciseType.nameSpanish || exerciseType.name || '';
-              break;
+          // Find the stage of the next exercise
+          let nextExerciseStage = '';
+          if (selectedWorkout.exerciseTypes) {
+            for (const exerciseType of selectedWorkout.exerciseTypes) {
+              if (exerciseType.exercises?.some(ex => ex && ex.id === nextExercise.id)) {
+                nextExerciseStage = exerciseType.nameSpanish || exerciseType.name || '';
+                break;
+              }
             }
           }
+          setCurrentExerciseStage(nextExerciseStage);
         }
-        setCurrentExerciseStage(nextExerciseStage);
       } else {
         // Al finalizar el último ejercicio, seguir con el cronómetro activo
-        // El usuario deberá presionar el botón "Finalizar Rutina" para terminar completamente
         setCurrentExercise(null);
-        // Al completar el último ejercicio, si el workout está marcado como completado,
-        // la pantalla de "Rutina Completada" se mostrará automáticamente.
-        // Si no, se mantiene en la vista de detalle del workout.
-        if (selectedWorkout.completed) {
-          // La lógica de renderizado del return principal manejará esto
+        // Verificar si el workout está completado para mostrar la pantalla de finalización
+        const allExercisesInWorkout = allExercises.filter(ex => ex);
+        const workoutCompleted = allExercisesInWorkout.length > 0 && allExercisesInWorkout.every(exercise => exercise.completed);
+        
+        if (workoutCompleted) {
+          // La pantalla de "Rutina Completada" se mostrará automáticamente
+          return;
         } else {
           setCurrentView('workoutDetail');
         }
@@ -531,26 +539,28 @@ function App() {
   // Renderizado basado en la vista actual
   if (currentView === 'exercise' && selectedWorkout && currentExerciseIndex !== null) {
     const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
-    const exercise = allExercises.find(ex => ex.id === currentExerciseIndex); // Find exercise by ID
+    const exercise = allExercises.find(ex => ex && ex.id === currentExerciseIndex); // Find exercise by ID
 
     if (!exercise) {
+      console.warn('Exercise not found, returning to workout detail');
       setCurrentExercise(null); // Reset if exercise not found
+      setCurrentView('workoutDetail');
       return null;
     }
 
     // Get next exercise info
     let nextExerciseName = '';
     let nextExerciseStage = '';
-    const currentIndex = allExercises.findIndex(ex => ex.id === currentExerciseIndex);
+    const currentIndex = allExercises.findIndex(ex => ex && ex.id === currentExerciseIndex);
     const nextExerciseIndex = currentIndex + 1;
-    if (nextExerciseIndex < allExercises.length) {
+    if (nextExerciseIndex < allExercises.length && allExercises[nextExerciseIndex]) {
       const nextExercise = allExercises[nextExerciseIndex];
       nextExerciseName = nextExercise.name;
 
       // Find the stage of the next exercise
       if (selectedWorkout.exerciseTypes) {
         for (const exerciseType of selectedWorkout.exerciseTypes) {
-          if (exerciseType.exercises?.some(ex => ex.id === nextExercise.id)) {
+          if (exerciseType.exercises?.some(ex => ex && ex.id === nextExercise.id)) {
             nextExerciseStage = exerciseType.nameSpanish || exerciseType.name || '';
             break;
           }

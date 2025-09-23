@@ -94,10 +94,12 @@ export function ExerciseScreen({
 
   // Reset state when exercise changes
   useEffect(() => {
+    if (!exercise) return;
+    
     // Initialize setDetails if empty or incomplete
     const initialSetDetails = exercise.setDetails && exercise.setDetails.length > 0 
       ? exercise.setDetails 
-      : Array.from({ length: exercise.sets }, (_, index) => ({
+      : Array.from({ length: exercise.sets || 1 }, (_, index) => ({
           id: `set-${exercise.id}-${index}`,
           set: index + 1,
           reps: exercise.reps || 10,
@@ -113,14 +115,14 @@ export function ExerciseScreen({
     setCurrentWeight(exercise.weight || 0);
 
     // Reset to first uncompleted set
-    const firstUncompletedSet = initialSetDetails.findIndex(set => !set.completed);
+    const firstUncompletedSet = initialSetDetails.findIndex(set => set && !set.completed);
     setCurrentSet(firstUncompletedSet !== -1 ? firstUncompletedSet : 0);
 
     // Reset all timers and states
     setTimer(0);
     setIsResting(false);
     setRestTimer(exercise.restTime || 60);
-  }, [exercise.id]);
+  }, [exercise?.id]);
 
   // Timer de ejercicio (solo cuenta cuando NO está descansando)
   useEffect(() => {
