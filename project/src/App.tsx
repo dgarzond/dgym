@@ -100,7 +100,8 @@ function App() {
   });
 
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
-  const [currentExercise, setCurrentExercise] = useState<number | null>(null);
+  const [currentExerciseIndex, setCurrentExercise] = useState<number | null>(null);
+  const [currentExerciseStage, setCurrentExerciseStage] = useState<string>('');
   const [showChatBot, setShowChatBot] = useState(false);
   const [totalWorkoutTime, setTotalWorkoutTime] = useState(() => {
     try {
@@ -171,21 +172,15 @@ function App() {
     }
   }, [isWorkoutActive, workoutStartTime, totalWorkoutTime, pausedTime]);
 
-  // Cronómetro global de la rutina - persistente usando timestamps y tiempo acumulado
+  // Cronómetro global de la rutina - solo corre cuando el workout está activo
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
     if (isWorkoutActive && workoutStartTime) {
-      // Calcular el tiempo transcurrido desde el último inicio + tiempo pausado acumulado
-      const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-      const totalElapsedTime = pausedTime + currentElapsedTime;
-      setTotalWorkoutTime(totalElapsedTime);
-
-      // Continuar actualizando cada segundo
       interval = setInterval(() => {
-        const newCurrentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-        const newTotalElapsedTime = pausedTime + newCurrentElapsedTime;
-        setTotalWorkoutTime(newTotalElapsedTime);
+        const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
+        const totalElapsedTime = pausedTime + currentElapsedTime;
+        setTotalWorkoutTime(totalElapsedTime);
       }, 1000);
     }
 
@@ -196,14 +191,18 @@ function App() {
     };
   }, [isWorkoutActive, workoutStartTime, pausedTime]);
 
-  // Actualizar el cronómetro cuando la aplicación recibe foco
+  // Manejar visibilidad de la página para pausar/reanudar el cronómetro
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden && isWorkoutActive && workoutStartTime) {
-        // Actualizar el tiempo inmediatamente cuando la aplicación vuelve a tener foco
+      if (document.visibilityState === 'hidden' && isWorkoutActive && workoutStartTime) {
+        // Pausar: acumular tiempo transcurrido
         const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
         const totalElapsedTime = pausedTime + currentElapsedTime;
-        setTotalWorkoutTime(totalElapsedTime);
+        setPausedTime(totalElapsedTime);
+        setWorkoutStartTime(null); // Pausar el cronómetro
+      } else if (document.visibilityState === 'visible' && isWorkoutActive && !workoutStartTime) {
+        // Reanudar: establecer nuevo tiempo de inicio
+        setWorkoutStartTime(Date.now());
       }
     };
 
@@ -282,27 +281,39 @@ function App() {
   };
 
   const handleStartExercise = (workout: Workout) => {
-    setSelectedWorkout(workout);
-    setCurrentExercise(0);
-    setCurrentView('exercise'); // Cambiar a la vista de ejercicio
+    // Buscar el primer ejercicio incompleto
+    let firstIncompleteExercise: Exercise | null = null;
+    let exerciseTypeStage = '';
 
-    // Si ya hay una rutina activa, preservar el tiempo acumulado
-    if (isWorkoutActive && workoutStartTime) {
-      // Acumular el tiempo transcurrido hasta ahora
-      const currentElapsedTime = Math.floor((Date.now() - workoutStartTime) / 1000);
-      const newPausedTime = pausedTime + currentElapsedTime;
-      setPausedTime(newPausedTime);
-    } else {
-      // Si es una nueva rutina, reiniciar todo
-      setPausedTime(0);
-      setTotalWorkoutTime(0);
+    for (const exerciseType of workout.exerciseTypes || []) {
+      const incompleteExercise = (exerciseType.exercises || []).find(
+        ex => ex && !ex.completed
+      );
+      if (incompleteExercise) {
+        firstIncompleteExercise = incompleteExercise;
+        exerciseTypeStage = exerciseType.nameSpanish || exerciseType.name || '';
+        break;
+      }
     }
 
-    // Establecer nuevo tiempo de inicio
-    const startTime = Date.now();
-    setWorkoutStartTime(startTime);
-    setIsWorkoutActive(true);
+    if (firstIncompleteExercise) {
+      setCurrentExercise(firstIncompleteExercise.id); // Set the index/id of the first incomplete exercise
+      setCurrentExerciseStage(exerciseTypeStage);
+      setCurrentView('exercise');
+    }
+
+    // Solo iniciar el cronómetro si no está ya activo
+    if (!isWorkoutActive) {
+      // Iniciar nueva rutina
+      setPausedTime(0);
+      setTotalWorkoutTime(0);
+      const startTime = Date.now();
+      setWorkoutStartTime(startTime);
+      setIsWorkoutActive(true);
+    }
+    // Si ya está activo, solo cambiar la vista sin reiniciar el cronómetro
   };
+
 
   const handleEndWorkout = () => {
     // Marcar todos los ejercicios como completados al finalizar la rutina
@@ -312,17 +323,21 @@ function App() {
         completed: true,
         exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
           ...exerciseType,
-          exercises: (exerciseType.exercises || []).map(exercise => ({
-            ...exercise,
-            completed: true,
-            setDetails: (exercise.setDetails || []).map(set => ({
-              ...set,
+          exercises: (exerciseType.exercises || []).map(exercise => {
+            // Ensure setDetails exists and is an array before mapping
+            const currentSetDetails = Array.isArray(exercise.setDetails) ? exercise.setDetails : [];
+            return {
+              ...exercise,
               completed: true,
-              actualReps: set.actualReps || exercise.reps,
-              actualWeight: set.actualWeight || exercise.weight,
-              actualDuration: set.actualDuration || exercise.duration
-            }))
-          }))
+              setDetails: currentSetDetails.map(set => ({
+                ...set,
+                completed: true,
+                actualReps: set.actualReps || exercise.reps,
+                actualWeight: set.actualWeight || exercise.weight,
+                actualDuration: set.actualDuration || exercise.duration
+              }))
+            };
+          })
         }))
       };
 
@@ -336,7 +351,7 @@ function App() {
       try {
         const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises || []);
         allExercises.forEach(exercise => {
-          if (exercise) {
+          if (exercise && exercise.id) {
             localStorage.removeItem(`gymTracker_exercise_${exercise.id}`);
           }
         });
@@ -346,7 +361,7 @@ function App() {
     }
 
     setIsWorkoutActive(false);
-    setWorkoutStartTime(null);
+    setWorkoutStartTime(null); // Explicitly set to null to indicate timer stopped
     setCurrentExercise(null);
     setSelectedWorkout(null);
     setTotalWorkoutTime(0);
@@ -357,6 +372,7 @@ function App() {
     try {
       localStorage.removeItem('gymTracker_totalWorkoutTime');
       localStorage.removeItem('gymTracker_pausedTime');
+      localStorage.removeItem('gymTracker_workoutStartTime'); // also remove start time
     } catch (error) {
       console.error('Error clearing workout timer from localStorage:', error);
     }
@@ -416,10 +432,25 @@ function App() {
   };
 
   const handleNextExercise = () => {
-    if (selectedWorkout && currentExercise !== null) {
+    if (selectedWorkout && currentExerciseIndex !== null) {
       const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
-      if (currentExercise < allExercises.length - 1) {
-        setCurrentExercise(currentExercise + 1);
+      const currentIndex = allExercises.findIndex(ex => ex.id === currentExerciseIndex);
+
+      if (currentIndex !== -1 && currentIndex < allExercises.length - 1) {
+        const nextExercise = allExercises[currentIndex + 1];
+        setCurrentExercise(nextExercise.id);
+
+        // Find the stage of the next exercise
+        let nextExerciseStage = '';
+        if (selectedWorkout.exerciseTypes) {
+          for (const exerciseType of selectedWorkout.exerciseTypes) {
+            if (exerciseType.exercises?.some(ex => ex.id === nextExercise.id)) {
+              nextExerciseStage = exerciseType.nameSpanish || exerciseType.name || '';
+              break;
+            }
+          }
+        }
+        setCurrentExerciseStage(nextExerciseStage);
       } else {
         // Al finalizar el último ejercicio, seguir con el cronómetro activo
         // El usuario deberá presionar el botón "Finalizar Rutina" para terminar completamente
@@ -498,30 +529,20 @@ function App() {
   };
 
   // Renderizado basado en la vista actual
-  if (currentView === 'exercise' && selectedWorkout && currentExercise !== null) {
+  if (currentView === 'exercise' && selectedWorkout && currentExerciseIndex !== null) {
     const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
-    const exercise = allExercises[currentExercise];
+    const exercise = allExercises.find(ex => ex.id === currentExerciseIndex); // Find exercise by ID
 
     if (!exercise) {
-      setCurrentExercise(null);
+      setCurrentExercise(null); // Reset if exercise not found
       return null;
-    }
-
-    // Get the current exercise type for stage display
-    let currentStage = 'Ejercicio';
-    if (selectedWorkout.exerciseTypes) {
-      for (const exerciseType of selectedWorkout.exerciseTypes) {
-        if (exerciseType.exercises?.some(ex => ex.id === exercise.id)) {
-          currentStage = exerciseType.name;
-          break;
-        }
-      }
     }
 
     // Get next exercise info
     let nextExerciseName = '';
     let nextExerciseStage = '';
-    const nextExerciseIndex = currentExercise + 1;
+    const currentIndex = allExercises.findIndex(ex => ex.id === currentExerciseIndex);
+    const nextExerciseIndex = currentIndex + 1;
     if (nextExerciseIndex < allExercises.length) {
       const nextExercise = allExercises[nextExerciseIndex];
       nextExerciseName = nextExercise.name;
@@ -530,7 +551,7 @@ function App() {
       if (selectedWorkout.exerciseTypes) {
         for (const exerciseType of selectedWorkout.exerciseTypes) {
           if (exerciseType.exercises?.some(ex => ex.id === nextExercise.id)) {
-            nextExerciseStage = exerciseType.name;
+            nextExerciseStage = exerciseType.nameSpanish || exerciseType.name || '';
             break;
           }
         }
@@ -549,9 +570,9 @@ function App() {
         }}
         onNext={handleNextExercise}
         onEndWorkout={handleEndWorkout}
-        isLast={currentExercise === allExercises.length - 1}
+        isLast={currentIndex === allExercises.length - 1}
         totalWorkoutTime={totalWorkoutTime}
-        currentStage={currentStage}
+        currentStage={currentExerciseStage}
         isWorkoutActive={isWorkoutActive}
         nextExerciseName={nextExerciseName}
         nextExerciseStage={nextExerciseStage}
@@ -560,7 +581,7 @@ function App() {
   }
 
   // Pantalla de finalización cuando se completan todos los ejercicios pero el cronómetro sigue activo
-  if (selectedWorkout && currentExercise === null && isWorkoutActive && selectedWorkout.completed) {
+  if (selectedWorkout && currentExerciseIndex === null && isWorkoutActive && selectedWorkout.completed) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">

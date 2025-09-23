@@ -89,7 +89,7 @@ export function WorkoutDetail({
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <Play className="w-5 h-5 mr-2" />
-              {isWorkoutActive ? 'Continuar Rutina' : 'Start Workout'}
+              {isWorkoutActive ? 'Continuar Rutina' : 'Iniciar Rutina'}
             </button>
           </div>
         </div>
