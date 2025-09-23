@@ -45,6 +45,20 @@ export interface Workout {
   completed: boolean;
 }
 
+export interface WeeklyPlan {
+  id: string;
+  weekNumber: number;
+  year: number;
+  weekStart: Date;
+  weekEnd: Date;
+  name: string;
+  description?: string;
+  workouts: Workout[]; // Días de rutina dentro de la semana
+  completed: boolean;
+  createdAt: Date;
+  isActive: boolean;
+}
+
 // Weight conversion functions
 export const kgToLbs = (kg: number): number => Math.round(kg * 2.20462);
 export const lbsToKg = (lbs: number): number => Math.round(lbs / 2.20462);

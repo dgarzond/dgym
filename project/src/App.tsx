@@ -10,7 +10,47 @@ import { ChatBot } from './components/ChatBot';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
 
+// --- Componentes de Vista ---
+// Estos componentes ahora gestionarán las diferentes secciones de la aplicación.
+
+// Componente para mostrar la lista de semanas
+function WeekListView() {
+  // Aquí iría la lógica para mostrar las semanas y permitir la navegación
+  // Por ahora, solo un placeholder
+  return (
+    <div className="text-center py-12">
+      <p className="text-gray-500">Vista de Semanas. ¡Aún en desarrollo!</p>
+      {/* Ejemplo: Renderizarías WeekCard aquí */}
+    </div>
+  );
+}
+
+// Componente para mostrar los detalles de una semana específica
+function WeekDetailView({ week, onBack }: { week: any, onBack: () => void }) {
+  // Aquí iría la lógica para mostrar los días de rutina y ejercicios de una semana
+  // Por ahora, solo un placeholder
+  return (
+    <div className="p-8">
+      <button onClick={onBack} className="text-blue-600 mb-4">← Volver a Semanas</button>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Detalles de la Semana</h2>
+      <p className="text-gray-600">Semana: {week.name}</p>
+      {/* Ejemplo: Renderizarías DayCard aquí */}
+      <div className="text-center py-12">
+        <p className="text-gray-500">Detalles de Semana. ¡Aún en desarrollo!</p>
+      </div>
+    </div>
+  );
+}
+
+
 function App() {
+  // Estados para la navegación entre vistas
+  type CurrentView = 'weekList' | 'weekDetail' | 'workoutList' | 'workoutDetail' | 'exercise';
+  const [currentView, setCurrentView] = useState<CurrentView>('weekList'); // Vista inicial
+
+  // Estado para la semana seleccionada (para weekDetail)
+  const [selectedWeek, setSelectedWeek] = useState<any>(null);
+
   // Función para sincronizar el estado de completitud desde localStorage
   const syncExerciseCompletion = (workouts: Workout[]): Workout[] => {
     return workouts.map(workout => ({
@@ -26,7 +66,7 @@ function App() {
               const savedSetDetails = progress.setDetails || exercise.setDetails || [];
 
               // Verificar si todos los sets están completados
-              const allSetsCompleted = savedSetDetails.length > 0 && 
+              const allSetsCompleted = savedSetDetails.length > 0 &&
                                      savedSetDetails.every((set: any) => set && set.completed);
 
               return {
@@ -197,6 +237,7 @@ function App() {
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
+    setCurrentView('workoutDetail'); // Navegar a la vista de detalle del workout
   };
 
   const handleDelete = (id: string) => {
@@ -213,8 +254,8 @@ function App() {
             exercises: (exerciseType.exercises || []).map(exercise => {
               if (exercise.id === exerciseId) {
                 const allSetsCompleted = exercise.setDetails.every(set => set.completed);
-                return { 
-                  ...exercise, 
+                return {
+                  ...exercise,
                   completed: !allSetsCompleted,
                   setDetails: exercise.setDetails.map(set => ({
                     ...set,
@@ -233,7 +274,7 @@ function App() {
 
   const handleUpdateWorkout = (updatedWorkout: Workout) => {
     if (updatedWorkout && updatedWorkout.id) {
-      setWorkouts(workouts.map(w => 
+      setWorkouts(workouts.map(w =>
         w.id === updatedWorkout.id ? updatedWorkout : w
       ));
       setSelectedWorkout(updatedWorkout);
@@ -243,7 +284,8 @@ function App() {
   const handleStartExercise = (workout: Workout) => {
     setSelectedWorkout(workout);
     setCurrentExercise(0);
-    
+    setCurrentView('exercise'); // Cambiar a la vista de ejercicio
+
     // Si ya hay una rutina activa, preservar el tiempo acumulado
     if (isWorkoutActive && workoutStartTime) {
       // Acumular el tiempo transcurrido hasta ahora
@@ -255,7 +297,7 @@ function App() {
       setPausedTime(0);
       setTotalWorkoutTime(0);
     }
-    
+
     // Establecer nuevo tiempo de inicio
     const startTime = Date.now();
     setWorkoutStartTime(startTime);
@@ -285,7 +327,7 @@ function App() {
       };
 
       // Actualizar los workouts con el workout completado
-      const updatedWorkouts = workouts.map(w => 
+      const updatedWorkouts = workouts.map(w =>
         w.id === selectedWorkout.id ? updatedWorkout : w
       );
       setWorkouts(updatedWorkouts);
@@ -309,7 +351,8 @@ function App() {
     setSelectedWorkout(null);
     setTotalWorkoutTime(0);
     setPausedTime(0);
-    
+    setCurrentView('workoutList'); // Volver a la lista de workouts
+
     // Limpiar el estado del cronómetro de localStorage
     try {
       localStorage.removeItem('gymTracker_totalWorkoutTime');
@@ -355,7 +398,7 @@ function App() {
       completed: workoutCompleted
     };
 
-    const updatedWorkouts = workouts.map(w => 
+    const updatedWorkouts = workouts.map(w =>
       w.id === selectedWorkout.id ? finalUpdatedWorkout : w
     );
     setWorkouts(updatedWorkouts);
@@ -381,6 +424,14 @@ function App() {
         // Al finalizar el último ejercicio, seguir con el cronómetro activo
         // El usuario deberá presionar el botón "Finalizar Rutina" para terminar completamente
         setCurrentExercise(null);
+        // Al completar el último ejercicio, si el workout está marcado como completado,
+        // la pantalla de "Rutina Completada" se mostrará automáticamente.
+        // Si no, se mantiene en la vista de detalle del workout.
+        if (selectedWorkout.completed) {
+          // La lógica de renderizado del return principal manejará esto
+        } else {
+          setCurrentView('workoutDetail');
+        }
       }
     }
   };
@@ -403,8 +454,8 @@ function App() {
       console.log('📅 Workout Date:', workout.date);
 
       // Check for duplicates in main list
-      const existsInMain = workouts.some(existing => 
-        existing.id === workout.id || 
+      const existsInMain = workouts.some(existing =>
+        existing.id === workout.id ||
         (existing.dayId && workout.dayId && existing.dayId === workout.dayId)
       );
 
@@ -446,7 +497,8 @@ function App() {
     }
   };
 
-  if (selectedWorkout && currentExercise !== null) {
+  // Renderizado basado en la vista actual
+  if (currentView === 'exercise' && selectedWorkout && currentExercise !== null) {
     const allExercises = (selectedWorkout.exerciseTypes || []).flatMap(type => (type.exercises || [])).filter(ex => ex);
     const exercise = allExercises[currentExercise];
 
@@ -473,7 +525,7 @@ function App() {
     if (nextExerciseIndex < allExercises.length) {
       const nextExercise = allExercises[nextExerciseIndex];
       nextExerciseName = nextExercise.name;
-      
+
       // Find the stage of the next exercise
       if (selectedWorkout.exerciseTypes) {
         for (const exerciseType of selectedWorkout.exerciseTypes) {
@@ -492,6 +544,7 @@ function App() {
         onBack={() => {
           // Regresar a la pantalla de detalle del workout manteniendo el cronómetro activo
           setCurrentExercise(null);
+          setCurrentView('workoutDetail'); // Volver a la vista de detalle del workout
           // NO cambiar isWorkoutActive ni workoutStartTime - mantener el cronómetro corriendo
         }}
         onNext={handleNextExercise}
@@ -535,7 +588,10 @@ function App() {
                 Finalizar Rutina
               </button>
               <button
-                onClick={() => setCurrentExercise(0)}
+                onClick={() => {
+                  handleStartExercise(selectedWorkout); // Reinicia el cronómetro y el estado del ejercicio
+                  setCurrentView('exercise'); // Asegura que se muestre la vista de ejercicio
+                }}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
                 Repetir Rutina
@@ -551,7 +607,10 @@ function App() {
     return (
       <WorkoutDetail
         workout={selectedWorkout}
-        onBack={() => setSelectedWorkout(null)}
+        onBack={() => {
+          setSelectedWorkout(null);
+          setCurrentView('workoutList'); // Volver a la lista de workouts
+        }}
         onUpdateWorkout={handleUpdateWorkout}
         onStartExercise={() => handleStartExercise(selectedWorkout)}
         onEndWorkout={handleEndWorkout}
@@ -561,75 +620,155 @@ function App() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Dumbbell className="h-8 w-8 text-blue-600" />
-              <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
+  // Renderizado principal basado en la vista
+  switch (currentView) {
+    case 'weekList':
+      return (
+        <div className="min-h-screen bg-gray-50">
+          <header className="bg-white shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <Dumbbell className="h-8 w-8 text-blue-600" />
+                  <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
+                </div>
+                <div className="flex space-x-2">
+                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <Plus className="h-5 w-5 mr-2" />
+                    New Workout
+                  </button>
+                  <button
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                    onClick={() => setShowChatBot(true)}
+                  >
+                    <MessageSquare className="h-5 w-5 mr-2" />
+                    ChatBot
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex space-x-2">
-              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                <Plus className="h-5 w-5 mr-2" />
-                New Workout
-              </button>
-              <button
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                onClick={() => setShowChatBot(true)}
-              >
-                <MessageSquare className="h-5 w-5 mr-2" />
-                ChatBot
-              </button>
+          </header>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Aquí se mostraría la vista de lista de semanas */}
+            <WeekListView />
+
+            {/* La lista de workouts se muestra ahora como parte de la gestión de semanas o días */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Your Workouts</h2>
+              <div className="flex items-center text-gray-500">
+                <Calendar className="h-5 w-5 mr-2" />
+                <span>{new Date().toLocaleDateString()}</span>
+              </div>
             </div>
-          </div>
-        </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Weekly Plan Manager Component */}
-        <WeeklyPlanManager 
-          workouts={workouts}
-          onAddWorkout={handleAddWorkout}
-        />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {workouts.map((workout) => (
+                <WorkoutCard
+                  key={workout.id}
+                  workout={workout}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onToggleExercise={handleToggleExercise}
+                  onStartExercise={() => handleStartExercise(workout)}
+                />
+              ))}
+            </div>
 
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">Your Workouts</h2>
-          <div className="flex items-center text-gray-500">
-            <Calendar className="h-5 w-5 mr-2" />
-            <span>{new Date().toLocaleDateString()}</span>
-          </div>
-        </div>
+            {workouts.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No workouts yet. Start by adding a new workout!</p>
+              </div>
+            )}
+          </main>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {workouts.map((workout) => (
-            <WorkoutCard
-              key={workout.id}
-              workout={workout}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onToggleExercise={handleToggleExercise}
-              onStartExercise={() => handleStartExercise(workout)}
+          {showChatBot && (
+            <ChatBot
+              onWorkoutGenerated={handleAddWorkout}
+              onClose={() => setShowChatBot(false)}
             />
-          ))}
+          )}
         </div>
+      );
+    case 'weekDetail':
+      // Aquí deberías pasar la semana seleccionada a WeekDetailView
+      // const weekData = ... // Obtener los datos de la semana seleccionada
+      return (
+        <div>
+          {/* Aquí se mostraría la vista de detalle de semana */}
+          <WeekDetailView week={selectedWeek} onBack={() => setCurrentView('weekList')} />
+        </div>
+      );
+    case 'workoutList': // Si se desea volver a la lista de workouts desde otra vista
+      return (
+        <div className="min-h-screen bg-gray-50">
+          <header className="bg-white shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <Dumbbell className="h-8 w-8 text-blue-600" />
+                  <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
+                </div>
+                <div className="flex space-x-2">
+                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <Plus className="h-5 w-5 mr-2" />
+                    New Workout
+                  </button>
+                  <button
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                    onClick={() => setShowChatBot(true)}
+                  >
+                    <MessageSquare className="h-5 w-5 mr-2" />
+                    ChatBot
+                  </button>
+                </div>
+              </div>
+            </div>
+          </header>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <WeeklyPlanManager
+              workouts={workouts}
+              onAddWorkout={handleAddWorkout}
+            />
 
-        {workouts.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No workouts yet. Start by adding a new workout!</p>
-          </div>
-        )}
-      </main>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Your Workouts</h2>
+              <div className="flex items-center text-gray-500">
+                <Calendar className="h-5 w-5 mr-2" />
+                <span>{new Date().toLocaleDateString()}</span>
+              </div>
+            </div>
 
-      {showChatBot && (
-        <ChatBot
-          onWorkoutGenerated={handleAddWorkout}
-          onClose={() => setShowChatBot(false)}
-        />
-      )}
-    </div>
-  );
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {workouts.map((workout) => (
+                <WorkoutCard
+                  key={workout.id}
+                  workout={workout}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onToggleExercise={handleToggleExercise}
+                  onStartExercise={() => handleStartExercise(workout)}
+                />
+              ))}
+            </div>
+
+            {workouts.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No workouts yet. Start by adding a new workout!</p>
+              </div>
+            )}
+          </main>
+
+          {showChatBot && (
+            <ChatBot
+              onWorkoutGenerated={handleAddWorkout}
+              onClose={() => setShowChatBot(false)}
+            />
+          )}
+        </div>
+      );
+    default:
+      return null;
+  }
 }
 
 export default App;
