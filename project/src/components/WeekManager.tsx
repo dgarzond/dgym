@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Edit2, Trash2, Play, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
+import { Calendar, Plus, Edit2, Trash2, Play, ChevronDown, ChevronUp, CheckCircle, RotateCcw } from 'lucide-react';
 import type { WeeklyPlan, Workout } from '../types';
 import { ChatBot } from './ChatBot';
 
@@ -16,6 +16,7 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
   const [selectedWeekForChat, setSelectedWeekForChat] = useState<WeeklyPlan | null>(null);
   const [showCreateWeek, setShowCreateWeek] = useState(false);
   const [newWeekName, setNewWeekName] = useState('');
+  const [chatBotUsedThisWeek, setChatBotUsedThisWeek] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Cargar semanas desde localStorage
@@ -34,6 +35,17 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
         console.error('Error loading weeks:', error);
       }
     }
+
+    // Cargar estado del chatbot usado
+    const savedChatBotUsed = localStorage.getItem('gymTracker_chatBotUsedThisWeek');
+    if (savedChatBotUsed) {
+      try {
+        const parsedUsed = JSON.parse(savedChatBotUsed);
+        setChatBotUsedThisWeek(new Set(parsedUsed));
+      } catch (error) {
+        console.error('Error loading chatbot used state:', error);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -42,6 +54,11 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
       localStorage.setItem('gymTracker_weeks', JSON.stringify(weeks));
     }
   }, [weeks]);
+
+  useEffect(() => {
+    // Guardar estado del chatbot usado
+    localStorage.setItem('gymTracker_chatBotUsedThisWeek', JSON.stringify(Array.from(chatBotUsedThisWeek)));
+  }, [chatBotUsedThisWeek]);
 
   const getWeekDates = (year: number, weekNumber: number) => {
     const firstDayOfYear = new Date(year, 0, 1);
@@ -125,6 +142,9 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
 
     setWeeks(updatedWeeks);
     
+    // Marcar el chatbot como usado para esta semana
+    markChatBotAsUsed(selectedWeekForChat.id);
+    
     // También llamar al callback para agregar a la lista principal
     onCreateWorkout(workoutData);
     
@@ -132,9 +152,41 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
     setSelectedWeekForChat(null);
   };
 
+  const canUseChatBot = (weekId: string) => {
+    return !chatBotUsedThisWeek.has(weekId);
+  };
+
+  const markChatBotAsUsed = (weekId: string) => {
+    setChatBotUsedThisWeek(prev => new Set([...prev, weekId]));
+  };
+
+  const resetWeek = (weekId: string) => {
+    if (confirm('¿Estás seguro de que quieres reiniciar esta semana? Se eliminarán todos los días de entrenamiento y podrás usar el chatbot nuevamente.')) {
+      // Reiniciar la semana eliminando todos los workouts
+      setWeeks(prev => prev.map(week => 
+        week.id === weekId 
+          ? { ...week, workouts: [], completed: false }
+          : week
+      ));
+      
+      // Permitir usar el chatbot nuevamente para esta semana
+      setChatBotUsedThisWeek(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(weekId);
+        return newSet;
+      });
+    }
+  };
+
   const deleteWeek = (weekId: string) => {
     if (confirm('¿Estás seguro de que quieres eliminar esta semana?')) {
       setWeeks(prev => prev.filter(w => w.id !== weekId));
+      // También limpiar el estado del chatbot para esta semana
+      setChatBotUsedThisWeek(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(weekId);
+        return newSet;
+      });
     }
   };
 
@@ -213,22 +265,37 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedWeekForChat(week);
-                      setShowChatBot(true);
-                    }}
-                    className="p-2 text-gray-500 hover:text-blue-600"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
+                  {canUseChatBot(week.id) ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedWeekForChat(week);
+                        setShowChatBot(true);
+                      }}
+                      className="p-2 text-gray-500 hover:text-blue-600"
+                      title="Usar ChatBot para agregar días"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetWeek(week.id);
+                      }}
+                      className="p-2 text-gray-500 hover:text-orange-600"
+                      title="Reiniciar semana (permite usar ChatBot nuevamente)"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectWeek(week);
                     }}
                     className="p-2 text-gray-500 hover:text-green-600"
+                    title="Ver detalles de la semana"
                   >
                     <Play className="w-4 h-4" />
                   </button>
@@ -238,6 +305,7 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
                       deleteWeek(week.id);
                     }}
                     className="p-2 text-gray-500 hover:text-red-600"
+                    title="Eliminar semana"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -253,36 +321,65 @@ export function WeekManager({ onSelectWeek, onCreateWorkout }: WeekManagerProps)
                 <div className="border-t bg-gray-50 p-4">
                   <h4 className="font-medium text-gray-800 mb-3">Días de Entrenamiento</h4>
                   {week.workouts.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {week.workouts.map((workout, index) => (
-                        <div key={workout.id} className="bg-white rounded border p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <h5 className="font-medium text-gray-800">
-                              Día {index + 1}: {workout.name}
-                            </h5>
-                            {workout.completed && <CheckCircle className="w-4 h-4 text-green-500" />}
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {week.workouts.map((workout, index) => (
+                          <div key={workout.id} className="bg-white rounded border p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="font-medium text-gray-800">
+                                Día {index + 1}: {workout.name}
+                              </h5>
+                              {workout.completed && <CheckCircle className="w-4 h-4 text-green-500" />}
+                            </div>
+                            <p className="text-xs text-gray-600 mb-2">
+                              {(workout.exerciseTypes || []).length} tipos de ejercicio
+                            </p>
+                            <div className="text-xs text-gray-500">
+                              {new Date(workout.date).toLocaleDateString()}
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-600 mb-2">
-                            {(workout.exerciseTypes || []).length} tipos de ejercicio
+                        ))}
+                      </div>
+                      {!canUseChatBot(week.id) && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                          <p className="text-sm text-orange-700 mb-2">
+                            ChatBot ya usado esta semana. Para agregar más días:
                           </p>
-                          <div className="text-xs text-gray-500">
-                            {new Date(workout.date).toLocaleDateString()}
-                          </div>
+                          <button
+                            onClick={() => resetWeek(week.id)}
+                            className="flex items-center text-sm text-orange-600 hover:text-orange-800"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-1" />
+                            Reiniciar semana
+                          </button>
                         </div>
-                      ))}
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
                       <p>No hay días de entrenamiento en esta semana</p>
-                      <button
-                        onClick={() => {
-                          setSelectedWeekForChat(week);
-                          setShowChatBot(true);
-                        }}
-                        className="mt-2 text-blue-600 hover:text-blue-800"
-                      >
-                        Agregar días de entrenamiento
-                      </button>
+                      {canUseChatBot(week.id) ? (
+                        <button
+                          onClick={() => {
+                            setSelectedWeekForChat(week);
+                            setShowChatBot(true);
+                          }}
+                          className="mt-2 text-blue-600 hover:text-blue-800"
+                        >
+                          Agregar días de entrenamiento
+                        </button>
+                      ) : (
+                        <div className="mt-2">
+                          <p className="text-sm text-orange-600 mb-2">ChatBot ya usado esta semana</p>
+                          <button
+                            onClick={() => resetWeek(week.id)}
+                            className="flex items-center text-orange-600 hover:text-orange-800 mx-auto"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-1" />
+                            Reiniciar semana
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
