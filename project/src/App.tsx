@@ -114,23 +114,23 @@ function App() {
       const savedIsActive = localStorage.getItem('gymTracker_isWorkoutActive');
       const savedStartTime = localStorage.getItem('gymTracker_workoutStartTime');
       const savedPausedTime = localStorage.getItem('gymTracker_pausedTime');
-      
+
       const isActive = savedIsActive === 'true';
       const startTime = savedStartTime ? parseInt(savedStartTime, 10) : null;
       const paused = savedPausedTime ? parseInt(savedPausedTime, 10) : 0;
-      
+
       // Only restore state if the values are reasonable (less than 24 hours)
       const maxReasonableTime = 24 * 60 * 60; // 24 hours in seconds
-      
+
       if (isActive && startTime && paused < maxReasonableTime) {
         setIsWorkoutActive(isActive);
         setWorkoutStartTime(startTime);
         setPausedTime(paused);
-        
+
         // Calculate current total time
         const currentElapsedTime = Math.floor((Date.now() - startTime) / 1000);
         const totalElapsedTime = paused + currentElapsedTime;
-        
+
         // Only set if reasonable
         if (totalElapsedTime < maxReasonableTime) {
           setTotalWorkoutTime(totalElapsedTime);
@@ -153,7 +153,7 @@ function App() {
     setWorkoutStartTime(null);
     setTotalWorkoutTime(0);
     setPausedTime(0);
-    
+
     try {
       localStorage.removeItem('gymTracker_totalWorkoutTime');
       localStorage.removeItem('gymTracker_pausedTime');
@@ -305,7 +305,7 @@ function App() {
   const handleStartExercise = (workout: Workout) => {
     // Establecer el workout seleccionado primero
     setSelectedWorkout(workout);
-    
+
     // Limpiar todo el progreso guardado de ejercicios al iniciar una nueva rutina
     try {
       const allExercises = (workout.exerciseTypes || []).flatMap(type => type.exercises || []);
@@ -343,7 +343,7 @@ function App() {
       currentWorkouts.map(w => w.id === workout.id ? resetWorkout : w)
     );
     setSelectedWorkout(resetWorkout);
-    
+
     // Buscar el primer ejercicio (ahora todos están incompletos)
     let firstExercise: Exercise | null = null;
     let exerciseTypeStage = '';
@@ -361,7 +361,7 @@ function App() {
       setCurrentExercise(firstExercise.id);
       setCurrentExerciseStage(exerciseTypeStage);
       setCurrentView('exercise');
-      
+
       // Siempre resetear y iniciar nuevo cronómetro cuando se inicia una rutina
       setPausedTime(0);
       setTotalWorkoutTime(0);
@@ -505,10 +505,9 @@ function App() {
         // Al finalizar el último ejercicio, seguir con el cronómetro activo
         setCurrentExercise(null);
         // Verificar si el workout está completado para mostrar la pantalla de finalización
-        const allExercisesInWorkout = allExercises.filter(ex => ex);
-        const workoutCompleted = allExercisesInWorkout.length > 0 && allExercisesInWorkout.every(exercise => exercise.completed);
-        
-        if (workoutCompleted) {
+        const allExercisesInWorkout = allExercises.length > 0 && allExercises.every(exercise => exercise.completed);
+
+        if (allExercisesInWorkout) {
           // La pantalla de "Rutina Completada" se mostrará automáticamente
           return;
         } else {
@@ -706,11 +705,7 @@ function App() {
                   <Dumbbell className="h-8 w-8 text-blue-600" />
                   <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
                 </div>
-                <div className="flex space-x-2">
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <Plus className="h-5 w-5 mr-2" />
-                    New Workout
-                  </button>
+                <div className="flex items-center">
                   <button
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                     onClick={() => setShowChatBot(true)}
@@ -782,11 +777,7 @@ function App() {
                   <Dumbbell className="h-8 w-8 text-blue-600" />
                   <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
                 </div>
-                <div className="flex space-x-2">
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <Plus className="h-5 w-5 mr-2" />
-                    New Workout
-                  </button>
+                <div className="flex items-center">
                   <button
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                     onClick={() => setShowChatBot(true)}
