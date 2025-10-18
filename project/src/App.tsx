@@ -7,6 +7,7 @@ import { WorkoutDetail } from './components/WorkoutDetail';
 import { ExerciseScreen } from './components/ExerciseScreen';
 import { WeeklyPlanManager } from './components/WeeklyPlanManager';
 import { ChatBot } from './components/ChatBot';
+import { Login } from './components/Login';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
 
@@ -44,6 +45,16 @@ function WeekDetailView({ week, onBack }: { week: any, onBack: () => void }) {
 
 
 function App() {
+  // Estado de autenticación del usuario
+  const [currentUser, setCurrentUser] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('gymTracker_currentUser');
+    } catch (error) {
+      console.error('Error loading user:', error);
+      return null;
+    }
+  });
+
   // Estados para la navegación entre vistas
   type CurrentView = 'weekList' | 'weekDetail' | 'workoutList' | 'workoutDetail' | 'exercise';
   const [currentView, setCurrentView] = useState<CurrentView>('weekList'); // Vista inicial
@@ -255,6 +266,16 @@ function App() {
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
+
+  // Manejar el login del usuario
+  const handleLogin = (userName: string) => {
+    try {
+      localStorage.setItem('gymTracker_currentUser', userName);
+      setCurrentUser(userName);
+    } catch (error) {
+      console.error('Error saving user:', error);
+    }
+  };
 
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
@@ -577,6 +598,11 @@ function App() {
       console.warn('⚠️ NO UNIQUE WORKOUTS TO ADD - ALL WERE DUPLICATES');
     }
   };
+
+  // Mostrar pantalla de login si no hay usuario autenticado
+  if (!currentUser) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   // Renderizado basado en la vista actual
   if (currentView === 'exercise' && selectedWorkout && currentExerciseIndex !== null) {
