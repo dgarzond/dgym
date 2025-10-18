@@ -57,7 +57,7 @@ function App() {
 
   // Estados para la navegación entre vistas
   type CurrentView = 'weekList' | 'weekDetail' | 'workoutList' | 'workoutDetail' | 'exercise';
-  const [currentView, setCurrentView] = useState<CurrentView>('weekList'); // Vista inicial
+  const [currentView, setCurrentView] = useState<CurrentView>('workoutList'); // Vista inicial
 
   // Estado para la semana seleccionada (para weekDetail)
   const [selectedWeek, setSelectedWeek] = useState<any>(null);
