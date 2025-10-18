@@ -277,6 +277,21 @@ function App() {
     }
   };
 
+  // Manejar el logout del usuario
+  const handleLogout = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('gymTracker_currentUser');
+      // Opcionalmente, podrías querer resetear otros estados aquí si es necesario
+      // Por ejemplo:
+      // localStorage.removeItem('gymTracker_workouts');
+      // localStorage.removeItem('gymTracker_isWorkoutActive');
+      // ...etc.
+    } catch (error) {
+      console.error('Error removing user from localStorage:', error);
+    }
+  };
+
   const handleEdit = (workout: Workout) => {
     setSelectedWorkout(workout);
     setCurrentView('workoutDetail'); // Navegar a la vista de detalle del workout
@@ -360,7 +375,7 @@ function App() {
     };
 
     // Actualizar el workout en el estado principal
-    setWorkouts(currentWorkouts => 
+    setWorkouts(currentWorkouts =>
       currentWorkouts.map(w => w.id === workout.id ? resetWorkout : w)
     );
     setSelectedWorkout(resetWorkout);
@@ -476,7 +491,7 @@ function App() {
 
     // Verificar si todo el workout está completo
     const allExercisesInWorkout = updatedWorkout.exerciseTypes.flatMap(type => type.exercises || []);
-    const workoutCompleted = allExercisesInWorkout.every(exercise => exercise.completed);
+    const workoutCompleted = allExercisesInWorkout.length > 0 && allExercisesInWorkout.every(exercise => exercise.completed);
 
     const finalUpdatedWorkout = {
       ...updatedWorkout,
@@ -731,13 +746,20 @@ function App() {
                   <Dumbbell className="h-8 w-8 text-blue-600" />
                   <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
                 </div>
-                <div className="flex items-center">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-600">Hola, {currentUser}</span>
                   <button
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                     onClick={() => setShowChatBot(true)}
                   >
                     <MessageSquare className="h-5 w-5 mr-2" />
                     ChatBot
+                  </button>
+                  <button
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={handleLogout}
+                  >
+                    Cerrar Sesión
                   </button>
                 </div>
               </div>
@@ -803,13 +825,20 @@ function App() {
                   <Dumbbell className="h-8 w-8 text-blue-600" />
                   <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
                 </div>
-                <div className="flex items-center">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-600">Hola, {currentUser}</span>
                   <button
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                     onClick={() => setShowChatBot(true)}
                   >
                     <MessageSquare className="h-5 w-5 mr-2" />
                     ChatBot
+                  </button>
+                  <button
+                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    onClick={handleLogout}
+                  >
+                    Cerrar Sesión
                   </button>
                 </div>
               </div>
