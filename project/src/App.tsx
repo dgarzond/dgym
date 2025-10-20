@@ -10,7 +10,7 @@ import { ChatBot } from './components/ChatBot';
 import { Login } from './components/Login';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
-import DatabaseService from './services/DatabaseService'; // Importar DatabaseService
+import DatabaseService from './utils/database'; // Importar DatabaseService
 
 // --- Componentes de Vista ---
 // Estos componentes ahora gestionarán las diferentes secciones de la aplicación.
