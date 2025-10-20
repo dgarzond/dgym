@@ -10,6 +10,7 @@ import { ChatBot } from './components/ChatBot';
 import { Login } from './components/Login';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
+import DatabaseService from './services/DatabaseService'; // Importar DatabaseService
 
 // --- Componentes de Vista ---
 // Estos componentes ahora gestionarán las diferentes secciones de la aplicación.
@@ -53,6 +54,17 @@ function App() {
       console.error('Error loading user:', error);
       return null;
     }
+  });
+
+  // Mock user object for database interaction before actual login
+  const [user, setUser] = useState<{ name: string, email: string } | null>(() => {
+    const storedUser = localStorage.getItem('gymTracker_currentUser');
+    if (storedUser) {
+      // In a real app, you'd fetch user details or use authentication context
+      // For now, we'll assume a default email if only name is stored.
+      return { name: storedUser, email: `${storedUser.toLowerCase()}@example.com` };
+    }
+    return null;
   });
 
   // Estados para la navegación entre vistas
@@ -175,23 +187,55 @@ function App() {
     }
   };
 
-  // Guardar workouts en localStorage cada vez que cambien
+  // Initialize database and load user workouts
   useEffect(() => {
-    try {
-      localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
+    const initDb = async () => {
+      try {
+        const db = DatabaseService.getInstance();
+        await db.initializeTables();
 
-      // También sincronizar el estado de completitud cuando cambian los workouts
-      const syncedWorkouts = syncExerciseCompletion(workouts);
-      if (JSON.stringify(syncedWorkouts) !== JSON.stringify(workouts)) {
-        // Solo actualizar si hay diferencias para evitar loops infinitos
-        setTimeout(() => {
-          setWorkouts(syncedWorkouts);
-        }, 0);
+        if (user) {
+          const dbUser = await db.getOrCreateUser(user.name, user.email);
+          console.log('✅ Usuario DB:', dbUser);
+
+          // Cargar workouts del usuario desde la base de datos
+          const userWorkouts = await db.getUserWorkouts(dbUser.id);
+          if (userWorkouts.length > 0) {
+            console.log('📥 Workouts cargados desde DB:', userWorkouts.length);
+            setWorkouts(userWorkouts);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error inicializando DB:', error);
       }
-    } catch (error) {
-      console.error('Error saving workouts to localStorage:', error);
-    }
-  }, [workouts]);
+    };
+    initDb();
+  }, [user]);
+
+  // Persist workouts to localStorage and database whenever they change
+  useEffect(() => {
+    localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
+    console.log('💾 Saved workouts to localStorage:', workouts.length);
+
+    // Guardar en base de datos si hay usuario autenticado
+    const saveToDb = async () => {
+      if (user && workouts.length > 0) {
+        try {
+          const db = DatabaseService.getInstance();
+          const dbUser = await db.getOrCreateUser(user.name, user.email);
+
+          // Guardar cada workout
+          for (const workout of workouts) {
+            await db.saveWorkoutComplete(dbUser.id, workout);
+          }
+          console.log('💾 Workouts guardados en base de datos');
+        } catch (error) {
+          console.error('❌ Error guardando en DB:', error);
+        }
+      }
+    };
+    saveToDb();
+  }, [workouts, user]);
 
   // Guardar estado del cronómetro en localStorage
   useEffect(() => {
@@ -272,6 +316,8 @@ function App() {
     try {
       localStorage.setItem('gymTracker_currentUser', userName);
       setCurrentUser(userName);
+      // For database integration, set the mock user object as well
+      setUser({ name: userName, email: `${userName.toLowerCase()}@example.com` });
     } catch (error) {
       console.error('Error saving user:', error);
     }
@@ -280,6 +326,7 @@ function App() {
   // Manejar el logout del usuario
   const handleLogout = () => {
     setCurrentUser(null);
+    setUser(null); // Clear the mock user as well
     try {
       localStorage.removeItem('gymTracker_currentUser');
       // Opcionalmente, podrías querer resetear otros estados aquí si es necesario
