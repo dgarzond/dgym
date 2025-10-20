@@ -23,7 +23,7 @@ localPort = 41005
 externalPort = 3000
 
 [workflows]
-runButton = "Build and Serve"
+runButton = "Full Stack Dev"
 
 [[workflows.workflow]]
 name = "Build and Preview"
@@ -55,6 +55,19 @@ args = "cd project && npx serve dist -s -l 5000"
 name = "Run"
 author = 42167165
 mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd project && npm run dev"
+
+[[workflows.workflow]]
+name = "Full Stack Dev"
+author = 42167165
+mode = "parallel"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npx tsx index.ts"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
