@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react()],
   root: '.',
   publicDir: 'public',
+  base: '/',
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
+  },
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
@@ -13,11 +19,15 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
-    allowedHosts: ['dgym-garzonduarted.replit.app']
   },
   server: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: []
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      }
+    }
   },
 });
