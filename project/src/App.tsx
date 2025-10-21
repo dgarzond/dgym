@@ -10,7 +10,6 @@ import { ChatBot } from './components/ChatBot';
 import { Login } from './components/Login';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
-import DatabaseService from './utils/database'; // Importar DatabaseService
 
 // --- Componentes de Vista ---
 // Estos componentes ahora gestionarán las diferentes secciones de la aplicación.
@@ -189,53 +188,15 @@ function App() {
 
   // Initialize database and load user workouts
   useEffect(() => {
-    const initDb = async () => {
-      try {
-        const db = DatabaseService.getInstance();
-        await db.initializeTables();
-
-        if (user) {
-          const dbUser = await db.getOrCreateUser(user.name, user.email);
-          console.log('✅ Usuario DB:', dbUser);
-
-          // Cargar workouts del usuario desde la base de datos
-          const userWorkouts = await db.getUserWorkouts(dbUser.id);
-          if (userWorkouts.length > 0) {
-            console.log('📥 Workouts cargados desde DB:', userWorkouts.length);
-            setWorkouts(userWorkouts);
-          }
-        }
-      } catch (error) {
-        console.error('❌ Error inicializando DB:', error);
-      }
-    };
-    initDb();
+    // Database operations are removed as per the user's request to eliminate database.ts
+    // If database functionality is still needed, it would require re-integration.
   }, [user]);
 
-  // Persist workouts to localStorage and database whenever they change
+  // Persist workouts to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
     console.log('💾 Saved workouts to localStorage:', workouts.length);
-
-    // Guardar en base de datos si hay usuario autenticado
-    const saveToDb = async () => {
-      if (user && workouts.length > 0) {
-        try {
-          const db = DatabaseService.getInstance();
-          const dbUser = await db.getOrCreateUser(user.name, user.email);
-
-          // Guardar cada workout
-          for (const workout of workouts) {
-            await db.saveWorkoutComplete(dbUser.id, workout);
-          }
-          console.log('💾 Workouts guardados en base de datos');
-        } catch (error) {
-          console.error('❌ Error guardando en DB:', error);
-        }
-      }
-    };
-    saveToDb();
-  }, [workouts, user]);
+  }, [workouts]);
 
   // Guardar estado del cronómetro en localStorage
   useEffect(() => {
