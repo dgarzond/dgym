@@ -18,16 +18,16 @@ if (!databaseUrl) {
   console.log('Por favor, crea una base de datos PostgreSQL en la pestaña "Database" de Replit');
 }
 
-// Usar connection pooling con URL modificada para mejor rendimiento
-const poolUrl = databaseUrl?.replace('.us-east-2', '-pooler.us-east-2') || '';
-
 const pool = new Pool({
-  connectionString: poolUrl,
+  connectionString: databaseUrl,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000, // Aumentado a 10 segundos
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Inicializar tablas con reintentos
