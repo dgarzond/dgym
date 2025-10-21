@@ -10,17 +10,53 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Configuración de PostgreSQL
+// Configuración de PostgreSQL con manejo de errores
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  console.error('⚠️ DATABASE_URL no está configurada en las variables de entorno');
+  console.log('Por favor, crea una base de datos PostgreSQL en la pestaña "Database" de Replit');
+}
+
+// Usar connection pooling con URL modificada para mejor rendimiento
+const poolUrl = databaseUrl?.replace('.us-east-2', '-pooler.us-east-2') || '';
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: poolUrl,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // Aumentado a 10 segundos
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
-// Inicializar tablas
-async function initializeTables() {
-  const client = await pool.connect();
+// Inicializar tablas con reintentos
+async function initializeTables(retries = 3) {
+  let client;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🔄 Intentando conectar a la base de datos (intento ${attempt}/${retries})...`);
+      client = await pool.connect();
+      break;
+    } catch (error: any) {
+      console.error(`❌ Error en intento ${attempt}:`, error.message);
+      if (attempt === retries) {
+        console.error('❌ No se pudo conectar a la base de datos después de varios intentos');
+        console.log('Posibles soluciones:');
+        console.log('1. Verifica que DATABASE_URL esté configurada correctamente');
+        console.log('2. La base de datos Neon puede estar "dormida" - intenta de nuevo en unos segundos');
+        console.log('3. Crea una nueva base de datos PostgreSQL en la pestaña "Database" de Replit');
+        throw error;
+      }
+      // Esperar 2 segundos antes del siguiente intento
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+
+  if (!client) {
+    throw new Error('No se pudo obtener una conexión del pool');
+  }
+
   try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -406,16 +442,40 @@ app.patch('/api/exercises/:exerciseId/complete', async (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
+    dbStatus = 'connected';
+  } catch (error: any) {
+    console.error('Database health check failed:', error.message);
+  }
+  
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    database: dbStatus
+  });
 });
 
 // Iniciar servidor
 async function startServer() {
-  await initializeTables();
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Backend server running on port ${PORT}`);
-  });
+  try {
+    await initializeTables();
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Backend server running on port ${PORT}`);
+      console.log(`📊 Base de datos conectada exitosamente`);
+    });
+  } catch (error: any) {
+    console.error('❌ Error fatal al iniciar el servidor:', error.message);
+    console.log('⚠️ El servidor continuará ejecutándose pero la base de datos no está disponible');
+    // Iniciar el servidor de todas formas para que la API responda
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Backend server running on port ${PORT} (sin base de datos)`);
+    });
+  }
 }
 
 startServer().catch(console.error);
