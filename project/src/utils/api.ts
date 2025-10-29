@@ -1,5 +1,28 @@
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Auto-detect API URL based on environment
+const getApiUrl = () => {
+  // Check if we have an explicit environment variable
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // In Replit, use the current host with port 3001
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // If we're on a Replit domain
+    if (hostname.includes('.repl.co') || hostname.includes('.replit.dev')) {
+      // Use the same protocol and hostname, but port 3001
+      return `${window.location.protocol}//${hostname}:3001`;
+    }
+  }
+  
+  // Fallback for local development
+  return 'http://localhost:3001';
+};
+
+const API_URL = getApiUrl();
+console.log('🔗 API URL configured:', API_URL);
 
 export const api = {
   // Usuarios
