@@ -10,6 +10,7 @@ import { ChatBot } from './components/ChatBot';
 import { Login } from './components/Login';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
+import { api } from './utils/api';
 
 // --- Componentes de Vista ---
 // Estos componentes ahora gestionarán las diferentes secciones de la aplicación.
@@ -43,6 +44,11 @@ function WeekDetailView({ week, onBack }: { week: any, onBack: () => void }) {
   );
 }
 
+interface User {
+  id: number;
+  username: string;
+  email?: string;
+}
 
 function App() {
   // Estado de autenticación del usuario
@@ -56,15 +62,17 @@ function App() {
   });
 
   // Mock user object for database interaction before actual login
-  const [user, setUser] = useState<{ name: string, email: string } | null>(() => {
+  const [user, setUser] = useState<User | null>(() => {
     const storedUser = localStorage.getItem('gymTracker_currentUser');
     if (storedUser) {
       // In a real app, you'd fetch user details or use authentication context
       // For now, we'll assume a default email if only name is stored.
-      return { name: storedUser, email: `${storedUser.toLowerCase()}@example.com` };
+      // This mock user will be replaced by actual user data from the DB after login.
+      return { id: 0, name: storedUser, email: `${storedUser.toLowerCase()}@example.com` };
     }
     return null;
   });
+
 
   // Estados para la navegación entre vistas
   type CurrentView = 'weekList' | 'weekDetail' | 'workoutList' | 'workoutDetail' | 'exercise';
@@ -188,15 +196,54 @@ function App() {
 
   // Initialize database and load user workouts
   useEffect(() => {
-    // Database operations are removed as per the user's request to eliminate database.ts
-    // If database functionality is still needed, it would require re-integration.
+    // When the user state is set (after login), fetch workouts from the DB
+    const fetchUserWorkouts = async () => {
+      if (user && user.id) {
+        try {
+          console.log('📥 Fetching workouts from DB for user ID:', user.id);
+          const dbWorkouts = await api.getUserWorkouts(user.id);
+          if (dbWorkouts.length > 0) {
+            setWorkouts(dbWorkouts);
+            console.log('✅ Loaded', dbWorkouts.length, 'workouts from DB.');
+          } else {
+            // Fallback to localStorage if no workouts in DB
+            console.log('No workouts found in DB. Falling back to localStorage.');
+            const savedWorkouts = localStorage.getItem('gymTracker_workouts');
+            if (savedWorkouts) {
+              const parsedWorkouts = JSON.parse(savedWorkouts);
+              setWorkouts(syncExerciseCompletion(parsedWorkouts));
+              console.log('✅ Loaded', parsedWorkouts.length, 'workouts from localStorage.');
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error fetching workouts from DB:', error);
+          // Fallback to localStorage on DB error
+          const savedWorkouts = localStorage.getItem('gymTracker_workouts');
+          if (savedWorkouts) {
+            console.log('📥 Loaded workouts from localStorage (DB error fallback):', savedWorkouts.length);
+            setWorkouts(syncExerciseCompletion(JSON.parse(savedWorkouts)));
+          }
+        }
+      }
+    };
+    fetchUserWorkouts();
   }, [user]);
 
   // Persist workouts to localStorage whenever they change
+  // This is now a fallback and also used for exercise progress within a workout.
   useEffect(() => {
-    localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
-    console.log('💾 Saved workouts to localStorage:', workouts.length);
+    // Only save to localStorage if not actively using DB for workouts list
+    // Or, if you want to keep localStorage as a backup/for offline use.
+    // For this change, we prioritize DB, so localStorage is more for progress.
+    try {
+      // Save current workout list to localStorage as a fallback
+      localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts));
+      console.log('💾 Saved workouts to localStorage (fallback/progress):', workouts.length);
+    } catch (error) {
+      console.error('Error saving workouts to localStorage:', error);
+    }
   }, [workouts]);
+
 
   // Guardar estado del cronómetro en localStorage
   useEffect(() => {
@@ -273,30 +320,64 @@ function App() {
   }, []);
 
   // Manejar el login del usuario
-  const handleLogin = (userName: string) => {
+  const handleLogin = async (name: string, email?: string, googleId?: string) => {
+    setCurrentUser(name); // Update currentUser state for immediate UI feedback
+
     try {
-      localStorage.setItem('gymTracker_currentUser', userName);
-      setCurrentUser(userName);
-      // For database integration, set the mock user object as well
-      setUser({ name: userName, email: `${userName.toLowerCase()}@example.com` });
+      // Crear o obtener usuario de la base de datos
+      console.log('👤 Creating/getting user in DB...');
+      const userData: User = await api.createOrGetUser(name, email, googleId);
+      setUser(userData);
+      console.log('✅ User loaded:', userData);
+
+      // Cargar workouts del usuario desde la base de datos
+      console.log('📥 Loading workouts from DB...');
+      const dbWorkouts = await api.getUserWorkouts(userData.id);
+      console.log('✅ Workouts loaded from DB:', dbWorkouts.length);
+
+      if (dbWorkouts.length > 0) {
+        setWorkouts(dbWorkouts);
+        // Save to localStorage as well for fallback/progress tracking
+        try {
+          localStorage.setItem('gymTracker_workouts', JSON.stringify(dbWorkouts));
+        } catch (error) {
+          console.error('Error saving workouts to localStorage after DB load:', error);
+        }
+      } else {
+        // If no workouts in DB, load from localStorage as fallback
+        console.log('No workouts found in DB. Falling back to localStorage.');
+        const savedWorkouts = localStorage.getItem('gymTracker_workouts');
+        if (savedWorkouts) {
+          const parsedWorkouts = JSON.parse(savedWorkouts);
+          setWorkouts(syncExerciseCompletion(parsedWorkouts));
+          console.log('✅ Loaded', parsedWorkouts.length, 'workouts from localStorage (fallback).');
+        }
+      }
     } catch (error) {
-      console.error('Error saving user:', error);
+      console.error('❌ Error loading user/workouts from DB:', error);
+      // Fallback to localStorage if DB fails
+      const savedWorkouts = localStorage.getItem('gymTracker_workouts');
+      if (savedWorkouts) {
+        console.log('📥 Loaded workouts from localStorage (DB error fallback):', savedWorkouts.length);
+        setWorkouts(syncExerciseCompletion(JSON.parse(savedWorkouts)));
+      }
     }
   };
 
   // Manejar el logout del usuario
   const handleLogout = () => {
     setCurrentUser(null);
-    setUser(null); // Clear the mock user as well
+    setUser(null); // Clear the actual user data from state
     try {
       localStorage.removeItem('gymTracker_currentUser');
-      // Opcionalmente, podrías querer resetear otros estados aquí si es necesario
-      // Por ejemplo:
-      // localStorage.removeItem('gymTracker_workouts');
-      // localStorage.removeItem('gymTracker_isWorkoutActive');
-      // ...etc.
+      // Optionally, reset other states if necessary
+      // e.g., clear workouts, timer state, etc.
+      setWorkouts([]); // Clear workouts from state
+      handleResetTimer(); // Reset timer state
+      localStorage.removeItem('gymTracker_workouts'); // Clear workouts from localStorage
+      console.log('User logged out and state cleared.');
     } catch (error) {
-      console.error('Error removing user from localStorage:', error);
+      console.error('Error clearing user session:', error);
     }
   };
 
@@ -305,8 +386,34 @@ function App() {
     setCurrentView('workoutDetail'); // Navegar a la vista de detalle del workout
   };
 
-  const handleDelete = (id: string) => {
-    setWorkouts(workouts.filter(w => w.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!user?.id) {
+      console.warn('User not logged in, cannot delete workout from DB.');
+      // Fallback to local state removal if not logged in
+      setWorkouts(workouts.filter(w => w.id !== id));
+      try {
+        localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts.filter(w => w.id !== id)));
+      } catch (error) {
+        console.error('Error saving workouts to localStorage after delete:', error);
+      }
+      return;
+    }
+
+    try {
+      console.log(`Deleting workout ${id} from DB...`);
+      await api.deleteWorkout(user.id, id);
+      setWorkouts(workouts.filter(w => w.id !== id));
+      console.log('Workout deleted successfully from DB.');
+      // Update localStorage as well if it's used as a fallback or for progress
+      try {
+        localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts.filter(w => w.id !== id)));
+      } catch (error) {
+        console.error('Error saving workouts to localStorage after delete:', error);
+      }
+    } catch (error) {
+      console.error('Error deleting workout from DB:', error);
+      // Optionally show an error message to the user
+    }
   };
 
   const handleToggleExercise = (workoutId: string, exerciseId: string) => {
@@ -337,12 +444,35 @@ function App() {
     }));
   };
 
-  const handleUpdateWorkout = (updatedWorkout: Workout) => {
-    if (updatedWorkout && updatedWorkout.id) {
+  const handleUpdateWorkout = async (updatedWorkout: Workout) => {
+    if (!user?.id) {
+      console.warn('User not logged in, cannot update workout in DB.');
+      // Fallback to local state update
       setWorkouts(workouts.map(w =>
         w.id === updatedWorkout.id ? updatedWorkout : w
       ));
       setSelectedWorkout(updatedWorkout);
+      try {
+        localStorage.setItem('gymTracker_workouts', JSON.stringify(workouts.map(w =>
+          w.id === updatedWorkout.id ? updatedWorkout : w
+        )));
+      } catch (error) {
+        console.error('Error saving workouts to localStorage after update:', error);
+      }
+      return;
+    }
+
+    try {
+      console.log('Updating workout in DB:', updatedWorkout.id);
+      await api.updateWorkout(user.id, updatedWorkout);
+      setWorkouts(workouts.map(w =>
+        w.id === updatedWorkout.id ? updatedWorkout : w
+      ));
+      setSelectedWorkout(updatedWorkout);
+      console.log('Workout updated successfully in DB.');
+    } catch (error) {
+      console.error('Error updating workout in DB:', error);
+      // Optionally show an error message to the user
     }
   };
 
@@ -419,49 +549,62 @@ function App() {
   };
 
 
-  const handleEndWorkout = () => {
+  const handleEndWorkout = async () => {
+    if (!selectedWorkout) return;
+
     // Marcar todos los ejercicios como completados al finalizar la rutina
-    if (selectedWorkout) {
-      const updatedWorkout = {
-        ...selectedWorkout,
-        completed: true,
-        exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
-          ...exerciseType,
-          exercises: (exerciseType.exercises || []).map(exercise => {
-            // Ensure setDetails exists and is an array before mapping
-            const currentSetDetails = Array.isArray(exercise.setDetails) ? exercise.setDetails : [];
-            return {
-              ...exercise,
+    const updatedWorkout = {
+      ...selectedWorkout,
+      completed: true,
+      exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
+        ...exerciseType,
+        exercises: (exerciseType.exercises || []).map(exercise => {
+          // Ensure setDetails exists and is an array before mapping
+          const currentSetDetails = Array.isArray(exercise.setDetails) ? exercise.setDetails : [];
+          return {
+            ...exercise,
+            completed: true,
+            setDetails: currentSetDetails.map(set => ({
+              ...set,
               completed: true,
-              setDetails: currentSetDetails.map(set => ({
-                ...set,
-                completed: true,
-                actualReps: set.actualReps || exercise.reps,
-                actualWeight: set.actualWeight || exercise.weight,
-                actualDuration: set.actualDuration || exercise.duration
-              }))
-            };
-          })
-        }))
-      };
+              actualReps: set.actualReps || exercise.reps,
+              actualWeight: set.actualWeight || exercise.weight,
+              actualDuration: set.actualDuration || exercise.duration
+            }))
+          };
+        })
+      }))
+    };
 
-      // Actualizar los workouts con el workout completado
-      const updatedWorkouts = workouts.map(w =>
-        w.id === selectedWorkout.id ? updatedWorkout : w
-      );
-      setWorkouts(updatedWorkouts);
+    // Actualizar los workouts con el workout completado
+    const updatedWorkoutsList = workouts.map(w =>
+      w.id === selectedWorkout.id ? updatedWorkout : w
+    );
+    setWorkouts(updatedWorkoutsList);
 
-      // Limpiar el progreso guardado de todos los ejercicios
+    // Guardar el workout actualizado en la base de datos
+    if (user?.id) {
       try {
-        const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises || []);
-        allExercises.forEach(exercise => {
-          if (exercise && exercise.id) {
-            localStorage.removeItem(`gymTracker_exercise_${exercise.id}`);
-          }
-        });
+        console.log(`Updating completed workout ${updatedWorkout.id} in DB...`);
+        await api.updateWorkout(user.id, updatedWorkout); // Assuming updateWorkout handles the full object
+        console.log('Workout updated successfully in DB after completion.');
       } catch (error) {
-        console.error('Error clearing exercise progress:', error);
+        console.error('Error updating workout in DB after completion:', error);
       }
+    } else {
+      console.warn('User not logged in, cannot save workout completion status to DB.');
+    }
+
+    // Limpiar el progreso guardado de todos los ejercicios
+    try {
+      const allExercises = selectedWorkout.exerciseTypes.flatMap(type => type.exercises || []);
+      allExercises.forEach(exercise => {
+        if (exercise && exercise.id) {
+          localStorage.removeItem(`gymTracker_exercise_${exercise.id}`);
+        }
+      });
+    } catch (error) {
+      console.error('Error clearing exercise progress:', error);
     }
 
     handleResetTimer();
@@ -470,7 +613,7 @@ function App() {
     setCurrentView('workoutList'); // Volver a la lista de workouts
   };
 
-  const handleExerciseComplete = (exerciseId: string, completedSetDetails: Set[]) => {
+  const handleExerciseComplete = async (exerciseId: string, completedSetDetails: Set[]) => {
     if (!selectedWorkout) return;
 
     // Verificar que todos los sets estén realmente completados
@@ -506,11 +649,24 @@ function App() {
       completed: workoutCompleted
     };
 
-    const updatedWorkouts = workouts.map(w =>
+    const updatedWorkoutsList = workouts.map(w =>
       w.id === selectedWorkout.id ? finalUpdatedWorkout : w
     );
-    setWorkouts(updatedWorkouts);
+    setWorkouts(updatedWorkoutsList);
     setSelectedWorkout(finalUpdatedWorkout);
+
+    // Guardar el progreso actualizado en la base de datos
+    if (user?.id) {
+      try {
+        console.log(`Saving exercise completion for ${exerciseId} to DB...`);
+        await api.updateWorkout(user.id, finalUpdatedWorkout); // Assuming updateWorkout handles the full object
+        console.log('Workout progress saved successfully to DB.');
+      } catch (error) {
+        console.error('Error saving workout progress to DB:', error);
+      }
+    } else {
+      console.warn('User not logged in, cannot save exercise completion to DB.');
+    }
 
     // Limpiar el progreso guardado del ejercicio completado
     try {
@@ -561,12 +717,10 @@ function App() {
     }
   };
 
-  const handleAddWorkout = (newWorkout: Workout | Workout[]) => {
+  const handleAddWorkout = async (workoutData: Workout | Workout[]) => {
     console.log('=== 🎯 APP.TSX - HANDLE ADD WORKOUT ===');
 
-    // Handle both single workout and array of workouts
-    const workoutsToAdd = Array.isArray(newWorkout) ? newWorkout : [newWorkout];
-
+    const workoutsToAdd = Array.isArray(workoutData) ? workoutData : [workoutData];
     console.log('📊 Total workouts to add to main list:', workoutsToAdd.length);
     console.log('📋 Current workouts in main list before adding:', workouts.length);
 
@@ -577,53 +731,58 @@ function App() {
       console.log('🏷️ Workout DayId:', workout.dayId || 'NO DAYID');
       console.log('📊 Exercise Types Count:', workout.exerciseTypes?.length || 0);
       console.log('📅 Workout Date:', workout.date);
+    });
 
-      // Check for duplicates in main list
-      const existsInMain = workouts.some(existing =>
-        existing.id === workout.id ||
-        (existing.dayId && workout.dayId && existing.dayId === workout.dayId)
-      );
+    setWorkouts(currentWorkouts => {
+      const isDuplicate = (existing: Workout, newWorkout: Workout) => {
+        const idMatch = existing.id === newWorkout.id;
+        const dayIdMatch = existing.dayId && newWorkout.dayId && existing.dayId === newWorkout.dayId;
+        return idMatch || dayIdMatch;
+      };
 
-      console.log('🔍 Duplicate check in main list:', existsInMain ? 'DUPLICATE FOUND' : 'UNIQUE WORKOUT');
+      const uniqueWorkouts = workoutsToAdd.filter(newWorkout => {
+        const duplicate = currentWorkouts.some(existingWorkout => isDuplicate(existingWorkout, newWorkout));
+        console.log(`🔍 Duplicate check in main list: ${duplicate ? 'DUPLICATE FOUND' : 'UNIQUE WORKOUT'}`);
+        return !duplicate;
+      });
 
-      if (existsInMain) {
-        console.warn('⚠️ DUPLICATE WORKOUT DETECTED IN MAIN LIST - SKIPPING');
+      console.log('✅ Unique workouts to add:', uniqueWorkouts.length);
+
+      if (uniqueWorkouts.length > 0) {
+        console.log('🚀 UPDATING MAIN WORKOUTS LIST');
+        const updatedWorkouts = [...currentWorkouts, ...uniqueWorkouts];
+        console.log('📊 New total count will be:', updatedWorkouts.length);
+
+        // Guardar en la base de datos si hay usuario
+        if (user?.id) {
+          uniqueWorkouts.forEach(async (workout) => {
+            try {
+              console.log('💾 Guardando workout en base de datos:', workout.name);
+              await api.saveWorkout(user.id, workout);
+              console.log('✅ Workout guardado en BD exitosamente');
+            } catch (error) {
+              console.error('❌ Error guardando workout en BD:', error);
+            }
+          });
+        } else {
+          console.warn('⚠️ No hay usuario logueado, solo guardando en localStorage');
+          // Fallback to localStorage if not logged in
+          try {
+            localStorage.setItem('gymTracker_workouts', JSON.stringify(updatedWorkouts));
+          } catch (error) {
+            console.error('Error saving workouts to localStorage after adding:', error);
+          }
+        }
+
+        return updatedWorkouts;
       }
+
+      return currentWorkouts;
     });
-
-    // Add all workouts to main list (remove duplicates first)
-    const currentWorkoutIds = new Set(workouts.map(w => w.id));
-    const currentDayIds = new Set(workouts.map(w => w.dayId).filter(Boolean));
-
-    const uniqueWorkouts = workoutsToAdd.filter(workout => {
-      const idExists = currentWorkoutIds.has(workout.id);
-      const dayIdExists = workout.dayId && currentDayIds.has(workout.dayId);
-      return !idExists && !dayIdExists;
-    });
-
-    console.log('✅ Unique workouts to add:', uniqueWorkouts.length);
-
-    if (uniqueWorkouts.length > 0) {
-      const updatedWorkouts = [...workouts, ...uniqueWorkouts];
-      console.log('🚀 UPDATING MAIN WORKOUTS LIST');
-      console.log('📊 New total count will be:', updatedWorkouts.length);
-      setWorkouts(updatedWorkouts);
-
-      // Log the final state
-      setTimeout(() => {
-        console.log('=== 🏁 FINAL STATE CHECK ===');
-        console.log('📋 Workouts in state after update:', updatedWorkouts.length);
-        updatedWorkouts.forEach((w, i) => {
-          console.log(`   ${i + 1}. "${w.name}" (ID: ${w.id}, DayId: ${w.dayId || 'NO DAYID'})`);
-        });
-      }, 100);
-    } else {
-      console.warn('⚠️ NO UNIQUE WORKOUTS TO ADD - ALL WERE DUPLICATES');
-    }
   };
 
   // Mostrar pantalla de login si no hay usuario autenticado
-  if (!currentUser) {
+  if (!currentUser || !user) { // Check both currentUser and user state
     return <Login onLogin={handleLogin} />;
   }
 

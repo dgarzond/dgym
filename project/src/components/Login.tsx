@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { Dumbbell, User } from 'lucide-react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 
 interface LoginProps {
-  onLogin: (userName: string) => void;
+  onLogin: (username: string, email?: string, googleId?: string) => void;
 }
 
 interface GoogleCredentialResponse {
@@ -17,6 +16,7 @@ interface GoogleJWT {
   email?: string;
   picture?: string;
   given_name?: string;
+  sub?: string; // Google ID
 }
 
 export function Login({ onLogin }: LoginProps) {
@@ -28,7 +28,7 @@ export function Login({ onLogin }: LoginProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!userName.trim()) {
       setError('Por favor, ingresa tu nombre');
       return;
@@ -39,7 +39,9 @@ export function Login({ onLogin }: LoginProps) {
       return;
     }
 
-    onLogin(userName.trim());
+    // Para login manual, podemos generar un email temporal
+    const email = `${userName.trim()}@gymtracker.local`;
+    onLogin(userName.trim(), email);
   };
 
   const handleGoogleSuccess = (credentialResponse: GoogleCredentialResponse) => {
@@ -47,7 +49,9 @@ export function Login({ onLogin }: LoginProps) {
       if (credentialResponse.credential) {
         const decoded: GoogleJWT = jwtDecode(credentialResponse.credential);
         const userName = decoded.given_name || decoded.name || decoded.email?.split('@')[0] || 'Usuario';
-        
+        const email = decoded.email;
+        const googleId = decoded.sub;
+
         // Guardar información adicional de Google si lo deseas
         try {
           localStorage.setItem('gymTracker_googleAuth', JSON.stringify({
@@ -59,7 +63,7 @@ export function Login({ onLogin }: LoginProps) {
           console.error('Error saving Google auth info:', err);
         }
 
-        onLogin(userName);
+        onLogin(userName, email, googleId);
       }
     } catch (error) {
       console.error('Error decoding Google credential:', error);
@@ -150,7 +154,7 @@ export function Login({ onLogin }: LoginProps) {
 
           <div className="mt-6 text-center">
             <p className="text-xs text-gray-500">
-              {GOOGLE_CLIENT_ID 
+              {GOOGLE_CLIENT_ID
                 ? 'Tu información se guarda de forma segura'
                 : 'Configura VITE_GOOGLE_CLIENT_ID para habilitar Google Sign-In'
               }
