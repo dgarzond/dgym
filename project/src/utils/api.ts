@@ -9,14 +9,9 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // Production deployment on .replit.app - backend on port 3001
-    if (hostname.includes('.replit.app')) {
-      return `${window.location.protocol}//${hostname}:3001`;
-    }
-    
-    // Development on .replit.dev - backend on port 3001
-    if (hostname.includes('.repl.co') || hostname.includes('.replit.dev')) {
-      return `${window.location.protocol}//${hostname}:3001`;
+    // Production deployment - use same server (API is on same port as frontend)
+    if (hostname.includes('.replit.app') || hostname.includes('.repl.co') || hostname.includes('.replit.dev')) {
+      return '';  // Use relative URLs for same-server API
     }
   }
   
@@ -25,7 +20,7 @@ const getApiUrl = () => {
 };
 
 const API_URL = getApiUrl();
-console.log('🔗 API URL configured:', API_URL);
+console.log('🔗 API URL configured:', API_URL || 'Same server (relative URLs)');
 
 export const api = {
   // Usuarios

@@ -9,25 +9,22 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const apiApp = express();
-const frontendApp = express();
+const app = express();
+const PORT = 5000;
 
-const API_PORT = 3001;
-const FRONTEND_PORT = 5000;
-
-// === BACKEND API SETUP ===
-apiApp.use(cors({
-  origin: ['https://*.replit.app', 'https://*.replit.dev'],
+// === MIDDLEWARE SETUP ===
+app.use(cors({
+  origin: true,
   credentials: true
 }));
 
-apiApp.use((req, res, next) => {
+app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*');
+  res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*, browsing-topics=()');
   next();
 });
 
-apiApp.use(express.json());
+app.use(express.json());
 
 // PostgreSQL Pool
 const pool = new Pool({
@@ -167,7 +164,7 @@ async function initializeTables(retries = 3) {
 }
 
 // === API ROUTES ===
-apiApp.post('/api/users', async (req, res) => {
+app.post('/api/users', async (req, res) => {
   const { username, email, googleId } = req.body;
   const client = await pool.connect();
   try {
@@ -190,7 +187,7 @@ apiApp.post('/api/users', async (req, res) => {
   }
 });
 
-apiApp.get('/api/users/:username', async (req, res) => {
+app.get('/api/users/:username', async (req, res) => {
   const { username } = req.params;
   const client = await pool.connect();
   try {
@@ -207,7 +204,7 @@ apiApp.get('/api/users/:username', async (req, res) => {
   }
 });
 
-apiApp.post('/api/workouts', async (req, res) => {
+app.post('/api/workouts', async (req, res) => {
   const { userId, workout, weeklyRoutineId } = req.body;
   const client = await pool.connect();
   try {
@@ -260,7 +257,7 @@ apiApp.post('/api/workouts', async (req, res) => {
   }
 });
 
-apiApp.get('/api/users/:userId/workouts', async (req, res) => {
+app.get('/api/users/:userId/workouts', async (req, res) => {
   const { userId } = req.params;
   const client = await pool.connect();
   try {
@@ -322,7 +319,7 @@ apiApp.get('/api/users/:userId/workouts', async (req, res) => {
   }
 });
 
-apiApp.get('/health', async (req, res) => {
+app.get('/health', async (req, res) => {
   let dbStatus = 'disconnected';
   try {
     const client = await pool.connect();
@@ -335,7 +332,7 @@ apiApp.get('/health', async (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), database: dbStatus });
 });
 
-// === FRONTEND SERVER SETUP ===
+// === FRONTEND STATIC FILES ===
 const distPath = path.join(__dirname, '../project/dist');
 
 if (!fs.existsSync(distPath)) {
@@ -343,15 +340,11 @@ if (!fs.existsSync(distPath)) {
   console.error('Por favor ejecuta "cd project && npm run build" primero');
 }
 
-frontendApp.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*, browsing-topics=()');
-  next();
-});
+// Serve static files from dist
+app.use(express.static(distPath));
 
-frontendApp.use(express.static(distPath));
-
-frontendApp.get(/.*/, (req, res) => {
+// Catch-all route to serve index.html for any route not matched by API or static files
+app.get(/.*/, (req, res) => {
   const indexPath = path.join(distPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
@@ -360,30 +353,24 @@ frontendApp.get(/.*/, (req, res) => {
   }
 });
 
-// === START SERVERS ===
-async function startServers() {
+// === START SERVER ===
+async function startServer() {
   try {
     await initializeTables();
     
-    apiApp.listen(API_PORT, '0.0.0.0', () => {
-      console.log(`🚀 Backend API running on http://0.0.0.0:${API_PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
       console.log(`📊 Base de datos conectada exitosamente`);
-    });
-
-    frontendApp.listen(FRONTEND_PORT, '0.0.0.0', () => {
-      console.log(`🌐 Frontend server running on http://0.0.0.0:${FRONTEND_PORT}`);
       console.log(`📂 Serving files from: ${distPath}`);
-      console.log(`🔒 COOP headers habilitados`);
+      console.log(`🌐 API routes available at /api/*`);
     });
   } catch (error: any) {
-    console.error('❌ Error fatal al iniciar los servidores:', error.message);
-    apiApp.listen(API_PORT, '0.0.0.0', () => {
-      console.log(`🚀 Backend API running on http://0.0.0.0:${API_PORT} (sin base de datos)`);
-    });
-    frontendApp.listen(FRONTEND_PORT, '0.0.0.0', () => {
-      console.log(`🌐 Frontend server running on http://0.0.0.0:${FRONTEND_PORT}`);
+    console.error('❌ Error fatal al iniciar el servidor:', error.message);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on http://0.0.0.0:${PORT} (sin base de datos)`);
+      console.log(`📂 Serving files from: ${distPath}`);
     });
   }
 }
 
-startServers().catch(console.error);
+startServer().catch(console.error);
