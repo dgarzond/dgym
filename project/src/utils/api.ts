@@ -6,13 +6,16 @@ const getApiUrl = () => {
     return import.meta.env.VITE_API_URL;
   }
   
-  // In Replit, use the current host with port 3001
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // If we're on a Replit domain
+    // Production deployment on .replit.app - same origin, no port
+    if (hostname.includes('.replit.app')) {
+      return `${window.location.protocol}//${hostname}`;
+    }
+    
+    // Development on .replit.dev - use port 3001
     if (hostname.includes('.repl.co') || hostname.includes('.replit.dev')) {
-      // Use the same protocol and hostname, but port 3001
       return `${window.location.protocol}//${hostname}:3001`;
     }
   }
