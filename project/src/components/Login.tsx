@@ -52,17 +52,7 @@ export function Login({ onLogin }: LoginProps) {
         const email = decoded.email;
         const googleId = decoded.sub;
 
-        // Guardar información adicional de Google si lo deseas
-        try {
-          localStorage.setItem('gymTracker_googleAuth', JSON.stringify({
-            name: decoded.name,
-            email: decoded.email,
-            picture: decoded.picture
-          }));
-        } catch (err) {
-          console.error('Error saving Google auth info:', err);
-        }
-
+        console.log('🔐 Google login successful:', { userName, email });
         onLogin(userName, email, googleId);
       }
     } catch (error) {

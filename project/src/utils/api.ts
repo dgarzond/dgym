@@ -94,5 +94,25 @@ export const api = {
     });
     if (!response.ok) throw new Error('Error updating exercise');
     return response.json();
+  },
+
+  async updateWorkout(userId: number, workout: any) {
+    const response = await fetch(`${API_URL}/api/workouts/${workout.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, workout })
+    });
+    if (!response.ok) throw new Error('Error updating workout');
+    return response.json();
+  },
+
+  async deleteWorkout(userId: number, workoutId: string) {
+    const response = await fetch(`${API_URL}/api/workouts/${workoutId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+    if (!response.ok) throw new Error('Error deleting workout');
+    return response.json();
   }
 };
