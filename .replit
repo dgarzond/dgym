@@ -6,7 +6,7 @@ channel = "stable-24_05"
 packages = ["xsel"]
 
 [deployment]
-run = ["sh", "-c", "cd server && npx tsx production.ts & npx tsx serve-frontend.ts"]
+run = ["sh", "-c", "cd server && npx tsx production.ts & cd server && npx tsx serve-frontend.ts"]
 build = ["sh", "-c", "cd project && npm run build"]
 deploymentTarget = "cloudrun"
 
