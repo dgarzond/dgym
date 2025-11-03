@@ -353,7 +353,7 @@ frontendApp.use((req, res, next) => {
 
 frontendApp.use(express.static(distPath));
 
-frontendApp.get('/*', (req, res) => {
+frontendApp.get(/.*/, (req, res) => {
   const indexPath = path.join(distPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);

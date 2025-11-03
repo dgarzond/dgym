@@ -19,10 +19,6 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5173
-externalPort = 5000
-
-[[ports]]
 localPort = 5174
 externalPort = 3002
 
@@ -30,8 +26,12 @@ externalPort = 3002
 localPort = 41005
 externalPort = 3000
 
+[[ports]]
+localPort = 41277
+externalPort = 3003
+
 [workflows]
-runButton = "Full Stack Dev"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Build and Preview"
@@ -80,6 +80,27 @@ args = "cd server && npx tsx index.ts"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd project && npm run dev"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "production-server"
+
+[[workflows.workflow]]
+name = "production-server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx tsx server/production.ts"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 expertMode = true
