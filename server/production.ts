@@ -352,15 +352,16 @@ async function startServer() {
   try {
     await initializeTables();
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Production API server running on port ${PORT}`);
+      console.log(`🚀 Production API server running on http://0.0.0.0:${PORT}`);
       console.log(`📊 Base de datos conectada exitosamente`);
+      console.log(`🔒 CORS y COOP headers habilitados`);
     });
   } catch (error: any) {
     console.error('❌ Error fatal al iniciar el servidor:', error.message);
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Production API server running on port ${PORT} (sin base de datos)`);
+      console.log(`🚀 Production API server running on http://0.0.0.0:${PORT} (sin base de datos)`);
     });
   }
 }
 
-startServer().catch(console.error);
+startServer();).catch(console.error);
