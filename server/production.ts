@@ -16,6 +16,14 @@ app.use(cors({
   origin: ['https://*.replit.app', 'https://*.replit.dev'],
   credentials: true
 }));
+
+// Add security headers for Google Sign-In compatibility
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 app.use(express.json());
 
 // PostgreSQL Pool
