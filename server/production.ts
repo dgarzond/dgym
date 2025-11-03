@@ -4,28 +4,31 @@ import path from 'path';
 import cors from 'cors';
 import { Pool } from 'pg';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+const apiApp = express();
+const frontendApp = express();
 
-// Middleware - Configure CORS to allow requests from the frontend
-app.use(cors({
+const API_PORT = 3001;
+const FRONTEND_PORT = 5000;
+
+// === BACKEND API SETUP ===
+apiApp.use(cors({
   origin: ['https://*.replit.app', 'https://*.replit.dev'],
   credentials: true
 }));
 
-// Add security headers for Google Sign-In compatibility
-app.use((req, res, next) => {
+apiApp.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*');
   next();
 });
 
-app.use(express.json());
+apiApp.use(express.json());
 
 // PostgreSQL Pool
 const pool = new Pool({
@@ -165,8 +168,7 @@ async function initializeTables(retries = 3) {
 }
 
 // === API ROUTES ===
-
-app.post('/api/users', async (req, res) => {
+apiApp.post('/api/users', async (req, res) => {
   const { username, email, googleId } = req.body;
   const client = await pool.connect();
   try {
@@ -189,7 +191,7 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.get('/api/users/:username', async (req, res) => {
+apiApp.get('/api/users/:username', async (req, res) => {
   const { username } = req.params;
   const client = await pool.connect();
   try {
@@ -206,7 +208,7 @@ app.get('/api/users/:username', async (req, res) => {
   }
 });
 
-app.post('/api/workouts', async (req, res) => {
+apiApp.post('/api/workouts', async (req, res) => {
   const { userId, workout, weeklyRoutineId } = req.body;
   const client = await pool.connect();
   try {
@@ -214,19 +216,14 @@ app.post('/api/workouts', async (req, res) => {
     await client.query(
       `INSERT INTO workouts (id, user_id, weekly_routine_id, name, date, day_id, estimated_duration, completed)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         date = EXCLUDED.date,
-         completed = EXCLUDED.completed,
-         updated_at = CURRENT_TIMESTAMP`,
+       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, date = EXCLUDED.date, completed = EXCLUDED.completed, updated_at = CURRENT_TIMESTAMP`,
       [workout.id, userId, weeklyRoutineId, workout.name, workout.date, workout.dayId, workout.estimatedDuration || 45, workout.completed]
     );
     if (workout.exerciseTypes && Array.isArray(workout.exerciseTypes)) {
       for (let i = 0; i < workout.exerciseTypes.length; i++) {
         const exType = workout.exerciseTypes[i];
         const typeResult = await client.query(
-          `INSERT INTO exercise_types (workout_id, type_code, name, name_spanish, duration, sort_order)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          `INSERT INTO exercise_types (workout_id, type_code, name, name_spanish, duration, sort_order) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
           [workout.id, exType.id, exType.name, exType.nameSpanish, exType.duration, i]
         );
         const exerciseTypeId = typeResult.rows[0].id;
@@ -244,9 +241,7 @@ app.post('/api/workouts', async (req, res) => {
                 await client.query(
                   `INSERT INTO exercise_sets (exercise_id, set_number, target_reps, target_duration, target_weight, actual_reps, actual_duration, actual_weight, weight_unit, completed)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                   ON CONFLICT (exercise_id, set_number) DO UPDATE SET
-                     actual_reps = EXCLUDED.actual_reps, actual_duration = EXCLUDED.actual_duration,
-                     actual_weight = EXCLUDED.actual_weight, completed = EXCLUDED.completed, updated_at = CURRENT_TIMESTAMP`,
+                   ON CONFLICT (exercise_id, set_number) DO UPDATE SET actual_reps = EXCLUDED.actual_reps, actual_duration = EXCLUDED.actual_duration, actual_weight = EXCLUDED.actual_weight, completed = EXCLUDED.completed, updated_at = CURRENT_TIMESTAMP`,
                   [exercise.id, j + 1, set.reps, set.duration, set.weight, set.actualReps, set.actualDuration, set.actualWeight, set.weightUnit || 'kg', set.completed]
                 );
               }
@@ -266,7 +261,7 @@ app.post('/api/workouts', async (req, res) => {
   }
 });
 
-app.get('/api/users/:userId/workouts', async (req, res) => {
+apiApp.get('/api/users/:userId/workouts', async (req, res) => {
   const { userId } = req.params;
   const client = await pool.connect();
   try {
@@ -282,16 +277,10 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
       );
       const exerciseTypes = [];
       for (const exType of exerciseTypesResult.rows) {
-        const exercisesResult = await client.query(
-          'SELECT * FROM exercises WHERE exercise_type_id = $1',
-          [exType.id]
-        );
+        const exercisesResult = await client.query('SELECT * FROM exercises WHERE exercise_type_id = $1', [exType.id]);
         const exercises = [];
         for (const exercise of exercisesResult.rows) {
-          const setsResult = await client.query(
-            'SELECT * FROM exercise_sets WHERE exercise_id = $1 ORDER BY set_number',
-            [exercise.id]
-          );
+          const setsResult = await client.query('SELECT * FROM exercise_sets WHERE exercise_id = $1 ORDER BY set_number', [exercise.id]);
           exercises.push({
             ...exercise,
             setDetails: setsResult.rows.map(set => ({
@@ -334,7 +323,7 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
   }
 });
 
-app.get('/health', async (req, res) => {
+apiApp.get('/health', async (req, res) => {
   let dbStatus = 'disconnected';
   try {
     const client = await pool.connect();
@@ -347,21 +336,56 @@ app.get('/health', async (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), database: dbStatus });
 });
 
-// Iniciar servidor
-async function startServer() {
+// === FRONTEND SERVER SETUP ===
+const distPath = path.join(__dirname, '../project/dist');
+
+if (!fs.existsSync(distPath)) {
+  console.error(`❌ Error: El directorio ${distPath} no existe`);
+  console.error('Por favor ejecuta "cd project && npm run build" primero');
+}
+
+frontendApp.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*, browsing-topics=()');
+  next();
+});
+
+frontendApp.use(express.static(distPath));
+
+frontendApp.get('*', (req, res) => {
+  const indexPath = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('index.html not found. Please build the project first.');
+  }
+});
+
+// === START SERVERS ===
+async function startServers() {
   try {
     await initializeTables();
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Production API server running on http://0.0.0.0:${PORT}`);
+    
+    apiApp.listen(API_PORT, '0.0.0.0', () => {
+      console.log(`🚀 Backend API running on http://0.0.0.0:${API_PORT}`);
       console.log(`📊 Base de datos conectada exitosamente`);
-      console.log(`🔒 CORS y COOP headers habilitados`);
+    });
+
+    frontendApp.listen(FRONTEND_PORT, '0.0.0.0', () => {
+      console.log(`🌐 Frontend server running on http://0.0.0.0:${FRONTEND_PORT}`);
+      console.log(`📂 Serving files from: ${distPath}`);
+      console.log(`🔒 COOP headers habilitados`);
     });
   } catch (error: any) {
-    console.error('❌ Error fatal al iniciar el servidor:', error.message);
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Production API server running on http://0.0.0.0:${PORT} (sin base de datos)`);
+    console.error('❌ Error fatal al iniciar los servidores:', error.message);
+    apiApp.listen(API_PORT, '0.0.0.0', () => {
+      console.log(`🚀 Backend API running on http://0.0.0.0:${API_PORT} (sin base de datos)`);
+    });
+    frontendApp.listen(FRONTEND_PORT, '0.0.0.0', () => {
+      console.log(`🌐 Frontend server running on http://0.0.0.0:${FRONTEND_PORT}`);
     });
   }
 }
 
-startServer().catch(console.error);
+startServers().catch(console.error);
