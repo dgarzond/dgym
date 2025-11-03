@@ -84,7 +84,6 @@ export function Login({ onLogin }: LoginProps) {
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
                   onError={handleGoogleError}
-                  useOneTap
                   theme="filled_blue"
                   size="large"
                   text="signin_with"

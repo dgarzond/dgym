@@ -22,7 +22,6 @@ apiApp.use(cors({
 }));
 
 apiApp.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*');
   next();
@@ -345,7 +344,6 @@ if (!fs.existsSync(distPath)) {
 }
 
 frontendApp.use((req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   res.setHeader('Permissions-Policy', 'identity-credentials-get=*, publickey-credentials-get=*, browsing-topics=()');
   next();
