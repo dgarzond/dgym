@@ -9,12 +9,12 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // Production deployment on .replit.app - same origin, no port
+    // Production deployment on .replit.app - backend on port 3001
     if (hostname.includes('.replit.app')) {
-      return `${window.location.protocol}//${hostname}`;
+      return `${window.location.protocol}//${hostname}:3001`;
     }
     
-    // Development on .replit.dev - use port 3001
+    // Development on .replit.dev - backend on port 3001
     if (hostname.includes('.repl.co') || hostname.includes('.replit.dev')) {
       return `${window.location.protocol}//${hostname}:3001`;
     }

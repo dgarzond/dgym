@@ -9,10 +9,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
+// Middleware - Configure CORS to allow requests from the frontend
+app.use(cors({
+  origin: ['https://*.replit.app', 'https://*.replit.dev'],
+  credentials: true
+}));
 app.use(express.json());
 
 // PostgreSQL Pool
@@ -335,27 +338,18 @@ app.get('/health', async (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), database: dbStatus });
 });
 
-// Servir frontend estático DESPUÉS de las rutas API
-const frontendPath = path.join(__dirname, '..', 'project', 'dist');
-app.use(express.static(frontendPath));
-
-// Todas las demás rutas sirven index.html (SPA routing)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
 // Iniciar servidor
 async function startServer() {
   try {
     await initializeTables();
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Production server running on port ${PORT}`);
+      console.log(`🚀 Production API server running on port ${PORT}`);
       console.log(`📊 Base de datos conectada exitosamente`);
     });
   } catch (error: any) {
     console.error('❌ Error fatal al iniciar el servidor:', error.message);
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Production server running on port ${PORT} (sin base de datos)`);
+      console.log(`🚀 Production API server running on port ${PORT} (sin base de datos)`);
     });
   }
 }
