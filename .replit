@@ -6,7 +6,7 @@ channel = "stable-24_05"
 packages = ["xsel"]
 
 [deployment]
-run = ["sh", "-c", "npx tsx server/production.ts"]
+run = ["sh", "-c", "npx tsx server/index.ts"]
 build = ["sh", "-c", "cd project && npm run build"]
 deploymentTarget = "cloudrun"
 
@@ -80,10 +80,6 @@ args = "cd server && npx tsx index.ts"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd project && npm run dev"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm list dotenv"
 
 [[workflows.workflow]]
 name = "Project"
