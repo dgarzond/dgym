@@ -36,20 +36,22 @@ En Replit, ve a la sección "Secrets" (🔒) y agrega:
 
 ### 4. Ejecutar el servidor
 
-Para desarrollo:
+**⚠️ IMPORTANTE: Para deployment en Replit, NO uses comandos con "dev"**
+
+Para desarrollo local (solo en tu máquina):
 ```bash
-npm run server
+npm run dev:all      # Ejecuta frontend y backend en desarrollo
+npm run dev:backend  # Solo backend en desarrollo
+npm run dev:frontend # Solo frontend en desarrollo
 ```
 
-Para producción:
+Para producción/despliegue en Replit:
 ```bash
-npm run server:prod
+npm run build        # Compila el frontend primero
+npm start            # Ejecuta el servidor de producción
 ```
 
-O simplemente:
-```bash
-npm start
-```
+O simplemente usa el botón "Run" en Replit, que ejecutará el workflow "Project" configurado en `.replit`.
 
 ### 5. Configurar el archivo .replit (si es necesario)
 

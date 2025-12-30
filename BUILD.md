@@ -1,8 +1,22 @@
 # Cómo compilar la aplicación DGym
 
-## Compilación del Frontend
+## Compilación de la Aplicación
 
-El frontend se compila usando Vite. Los archivos compilados se generan en `project/dist/`.
+### Compilar Frontend y Backend:
+
+```bash
+npm run build
+```
+
+O:
+
+```bash
+npm run build:all
+```
+
+Esto compilará:
+- **Frontend**: Usando Vite, genera archivos en `project/dist/`
+- **Backend**: Verifica el código TypeScript (no genera archivos, solo valida)
 
 ### Compilar solo el frontend:
 
@@ -17,17 +31,13 @@ cd project
 npm run build
 ```
 
-### Compilar todo (frontend completo):
+### Verificar solo el backend (TypeScript):
 
 ```bash
-npm run build
+npm run build:backend
 ```
 
-O:
-
-```bash
-npm run build:all
-```
+Esto verifica que el código TypeScript del backend esté correcto (no genera archivos compilados, ya que se ejecuta con `tsx`).
 
 ## Estructura después de compilar
 
@@ -67,9 +77,10 @@ El servidor de producción:
 
 ## Notas importantes
 
-1. **El backend no necesita compilación**: Se ejecuta directamente con `tsx` (TypeScript Execute)
-2. **El frontend SÍ necesita compilación**: Vite compila React/TypeScript a JavaScript optimizado
+1. **El backend se ejecuta con `tsx`**: No genera archivos compilados, pero `build:backend` verifica que el código TypeScript esté correcto
+2. **El frontend SÍ necesita compilación**: Vite compila React/TypeScript a JavaScript optimizado en `project/dist/`
 3. **Replit**: El archivo `.replit` ya está configurado para compilar automáticamente antes de desplegar
+4. **Producción**: El comando `npm start` ejecuta el servidor de producción que sirve tanto el backend como el frontend compilado
 
 ## Verificar la compilación
 

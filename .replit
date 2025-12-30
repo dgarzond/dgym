@@ -1,13 +1,13 @@
 modules = ["nodejs-20", "web", "postgresql-16"]
-run = "cd project && npm run build && npm run preview"
+run = "npm run build:all && npm start"
 
 [nix]
 channel = "stable-24_05"
 packages = ["xsel"]
 
 [deployment]
-run = ["sh", "-c", "npm run dev:all"]
-build = ["sh", "-c", "npm run build"]
+run = ["sh", "-c", "npm run build:all && npm start"]
+build = ["sh", "-c", "npm run build:all"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
@@ -66,7 +66,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd project && npm run dev"
+args = "cd project && npm run build && npx serve dist -s -l 5173"
 
 [[workflows.workflow]]
 name = "Full Stack Dev"
@@ -79,7 +79,7 @@ args = "cd server && npx tsx index.ts"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd project && npm run dev"
+args = "cd project && npm run build && npx serve dist -s -l 5173"
 
 [[workflows.workflow]]
 name = "Project"
@@ -93,10 +93,15 @@ args = "production-server"
 [[workflows.workflow]]
 name = "production-server"
 author = "agent"
+mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx tsx server/production.ts"
+args = "npm run build:all"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
