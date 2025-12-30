@@ -34,8 +34,8 @@ export const api = {
     return response.json();
   },
 
-  async getUser(username: string) {
-    const response = await fetch(`${API_URL}/api/users/${username}`);
+  async getUser(id: number | string) {
+    const response = await fetch(`${API_URL}/api/users/${id}`);
     if (!response.ok) throw new Error('Error getting user');
     return response.json();
   },
@@ -54,6 +54,18 @@ export const api = {
   async getWeeklyRoutines(userId: number) {
     const response = await fetch(`${API_URL}/api/users/${userId}/weekly-routines`);
     if (!response.ok) throw new Error('Error getting weekly routines');
+    return response.json();
+  },
+
+  async getCurrentWeeklyRoutine(userId: number) {
+    const response = await fetch(`${API_URL}/api/users/${userId}/current-weekly-routine`);
+    if (!response.ok) throw new Error('Error getting current weekly routine');
+    return response.json();
+  },
+
+  async getWorkoutsByWeeklyRoutineId(weeklyRoutineId: number) {
+    const response = await fetch(`${API_URL}/api/weekly-routines/${weeklyRoutineId}/workouts`);
+    if (!response.ok) throw new Error('Error getting workouts by weekly routine');
     return response.json();
   },
 
@@ -81,6 +93,16 @@ export const api = {
       body: JSON.stringify({ completed })
     });
     if (!response.ok) throw new Error('Error updating workout');
+    return response.json();
+  },
+
+  async createExercise(userId: number, exerciseTypeId: number, exercise: any, setDetails?: any[]) {
+    const response = await fetch(`${API_URL}/api/exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, exerciseTypeId, exercise, setDetails })
+    });
+    if (!response.ok) throw new Error('Error creating exercise');
     return response.json();
   },
 
@@ -112,5 +134,37 @@ export const api = {
     });
     if (!response.ok) throw new Error('Error deleting workout');
     return response.json();
+  },
+
+  // Chats
+  async saveChat(userId: number, workoutId: string, messages: any[]) {
+    const response = await fetch(`${API_URL}/api/chats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, workoutId, messages })
+    });
+    if (!response.ok) throw new Error('Error saving chat');
+    return response.json();
+  },
+
+  async getUserChats(userId: number) {
+    const response = await fetch(`${API_URL}/api/users/${userId}/chats`);
+    if (!response.ok) throw new Error('Error getting chats');
+    return response.json();
+  },
+
+  // Generar IDs únicos (numéricos)
+  async generateWorkoutId(): Promise<string> {
+    const response = await fetch(`${API_URL}/api/generate-id/workout`);
+    if (!response.ok) throw new Error('Error generating workout ID');
+    const data = await response.json();
+    return data.id; // Retornar número secuencial simple (ej: "1", "2", "3"...)
+  },
+
+  async generateExerciseId(): Promise<string> {
+    const response = await fetch(`${API_URL}/api/generate-id/exercise`);
+    if (!response.ok) throw new Error('Error generating exercise ID');
+    const data = await response.json();
+    return data.id; // Retornar solo el número, sin prefijo
   }
 };

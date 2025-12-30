@@ -12,7 +12,7 @@ export interface Set {
 }
 
 export interface Exercise {
-  id: string;
+  id?: string; // Opcional: el backend lo generará si no se proporciona
   name: string;
   exerciseCode?: string; // Unique code for exercise identification (e.g., "EX001")
   sets: number;
@@ -37,12 +37,13 @@ export interface ExerciseType {
 }
 
 export interface Workout {
-  id: string;
+  id?: string; // Opcional: el backend lo generará si no se proporciona
   date: string;
   name: string;
   dayId?: string; // Unique day identifier (e.g., "DAY001", "DAY002")
   exerciseTypes: ExerciseType[]; // Changed from exercises to exerciseTypes
   completed: boolean;
+  estimatedDuration?: number; // Duración estimada en minutos
 }
 
 export interface WeeklyPlan {

@@ -13,7 +13,7 @@ interface WeeklyPlan {
 
 interface WeeklyPlanManagerProps {
   workouts: Workout[];
-  onAddWorkout: (workout: Workout) => void;
+  onAddWorkout: (workout: Workout | Workout[]) => void;
 }
 
 export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerProps) {
@@ -148,6 +148,42 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     });
 
     return `${minDuration}-${maxDuration} min`;
+  };
+
+  // Calcular estadísticas de la semana actual basadas en los workouts de la BD
+  const calculateWeekSummary = () => {
+    const currentWeekWorkouts = workouts.filter(workout => {
+      if (!workout.date) return false;
+      const workoutDate = new Date(workout.date);
+      const workoutWeekStart = getStartOfWeek(workoutDate);
+      return workoutWeekStart.getTime() === currentWeek.getTime();
+    });
+
+    const totalWorkouts = currentWeekWorkouts.length;
+    const completedWorkouts = currentWeekWorkouts.filter(w => w.completed).length;
+    const totalExercises = currentWeekWorkouts.reduce((total, workout) => {
+      return total + (workout.exerciseTypes || []).reduce((typeTotal, type) => {
+        return typeTotal + (type.exercises || []).length;
+      }, 0);
+    }, 0);
+    
+    const totalEstimatedDuration = currentWeekWorkouts.reduce((total, workout) => {
+      return total + (workout.estimatedDuration || 0);
+    }, 0);
+
+    const exerciseTypesCount = currentWeekWorkouts.reduce((total, workout) => {
+      return total + (workout.exerciseTypes || []).length;
+    }, 0);
+
+    return {
+      totalWorkouts,
+      completedWorkouts,
+      pendingWorkouts: totalWorkouts - completedWorkouts,
+      totalExercises,
+      totalEstimatedDuration,
+      exerciseTypesCount,
+      workouts: currentWeekWorkouts
+    };
   };
 
   const toggleWorkoutExpansion = (workoutId: string) => {
@@ -315,74 +351,117 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
             {currentWeek.toLocaleDateString()} - {getEndOfWeek(currentWeek).toLocaleDateString()}
           </p>
 
-          {currentPlan ? (
-            <div className="space-y-2">
-              <div className="flex items-center">
-                {weekExpired ? (
-                  <Clock className="w-4 h-4 text-orange-500 mr-2" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
-                )}
-                <span className="text-sm">
-                  {weekExpired ? 'Week Expired - Time for new plan!' : 'Active Plan'}
-                </span>
-              </div>
-              <p className="text-sm text-gray-600">
-                {currentPlan.workouts.length} workout(s) planned
-              </p>
-              <div className="space-y-2">
-                {currentPlan.workouts.map((workout, index) => {
-                  const duration = calculateWorkoutDuration(workout.exerciseTypes || []);
-                  const isExpanded = expandedWorkouts.has(workout.id);
+          {(() => {
+            const weekSummary = calculateWeekSummary();
+            
+            return weekSummary.totalWorkouts > 0 ? (
+              <div className="space-y-3">
+                {/* Resumen de estadísticas */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-blue-600">{weekSummary.totalWorkouts}</div>
+                      <div className="text-xs text-gray-600">Total Workouts</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">{weekSummary.completedWorkouts}</div>
+                      <div className="text-xs text-gray-600">Completados</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">{weekSummary.pendingWorkouts}</div>
+                      <div className="text-xs text-gray-600">Pendientes</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600">{weekSummary.totalExercises}</div>
+                      <div className="text-xs text-gray-600">Total Ejercicios</div>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-600">Tiempo estimado total:</span>
+                      <span className="font-semibold text-gray-800">{weekSummary.totalEstimatedDuration} min</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm mt-1">
+                      <span className="text-gray-600">Tipos de ejercicio:</span>
+                      <span className="font-semibold text-gray-800">{weekSummary.exerciseTypesCount}</span>
+                    </div>
+                  </div>
+                </div>
 
-                  return (
-                    <div key={workout.id} className="bg-white rounded border">
-                      <div 
-                        className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-50"
-                        onClick={() => toggleWorkoutExpansion(workout.id)}
-                      >
-                        <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-800">
-                            Day {index + 1}: {workout.name}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {(workout.exerciseTypes || []).length} tipos • {duration}
-                          </div>
-                        </div>
-                        {isExpanded ? (
-                          <ChevronUp className="w-4 h-4 text-gray-400" />
-                        ) : (
-                          <ChevronDown className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
+                {/* Lista de workouts */}
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700">Workouts de la semana:</h4>
+                  {weekSummary.workouts.map((workout, index) => {
+                    const duration = calculateWorkoutDuration(workout.exerciseTypes || []);
+                    const workoutId = workout.id || `workout-${index}-${workout.name || 'unnamed'}`;
+                    const isExpanded = expandedWorkouts.has(workoutId);
+                    const workoutKey = workoutId;
+                    const exerciseCount = (workout.exerciseTypes || []).reduce((total, type) => {
+                      return total + (type.exercises || []).length;
+                    }, 0);
 
-                      {isExpanded && (
-                        <div className="border-t bg-gray-50 p-3">
-                          {(workout.exerciseTypes || []).map((exerciseType, typeIndex) => (
-                            <div key={typeIndex} className="mb-4 last:mb-0">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-sm font-bold text-blue-600 uppercase">
-                                  {exerciseType.nameSpanish}
-                                </h4>
-                                <span className="text-xs text-gray-500">
-                                  {exerciseType.duration}
-                                </span>
+                    return (
+                      <div key={workoutKey} className="bg-white rounded border border-gray-200">
+                        <div 
+                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-50"
+                          onClick={() => toggleWorkoutExpansion(workoutId)}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium text-gray-800">
+                                {workout.name || `Workout ${index + 1}`}
                               </div>
-                              <div className="space-y-1 pl-2">
-                                {(exerciseType.exercises || []).map((exercise, exerciseIndex) => {
-                                  const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Peso corporal)';
-                                  const exerciseInfo = exercise.exerciseSubType === 'duration' 
-                                    ? `${exercise.sets} sets x ${exercise.duration}s`
-                                    : `${exercise.sets} sets x ${exercise.reps} reps`;
-                                  return (
-                                    <div key={exerciseIndex} className="text-xs text-gray-600">
-                                      • {exercise.name}: {exerciseInfo}{weightInfo}
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                              {workout.completed && (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              )}
                             </div>
-                          ))}
+                            <div className="text-xs text-gray-500 mt-1">
+                              {exerciseCount} ejercicios • {duration} • {workout.estimatedDuration || 0} min
+                            </div>
+                            {workout.date && (
+                              <div className="text-xs text-gray-400 mt-1">
+                                {new Date(workout.date).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t bg-gray-50 p-3">
+                          {(workout.exerciseTypes || []).map((exerciseType, typeIndex) => {
+                            const exerciseTypeKey = exerciseType.id || `exerciseType-${workoutKey}-${typeIndex}`;
+                            return (
+                              <div key={exerciseTypeKey} className="mb-4 last:mb-0">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="text-sm font-bold text-blue-600 uppercase">
+                                    {exerciseType.nameSpanish}
+                                  </h4>
+                                  <span className="text-xs text-gray-500">
+                                    {exerciseType.duration}
+                                  </span>
+                                </div>
+                                <div className="space-y-1 pl-2">
+                                  {(exerciseType.exercises || []).map((exercise, exerciseIndex) => {
+                                    const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Peso corporal)';
+                                    const exerciseInfo = exercise.exerciseSubType === 'duration' 
+                                      ? `${exercise.sets} sets x ${exercise.duration}s`
+                                      : `${exercise.sets} sets x ${exercise.reps} reps`;
+                                    const exerciseKey = exercise.id || `exercise-${exerciseTypeKey}-${exerciseIndex}`;
+                                    return (
+                                      <div key={exerciseKey} className="text-xs text-gray-600">
+                                        • {exercise.name}: {exerciseInfo}{weightInfo}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -390,11 +469,20 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                 })}
               </div>
             </div>
-          ) : (
-            <div className="text-sm text-gray-500">
-              No plan for this week yet. Chat with AI to create one!
-            </div>
-          )}
+            ) : (
+              <div className="bg-white rounded-lg p-4 border border-gray-200 text-center">
+                <div className="text-gray-400 mb-2">
+                  <Calendar className="w-8 h-8 mx-auto" />
+                </div>
+                <p className="text-sm text-gray-600 mb-2">
+                  No hay workouts para esta semana
+                </p>
+                <p className="text-xs text-gray-500">
+                  Chatea con el AI Coach para crear tu rutina semanal
+                </p>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="bg-gray-50 rounded-lg p-4">

@@ -54,6 +54,8 @@ function App() {
   // Estado de autenticación del usuario
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [currentWeeklyRoutineId, setCurrentWeeklyRoutineId] = useState<number | null>(null);
 
 
   // Estados para la navegación entre vistas
@@ -244,6 +246,7 @@ function App() {
   // Manejar el login del usuario
   const handleLogin = async (name: string, email?: string, googleId?: string) => {
     console.log('🔐 Starting login process for:', name);
+    setIsLoadingData(true);
 
     try {
       // Crear o obtener usuario de la base de datos
@@ -256,10 +259,18 @@ function App() {
       setUser(userData);
       setCurrentUser(name);
 
-      // Cargar workouts del usuario desde la base de datos
-      console.log('📥 Loading workouts from DB...');
-      const dbWorkouts = await api.getUserWorkouts(userData.id);
-      console.log('✅ Workouts loaded from DB:', dbWorkouts.length);
+      // PASO 1: Obtener la weekly_routine de la semana actual
+      console.log('📅 Obteniendo weekly routine de la semana actual...');
+      const currentWeeklyRoutine = await api.getCurrentWeeklyRoutine(userData.id);
+      console.log('✅ Weekly routine obtenida:', currentWeeklyRoutine.id);
+      
+      // Guardar el weekly_routine_id en el estado para usarlo al importar rutinas
+      setCurrentWeeklyRoutineId(currentWeeklyRoutine.id);
+
+      // PASO 2: Obtener workouts asociados a esa weekly_routine_id
+      console.log(`📥 Obteniendo workouts para weekly_routine_id: ${currentWeeklyRoutine.id}...`);
+      const dbWorkouts = await api.getWorkoutsByWeeklyRoutineId(currentWeeklyRoutine.id);
+      console.log('✅ Workouts cargados desde BD:', dbWorkouts.length);
 
       setWorkouts(dbWorkouts.length > 0 ? dbWorkouts : []);
       
@@ -268,6 +279,8 @@ function App() {
       // Mostrar error al usuario sin hacer fallback a localStorage
       alert('Error al iniciar sesión. Por favor, verifica tu conexión e intenta nuevamente.');
       throw error;
+    } finally {
+      setIsLoadingData(false);
     }
   };
 
@@ -276,6 +289,7 @@ function App() {
     setCurrentUser(null);
     setUser(null);
     setWorkouts([]);
+    setCurrentWeeklyRoutineId(null);
     handleResetTimer();
     console.log('✅ User logged out successfully');
   };
@@ -523,34 +537,35 @@ function App() {
       completed: workoutCompleted
     };
 
+    // 1. ACTUALIZAR ESTADO LOCAL INMEDIATAMENTE
     const updatedWorkoutsList = workouts.map(w =>
       w.id === selectedWorkout.id ? finalUpdatedWorkout : w
     );
     setWorkouts(updatedWorkoutsList);
     setSelectedWorkout(finalUpdatedWorkout);
 
-    // Guardar el progreso actualizado en la base de datos
+    // 2. PASAR AL SIGUIENTE EJERCICIO SIN ESPERAR
+    handleNextExercise();
+
+    // 3. GUARDAR EN LA BASE DE DATOS EN SEGUNDO PLANO (sin await)
     if (user?.id) {
-      try {
-        console.log(`Saving exercise completion for ${exerciseId} to DB...`);
-        await api.updateWorkout(user.id, finalUpdatedWorkout); // Assuming updateWorkout handles the full object
-        console.log('Workout progress saved successfully to DB.');
-      } catch (error) {
-        console.error('Error saving workout progress to DB:', error);
-      }
-    } else {
-      console.warn('User not logged in, cannot save exercise completion to DB.');
+      console.log(`⏳ Iniciando guardado en background para ejercicio ${exerciseId}...`);
+      api.updateWorkout(user.id, finalUpdatedWorkout)
+        .then(() => {
+          console.log('✅ Progreso guardado en BD (background)');
+        })
+        .catch((error) => {
+          console.error('❌ Error guardando en background:', error);
+          // Opcional: podrías mostrar una pequeña notificación de error aquí
+        });
     }
 
-    // Limpiar el progreso guardado del ejercicio completado
+    // Limpiar el progreso guardado local del ejercicio completado
     try {
       localStorage.removeItem(`gymTracker_exercise_${exerciseId}`);
     } catch (error) {
       console.error('Error clearing exercise progress:', error);
     }
-
-    // Move to next exercise or finish workout
-    handleNextExercise();
   };
 
   const handleNextExercise = () => {
@@ -591,63 +606,147 @@ function App() {
     }
   };
 
-  const handleAddWorkout = async (workoutData: Workout | Workout[]) => {
-    console.log('=== 🎯 APP.TSX - HANDLE ADD WORKOUT ===');
+  const handleAddWorkout = async (workoutData: Workout | Workout[] | any) => {
+    console.log('=== 🎯 APP.TSX - HANDLE ADD WORKOUT / WEEKLY PLAN ===');
+    console.log('📥 Datos recibidos:', workoutData);
+    console.log('🔍 Tipo de datos:', Array.isArray(workoutData) ? 'Array' : typeof workoutData);
+    console.log('🔍 isWeeklyPlan:', workoutData?.isWeeklyPlan);
+    
+    if (!user?.id) {
+      console.warn('⚠️ No hay usuario logueado, no se puede guardar');
+      return;
+    }
 
-    const workoutsToAdd = Array.isArray(workoutData) ? workoutData : [workoutData];
-    console.log('📊 Total workouts to add to main list:', workoutsToAdd.length);
-    console.log('📋 Current workouts in main list before adding:', workouts.length);
+    try {
+      let workoutsToAdd: Workout[] = [];
+      let weeklyRoutineId: number | undefined = undefined;
 
-    workoutsToAdd.forEach((workout, index) => {
-      console.log(`=== 📅 ADDING WORKOUT ${index + 1}/${workoutsToAdd.length} TO MAIN LIST ===`);
-      console.log('🆔 Workout ID:', workout.id);
-      console.log('📝 Workout Name:', workout.name);
-      console.log('🏷️ Workout DayId:', workout.dayId || 'NO DAYID');
-      console.log('📊 Exercise Types Count:', workout.exerciseTypes?.length || 0);
-      console.log('📅 Workout Date:', workout.date);
-    });
-
-    setWorkouts(currentWorkouts => {
-      const isDuplicate = (existing: Workout, newWorkout: Workout) => {
-        const idMatch = existing.id === newWorkout.id;
-        const dayIdMatch = existing.dayId && newWorkout.dayId && existing.dayId === newWorkout.dayId;
-        return idMatch || dayIdMatch;
-      };
-
-      const uniqueWorkouts = workoutsToAdd.filter(newWorkout => {
-        const duplicate = currentWorkouts.some(existingWorkout => isDuplicate(existingWorkout, newWorkout));
-        console.log(`🔍 Duplicate check in main list: ${duplicate ? 'DUPLICATE FOUND' : 'UNIQUE WORKOUT'}`);
-        return !duplicate;
-      });
-
-      console.log('✅ Unique workouts to add:', uniqueWorkouts.length);
-
-      if (uniqueWorkouts.length > 0) {
-        console.log('🚀 UPDATING MAIN WORKOUTS LIST');
-        const updatedWorkouts = [...currentWorkouts, ...uniqueWorkouts];
-        console.log('📊 New total count will be:', updatedWorkouts.length);
-
-        // Guardar en la base de datos
-        if (user?.id) {
-          uniqueWorkouts.forEach(async (workout) => {
-            try {
-              console.log('💾 Guardando workout en base de datos:', workout.name);
-              await api.saveWorkout(user.id, workout);
-              console.log('✅ Workout guardado en BD exitosamente');
-            } catch (error) {
-              console.error('❌ Error guardando workout en BD:', error);
-            }
-          });
+      // 1. Detectar si es un Plan Semanal
+      // Usar el weekly_routine_id de la sesión actual (obtenido al iniciar sesión)
+      if (currentWeeklyRoutineId !== null) {
+        weeklyRoutineId = currentWeeklyRoutineId;
+        console.log('📌 Usando weekly_routine_id de la sesión actual:', weeklyRoutineId);
+      } else {
+        console.warn('⚠️ No hay weekly_routine_id en la sesión, obteniendo uno nuevo...');
+        // Si no hay weekly_routine_id en la sesión, obtenerlo
+        const currentWeeklyRoutine = await api.getCurrentWeeklyRoutine(user.id);
+        if (currentWeeklyRoutine.id && typeof currentWeeklyRoutine.id === 'number') {
+          weeklyRoutineId = currentWeeklyRoutine.id;
+          setCurrentWeeklyRoutineId(currentWeeklyRoutine.id);
+          console.log('✅ Weekly routine obtenida:', weeklyRoutineId);
         } else {
-          console.warn('⚠️ No hay usuario logueado, no se puede guardar workout');
+          throw new Error('No se pudo obtener el weekly_routine_id');
         }
-
-        return updatedWorkouts;
       }
 
-      return currentWorkouts;
-    });
+      if (workoutData && workoutData.isWeeklyPlan) {
+        console.log('📅 PROCESANDO PLAN SEMANAL COMPLETO...');
+        console.log('📋 Datos del plan semanal:', {
+          weekNumber: workoutData.weekNumber,
+          year: workoutData.year,
+          name: workoutData.name,
+          workoutsCount: workoutData.workouts?.length,
+          weeklyRoutineId: weeklyRoutineId
+        });
+        
+        // NO crear una nueva rutina semanal, usar la de la sesión actual
+        workoutsToAdd = workoutData.workouts || [];
+      } else {
+        // Es un workout o array de workouts sueltos
+        console.log('🏋️ PROCESANDO WORKOUT(S) INDIVIDUAL(ES)...');
+        workoutsToAdd = Array.isArray(workoutData) ? workoutData : [workoutData];
+      }
+
+      console.log(`📊 Total de workouts a procesar: ${workoutsToAdd.length}`);
+
+      // 2. Guardar cada workout en la DB (vinculado a la semana si existe)
+      const savedWorkouts: Workout[] = [];
+      
+      for (const workout of workoutsToAdd) {
+        try {
+          console.log(`💾 Guardando workout "${workout.name}" (ID: ${workout.id}) en BD...`);
+          console.log(`📦 Datos del workout:`, {
+            id: workout.id,
+            name: workout.name,
+            exerciseTypes: workout.exerciseTypes?.length || 0,
+            weeklyRoutineId: weeklyRoutineId
+          });
+          
+          const result = await api.saveWorkout(user.id, workout, weeklyRoutineId);
+          console.log(`✅ Workout "${workout.name}" guardado exitosamente:`, result);
+          
+          // Actualizar el workout con el ID generado por el backend
+          if (result.workoutId) {
+            workout.id = result.workoutId;
+            console.log(`🆔 ID asignado por backend: ${workout.id}`);
+          }
+          
+          savedWorkouts.push(workout);
+        } catch (error: any) {
+          console.error(`❌ Error guardando workout "${workout.name}":`, error);
+          console.error(`❌ Detalles del error:`, error.message, error.stack);
+        }
+      }
+
+      // 3. Actualizar el estado local con los entrenamientos guardados exitosamente
+      if (savedWorkouts.length > 0) {
+        setWorkouts(currentWorkouts => {
+          // Filtrar duplicados locales
+          const uniqueNewWorkouts = savedWorkouts.filter(newW => 
+            !currentWorkouts.some(existing => existing.id === newW.id)
+          );
+          return [...currentWorkouts, ...uniqueNewWorkouts];
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error general en handleAddWorkout:', error);
+      alert('Hubo un error al guardar la rutina. Por favor, intenta de nuevo.');
+    }
   };
+
+  // Mostrar pantalla de carga si se están buscando datos
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center p-4">
+        <div className="bg-white p-10 rounded-3xl shadow-xl flex flex-col items-center max-w-sm w-full space-y-8">
+          {/* Contenedor del Icono con Animación de Pesas */}
+          <div className="relative">
+            <div className="absolute inset-0 bg-blue-200 rounded-full blur-xl animate-pulse"></div>
+            <div className="relative bg-blue-600 p-6 rounded-full shadow-lg transform transition-transform animate-bounce">
+              <Dumbbell className="w-12 h-12 text-white" />
+            </div>
+          </div>
+
+          <div className="text-center space-y-3">
+            <h2 className="text-2xl font-bold text-gray-800">Preparando tu entrenamiento</h2>
+            <p className="text-gray-500 font-medium italic">"La disciplina es el puente entre las metas y los logros"</p>
+          </div>
+
+          {/* Indicador de carga estilo barra */}
+          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+            <div className="bg-blue-600 h-full w-1/3 rounded-full animate-[loading_1.5s_infinite_ease-in-out]"></div>
+          </div>
+
+          <div className="flex items-center space-x-2 text-blue-600 text-sm font-semibold">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+            <span>Sincronizando con DGym Cloud</span>
+          </div>
+        </div>
+
+        {/* Definición de la animación de la barra en línea para Tailwind */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes loading {
+            0% { transform: translateX(-100%); width: 30%; }
+            50% { width: 60%; }
+            100% { transform: translateX(400%); width: 30%; }
+          }
+        `}} />
+      </div>
+    );
+  }
 
   // Mostrar pantalla de login si no hay usuario autenticado
   if (!currentUser || !user) { // Check both currentUser and user state
@@ -837,6 +936,7 @@ function App() {
             <ChatBot
               onWorkoutGenerated={handleAddWorkout}
               onClose={() => setShowChatBot(false)}
+              userId={user?.id}
             />
           )}
         </div>
@@ -917,6 +1017,7 @@ function App() {
             <ChatBot
               onWorkoutGenerated={handleAddWorkout}
               onClose={() => setShowChatBot(false)}
+              userId={user?.id}
             />
           )}
         </div>

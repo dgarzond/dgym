@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, User, Loader, Import, Download } from 'lucide-react';
 import type { Workout, ExerciseType, Exercise, Set } from '../types';
 import { ConfigManager } from '../utils/config';
+import { api } from '../utils/api';
 
 interface Message {
   id: string;
@@ -13,9 +14,10 @@ interface Message {
 interface ChatBotProps {
   onWorkoutGenerated: (workout: Workout | Workout[]) => void;
   onClose: () => void;
+  userId?: number;
 }
 
-export const ChatBot: React.FC<ChatBotProps> = ({ onWorkoutGenerated, onClose }) => {
+export const ChatBot: React.FC<ChatBotProps> = ({ onWorkoutGenerated, onClose, userId }) => {
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('chatBotMessages');
     if (saved) {
@@ -53,12 +55,15 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
   const [isImporting, setIsImporting] = useState(false);
 
   useEffect(() => {
+    // Usar el ConfigManager que ya está centralizado para leer de .env o LocalStorage
     const key = ConfigManager.getInstance().getApiKey();
-    if (key) {
+    
+    if (key && key.startsWith('sk-')) {
       setApiKey(key);
+      setShowApiKeyInput(false);
       console.log('✅ API key loaded successfully');
     } else {
-      console.log('⚠️ No API key found - showing input form');
+      console.log('⚠️ No valid API key found');
       setShowApiKeyInput(true);
     }
   }, []);
@@ -129,6 +134,12 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
         userMessage.toLowerCase().includes('reset chat')) {
       resetChat();
       setMessage('');
+      return;
+    }
+
+    const currentKey = ConfigManager.getInstance().getApiKey();
+    if (!currentKey || !currentKey.startsWith('sk-')) {
+      setShowApiKeyInput(true);
       return;
     }
 
@@ -417,11 +428,62 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
     }
   };
 
+  const convertTextToWeeklyRoutineJSON = async (workoutText: string) => {
+    try {
+      console.log('🤖 INICIANDO CONVERSIÓN CON IA PARA RUTINA SEMANAL COMPLETA...');
+      const apiKey = ConfigManager.getInstance().getApiKey();
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert workout parser. Convert workout text into a single structured JSON for a WHOLE WEEK with ABSOLUTE PRECISION.
+
+🎯 CRITICAL REQUIREMENTS:
+1. Return an object representing a WEEKLY PLAN.
+2. Structure: { "isWeeklyPlan": true, "weekNumber": number, "year": number, "name": "Weekly Plan Name", "workouts": [ ... ] }
+3. Each workout in the array must follow the SINGLE DAY format (id, dayId, name, date, estimatedDuration, exerciseTypes).
+4. For each workout, create proper exercise hierarchy: exerciseTypes -> exercises -> setDetails.
+5. MANDATORY: Use ONLY these 4 exercise categories in SPANISH: "Calentamiento", "Fuerza", "Cardio", "Estiramientos".
+6. EVERY exercise MUST include restTime field with appropriate values in seconds.
+
+NEVER omit restTime. RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
+            },
+            {
+              role: 'user',
+              content: `Parse this weekly workout plan to a single structured JSON:\n\n${workoutText}`
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI weekly conversion failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const jsonContent = data.choices[0]?.message?.content?.trim();
+      console.log('🤖 IA generated Weekly JSON:', jsonContent);
+      return cleanAndParseJSON(jsonContent);
+    } catch (error) {
+      console.error('❌ Error in AI weekly conversion:', error);
+      throw error;
+    }
+  };
+
   const handleImportWorkout = async () => {
     setIsImporting(true);
 
     try {
-      console.log('🚀 INICIANDO IMPORTACIÓN SECUENCIAL DÍA POR DÍA...');
+      console.log('🚀 INICIANDO IMPORTACIÓN...');
 
       const lastMessage = messages[messages.length - 1];
       if (!lastMessage || lastMessage.role !== 'assistant') {
@@ -429,123 +491,117 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
       }
 
       const workoutText = lastMessage.content;
-      console.log('📝 Texto completo del workout:', workoutText.substring(0, 500) + '...');
-
-      // Detectar si es múltiples días
+      
+      // Detectar si parece ser una semana completa
       const dayMatches = workoutText.match(/d[íi]a\s*\d+|day\s*\d+/gi) || [];
-      const isDays = dayMatches.length > 1;
+      const isMultipleDays = dayMatches.length > 1;
 
-      console.log('🔍 Días detectados:', dayMatches.length, isDays ? 'MÚLTIPLES DÍAS' : 'DÍA ÚNICO');
+      console.log('🔍 Análisis de texto:', dayMatches.length, isMultipleDays ? 'MÚLTIPLES DÍAS' : 'DÍA ÚNICO');
 
-      if (isDays) {
-        // Procesamiento secuencial para múltiples días
-        console.log('📅 PROCESANDO MÚLTIPLES DÍAS SECUENCIALMENTE...');
-
-        const processedWorkouts: Workout[] = [];
-
-        // Dividir el texto por días
-        const daysSplit = workoutText.split(/(?=d[íi]a\s*\d+|day\s*\d+)/gi).filter(day => day.trim());
-        console.log('📊 Días divididos:', daysSplit.length);
-
-        for (let i = 0; i < daysSplit.length; i++) {
-          const dayText = daysSplit[i].trim();
-          if (!dayText) continue;
-
-          console.log(`\n=== 📅 PROCESANDO DÍA ${i + 1}/${daysSplit.length} ===`);
-          console.log('📝 Texto del día:', dayText.substring(0, 200) + '...');
-
-          try {
-            const workoutData = await convertTextToWorkoutJSON(dayText);
-            const processedWorkout = processWorkoutData(workoutData, i);
-
-            if (processedWorkout && processedWorkout.id && processedWorkout.name) {
-              processedWorkouts.push(processedWorkout);
-              console.log(`✅ DÍA ${i + 1} PROCESADO EXITOSAMENTE:`, processedWorkout.name);
-              console.log(`🆔 ID: ${processedWorkout.id}, DayId: ${processedWorkout.dayId}`);
-            } else {
-              console.warn(`⚠️ Workout procesado para día ${i + 1} es inválido:`, processedWorkout);
+      if (isMultipleDays) {
+        console.log('📅 PROCESANDO COMO RUTINA SEMANAL...');
+        const weeklyData = await convertTextToWeeklyRoutineJSON(workoutText);
+        
+        if (weeklyData && weeklyData.workouts && Array.isArray(weeklyData.workouts)) {
+          // Procesar workouts secuencialmente para evitar IDs duplicados
+          const processedWorkouts: Workout[] = [];
+          for (let i = 0; i < weeklyData.workouts.length; i++) {
+            const processed = await processWorkoutData(weeklyData.workouts[i], i);
+            if (processed) {
+              processedWorkouts.push(processed);
             }
-          } catch (error) {
-            console.error(`❌ Error procesando día ${i + 1}:`, error);
-            // Continuar con el siguiente día en lugar de fallar completamente
           }
-        }
 
-        // Enviar todos los workouts procesados juntos
-        if (processedWorkouts.length > 0) {
-          console.log(`\n🚀 ENVIANDO ${processedWorkouts.length} WORKOUTS PROCESADOS COMO ARRAY...`);
-          processedWorkouts.forEach((workout, index) => {
-            console.log(`   ${index + 1}. "${workout.name}" (ID: ${workout.id}, DayId: ${workout.dayId})`);
-          });
-
-          // Validar que todos los workouts tengan datos mínimos requeridos
-          const validWorkouts = processedWorkouts.filter(w => 
-            w && w.id && w.name && w.exerciseTypes && Array.isArray(w.exerciseTypes)
-          );
-
-          if (validWorkouts.length > 0) {
-            onWorkoutGenerated(validWorkouts);
-            console.log('✅ TODOS LOS WORKOUTS ENVIADOS EXITOSAMENTE');
-
-            // Mensaje de éxito al usuario
+          if (processedWorkouts.length > 0) {
+            const finalPlan = {
+              ...weeklyData,
+              isWeeklyPlan: true, // Marcar explícitamente como plan semanal
+              workouts: processedWorkouts
+            };
+            console.log('📦 Enviando plan semanal a App.tsx:', finalPlan);
+            onWorkoutGenerated(finalPlan);
+            
+            // Guardar el chat asociado al primer workout (o todos si es necesario)
+            if (userId && processedWorkouts.length > 0) {
+              const firstWorkoutId = processedWorkouts[0].id;
+              try {
+                // Convertir mensajes a formato serializable
+                const serializableMessages = messages.map(msg => ({
+                  id: msg.id,
+                  role: msg.role,
+                  content: msg.content,
+                  timestamp: msg.timestamp.toISOString()
+                }));
+                
+                await api.saveChat(userId, firstWorkoutId, serializableMessages);
+                console.log('✅ Chat guardado en BD para workout:', firstWorkoutId);
+              } catch (error) {
+                console.error('❌ Error guardando chat:', error);
+                // No bloquear la importación si falla el guardado del chat
+              }
+            }
+            
             const successMessage: Message = {
               id: (Date.now() + 2).toString(),
               role: 'assistant',
-              content: `✅ ¡Importación exitosa! Se importaron ${validWorkouts.length} rutina(s) de entrenamiento. Puedes verlas en "Your Workouts".`,
+              content: `✅ ¡Importación semanal exitosa! Se han importado ${processedWorkouts.length} rutinas vinculadas a la semana ${weeklyData.weekNumber}.`,
               timestamp: new Date()
             };
             setMessages(prev => [...prev, successMessage]);
-          } else {
-            throw new Error('No se pudieron validar los workouts procesados');
           }
-        } else {
-          throw new Error('No se pudieron procesar workouts válidos');
         }
-
       } else {
-        // Procesamiento de día único
-        console.log('📅 PROCESANDO DÍA ÚNICO...');
+        console.log('🏋️‍♂️ PROCESANDO COMO DÍA ÚNICO...');
         const workoutData = await convertTextToWorkoutJSON(workoutText);
-        const processedWorkout = processWorkoutData(workoutData, 0);
+        const processedWorkout = await processWorkoutData(workoutData, 0);
 
         if (processedWorkout && processedWorkout.id && processedWorkout.name) {
-          console.log('🚀 ENVIANDO WORKOUT ÚNICO...');
           onWorkoutGenerated(processedWorkout);
-          console.log('✅ WORKOUT ÚNICO ENVIADO EXITOSAMENTE');
-
-          // Mensaje de éxito al usuario
+          
+          // Guardar el chat asociado al workout
+          if (userId) {
+            try {
+              // Convertir mensajes a formato serializable
+              const serializableMessages = messages.map(msg => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                timestamp: msg.timestamp.toISOString()
+              }));
+              
+              await api.saveChat(userId, processedWorkout.id, serializableMessages);
+              console.log('✅ Chat guardado en BD para workout:', processedWorkout.id);
+            } catch (error) {
+              console.error('❌ Error guardando chat:', error);
+              // No bloquear la importación si falla el guardado del chat
+            }
+          }
+          
           const successMessage: Message = {
             id: (Date.now() + 2).toString(),
             role: 'assistant',
-            content: `✅ ¡Importación exitosa! La rutina "${processedWorkout.name}" ha sido importada. Puedes verla en "Your Workouts".`,
+            content: `✅ ¡Importación exitosa! La rutina "${processedWorkout.name}" ha sido importada.`,
             timestamp: new Date()
           };
           setMessages(prev => [...prev, successMessage]);
-        } else {
-          throw new Error('El workout procesado no es válido');
         }
       }
 
     } catch (error) {
-      console.error('❌ Error importing workout:', error);
-      const errorDetails = error instanceof Error ? error.message : 'Error desconocido';
-
-      // Mensaje de error al usuario
+      console.error('❌ Error importing:', error);
       const errorMessage: Message = {
         id: (Date.now() + 3).toString(),
         role: 'assistant',
-        content: `❌ Error al importar la rutina: ${errorDetails}. Por favor, intenta nuevamente o reformula tu solicitud de rutina.`,
+        content: `❌ Error al importar: ${error instanceof Error ? error.message : 'Error desconocido'}.`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
-
-      // No mostrar alert para evitar interrumpir la UX
     } finally {
       setIsImporting(false);
     }
   };
 
-  const processWorkoutData = (data: any, dayIndex: number): Workout | null => {
+  const processWorkoutData = async (data: any, dayIndex: number): Promise<Workout | null> => {
     try {
       console.log(`🔄 Procesando datos del workout día ${dayIndex + 1}:`, data);
 
@@ -554,38 +610,41 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
         return null;
       }
 
-      const timestamp = Date.now() + dayIndex * 1000; // Mayor separación entre IDs
-      const uniqueId = `workout-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
-      const dayId = `day-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(dayIndex + 1).padStart(3, '0')}`;
+      // Obtener la fecha del workout
+      const workoutDate = data.date || new Date().toISOString().split('T')[0];
+      const dayId = `day-${workoutDate.replace(/-/g, '')}-${String(dayIndex + 1).padStart(3, '0')}`;
 
-      console.log(`🆔 IDs generados - WorkoutId: ${uniqueId}, DayId: ${dayId}`);
+      console.log(`🔄 Preparando workout - DayId: ${dayId}, Date: ${workoutDate}`);
+      console.log('ℹ️ El ID será generado automáticamente por el backend (código numérico secuencial)');
 
       const workout: Workout = {
-        id: data.id || uniqueId,
+        id: undefined, // El backend generará el ID automáticamente
         dayId: data.dayId || dayId,
         name: data.name || `Entrenamiento ${dayIndex + 1}`,
-        date: data.date || new Date().toISOString().split('T')[0],
+        date: workoutDate,
         estimatedDuration: Number(data.estimatedDuration) || 45,
         exerciseTypes: [],
         completed: false
       };
 
       if (data.exerciseTypes && Array.isArray(data.exerciseTypes)) {
-        workout.exerciseTypes = data.exerciseTypes
-          .filter((type: any) => type && typeof type === 'object')
-          .map((type: any, typeIndex: number) => {
-            const exerciseType = {
-              id: type.id || `type-${timestamp}-${typeIndex}-${Math.random().toString(36).substr(2, 5)}`,
-              name: type.name || 'Ejercicios',
-              nameSpanish: type.nameSpanish || type.name || 'Ejercicios',
-              duration: type.duration || '30 min',
-              exercises: []
-            };
+        workout.exerciseTypes = await Promise.all(
+          data.exerciseTypes
+            .filter((type: any) => type && typeof type === 'object')
+            .map(async (type: any, typeIndex: number) => {
+              const exerciseType = {
+                id: type.id || `type-${dayIndex}-${typeIndex}`, // ID temporal basado en índice
+                name: type.name || 'Ejercicios',
+                nameSpanish: type.nameSpanish || type.name || 'Ejercicios',
+                duration: type.duration || '30 min',
+                exercises: []
+              };
 
             if (Array.isArray(type.exercises)) {
-              exerciseType.exercises = type.exercises
+              // Procesar exercises de forma asíncrona para generar IDs únicos
+              const exercisesPromises = type.exercises
                 .filter((exercise: any) => exercise && typeof exercise === 'object' && exercise.name)
-                .map((exercise: any, exerciseIndex: number) => {
+                .map(async (exercise: any, exerciseIndex: number) => {
                   // Determinar tiempo de descanso por defecto basado en el tipo de ejercicio
                   const getDefaultRestTime = (exerciseTypeName: string) => {
                     const typeName = exerciseTypeName.toLowerCase();
@@ -598,8 +657,9 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
 
                   const defaultRestTime = getDefaultRestTime(type.nameSpanish || type.name || '');
 
+                  // El backend generará el ID automáticamente
                   const processedExercise = {
-                    id: exercise.id || `exercise-${timestamp}-${typeIndex}-${exerciseIndex}-${Math.random().toString(36).substr(2, 5)}`,
+                    id: undefined, // El backend generará el ID automáticamente
                     name: exercise.name || `Ejercicio ${exerciseIndex + 1}`,
                     exerciseCode: exercise.exerciseCode || `EX${String(exerciseIndex + 1).padStart(3, '0')}`,
                     sets: Number(exercise.sets) || 3,
@@ -615,7 +675,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
                   // Procesar setDetails si existen
                   if (Array.isArray(exercise.setDetails) && exercise.setDetails.length > 0) {
                     processedExercise.setDetails = exercise.setDetails.map((set: any, setIndex: number) => ({
-                      id: set.id || `set-${timestamp}-${setIndex}`,
+                      id: set.id || `set-${setIndex + 1}`, // ID temporal, se actualizará con el exerciseId del backend
                       set: Number(set.set) || setIndex + 1,
                       reps: Number(set.reps) || processedExercise.reps,
                       weight: set.weight === 'bodyweight' ? 'bodyweight' : Number(set.weight) || processedExercise.weight,
@@ -625,7 +685,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
                   } else {
                     // Crear setDetails por defecto
                     processedExercise.setDetails = Array.from({ length: processedExercise.sets }, (_, setIndex) => ({
-                      id: `set-${timestamp}-${exerciseIndex}-${setIndex}`,
+                      id: `set-${setIndex + 1}`, // ID temporal, se actualizará con el exerciseId del backend
                       set: setIndex + 1,
                       reps: processedExercise.reps,
                       weight: processedExercise.weight,
@@ -636,10 +696,13 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
 
                   return processedExercise;
                 });
+              
+              exerciseType.exercises = await Promise.all(exercisesPromises);
             }
 
             return exerciseType;
-          });
+          })
+        );
       }
 
       // Validar que el workout tenga al menos un ejercicio
@@ -677,6 +740,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
               placeholder="Enter your OpenAI API key (sk-...)"
               className="w-full p-2 border rounded mb-4"
               required
+              autoComplete="new-password"
             />
             <div className="flex justify-end space-x-2">
               <button

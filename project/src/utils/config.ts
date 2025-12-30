@@ -1,6 +1,7 @@
-// Configuration manager that uses only environment variables
+// Configuration manager that handles both Environment Variables and LocalStorage
 export class ConfigManager {
   private static instance: ConfigManager;
+  private readonly API_KEY_STORAGE_KEY = 'gymTracker_apiKey';
 
   private constructor() {}
 
@@ -12,20 +13,24 @@ export class ConfigManager {
   }
 
   public getApiKey(): string {
-    // Only use environment variables - never store keys in code
+    // 1. Prioridad: Variable de entorno (.env)
     const envApiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    return envApiKey || '';
+    if (envApiKey && envApiKey.startsWith('sk-') && envApiKey !== 'sk-tu-llave-real-aqui') {
+      return envApiKey;
+    }
+
+    // 2. Fallback: LocalStorage (lo que el usuario ingresó manualmente)
+    return localStorage.getItem(this.API_KEY_STORAGE_KEY) || '';
   }
 
   public setApiKey(key: string): void {
-    // This method should not store keys permanently
-    // It's only for temporary session use
-    console.warn('API key should be set via environment variables');
+    if (key && key.startsWith('sk-')) {
+      localStorage.setItem(this.API_KEY_STORAGE_KEY, key);
+    }
   }
 
   public hasApiKey(): boolean {
-    const apiKey = this.getApiKey();
-    return apiKey.length > 0;
+    return this.getApiKey().length > 0;
   }
 }
 

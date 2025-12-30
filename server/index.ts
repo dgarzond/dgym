@@ -1,10 +1,35 @@
-
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 import express from 'express';
 import cors from 'cors';
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
+
+// Load environment variables from .env or database_url.env
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '../.env') });
+// Fallback to database_url.env if .env doesn't exist
+if (!process.env.DATABASE_URL) {
+  dotenv.config({ path: join(__dirname, '../database_url.env') });
+}
+// Final fallback: read directly from database_url.env if still not set
+if (!process.env.DATABASE_URL) {
+  try {
+    const envContent = readFileSync(join(__dirname, '../database_url.env'), 'utf-8');
+    const match = envContent.match(/DATABASE_URL="?([^"]+)"?/);
+    if (match) {
+      process.env.DATABASE_URL = match[1];
+    }
+  } catch (error) {
+    // File doesn't exist or can't be read, that's okay
+  }
+}
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 // Middleware
 app.use(cors());
@@ -15,14 +40,13 @@ const databaseUrl = process.env.DATABASE_URL;
 
 if (!databaseUrl) {
   console.error('⚠️ DATABASE_URL no está configurada en las variables de entorno');
-  console.log('Por favor, crea una base de datos PostgreSQL en la pestaña "Database" de Replit');
 }
 
 const pool = new Pool({
   connectionString: databaseUrl,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Aumentado a 10 segundos
+  connectionTimeoutMillis: 10000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
   ssl: {
@@ -42,13 +66,8 @@ async function initializeTables(retries = 3) {
       console.error(`❌ Error en intento ${attempt}:`, error.message);
       if (attempt === retries) {
         console.error('❌ No se pudo conectar a la base de datos después de varios intentos');
-        console.log('Posibles soluciones:');
-        console.log('1. Verifica que DATABASE_URL esté configurada correctamente');
-        console.log('2. La base de datos Neon puede estar "dormida" - intenta de nuevo en unos segundos');
-        console.log('3. Crea una nueva base de datos PostgreSQL en la pestaña "Database" de Replit');
         throw error;
       }
-      // Esperar 2 segundos antes del siguiente intento
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
@@ -93,6 +112,7 @@ async function initializeTables(retries = 3) {
         day_id VARCHAR(255),
         estimated_duration INTEGER DEFAULT 45,
         completed BOOLEAN DEFAULT FALSE,
+        status VARCHAR(20) DEFAULT 'ACTIVE',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -144,12 +164,23 @@ async function initializeTables(retries = 3) {
         UNIQUE(exercise_id, set_number)
       );
 
+      CREATE TABLE IF NOT EXISTS chats (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        workout_id VARCHAR(255) REFERENCES workouts(id) ON DELETE SET NULL,
+        messages JSONB NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_workouts_user_id ON workouts(user_id);
       CREATE INDEX IF NOT EXISTS idx_workouts_weekly_routine ON workouts(weekly_routine_id);
       CREATE INDEX IF NOT EXISTS idx_exercises_user_id ON exercises(user_id);
       CREATE INDEX IF NOT EXISTS idx_exercises_type_id ON exercises(exercise_type_id);
       CREATE INDEX IF NOT EXISTS idx_exercise_sets_exercise_id ON exercise_sets(exercise_id);
       CREATE INDEX IF NOT EXISTS idx_weekly_routines_user_id ON weekly_routines(user_id);
+      CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
+      CREATE INDEX IF NOT EXISTS idx_chats_workout_id ON chats(workout_id);
     `);
     console.log('✅ Tablas de base de datos inicializadas correctamente');
   } catch (error) {
@@ -161,12 +192,38 @@ async function initializeTables(retries = 3) {
 
 // API Routes
 
-// Crear o obtener usuario
+// Función helper para calcular el número de semana ISO
+function getWeekNumber(date: Date): { weekNumber: number; year: number; weekStart: Date; weekEnd: Date } {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  const year = d.getUTCFullYear();
+  
+  // Calcular inicio y fin de semana (lunes a domingo)
+  const weekStart = new Date(date);
+  const day = weekStart.getDay();
+  const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1); // Ajustar a lunes
+  weekStart.setDate(diff);
+  weekStart.setHours(0, 0, 0, 0);
+  
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  
+  return { weekNumber, year, weekStart, weekEnd };
+}
+
+// Crear o obtener usuario y verificar/crear weekly routine
 app.post('/api/users', async (req, res) => {
   const { username, email, googleId } = req.body;
   const client = await pool.connect();
   try {
-    const result = await client.query(
+    await client.query('BEGIN');
+    
+    // Crear o obtener usuario
+    const userResult = await client.query(
       `INSERT INTO users (username, email, google_id) 
        VALUES ($1, $2, $3) 
        ON CONFLICT (username) DO UPDATE 
@@ -176,23 +233,74 @@ app.post('/api/users', async (req, res) => {
        RETURNING *`,
       [username, email, googleId]
     );
-    res.json(result.rows[0]);
+    
+    const user = userResult.rows[0];
+    const userId = user.id;
+    
+    // Calcular semana actual
+    const now = new Date();
+    const { weekNumber, year, weekStart, weekEnd } = getWeekNumber(now);
+    
+    // Verificar si existe weekly routine para esta semana
+    const existingRoutine = await client.query(
+      `SELECT * FROM weekly_routines 
+       WHERE user_id = $1 AND week_number = $2 AND year = $3`,
+      [userId, weekNumber, year]
+    );
+    
+    let weeklyRoutine = null;
+    
+    if (existingRoutine.rows.length === 0) {
+      // Crear weekly routine automáticamente
+      console.log(`📅 Creando weekly routine automática para usuario ${userId}, semana ${weekNumber} del ${year}`);
+      
+      const routineResult = await client.query(
+        `INSERT INTO weekly_routines (user_id, week_number, year, week_start, week_end, name, description, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [
+          userId,
+          weekNumber,
+          year,
+          weekStart.toISOString().split('T')[0],
+          weekEnd.toISOString().split('T')[0],
+          `Semana ${weekNumber} - ${year}`,
+          `Rutina semanal automática para la semana ${weekNumber} del año ${year}`,
+          true
+        ]
+      );
+      
+      weeklyRoutine = routineResult.rows[0];
+      console.log(`✅ Weekly routine creada automáticamente con ID: ${weeklyRoutine.id}`);
+    } else {
+      weeklyRoutine = existingRoutine.rows[0];
+      console.log(`✅ Weekly routine existente encontrada con ID: ${weeklyRoutine.id}`);
+    }
+    
+    await client.query('COMMIT');
+    
+    // Retornar usuario con información de weekly routine
+    res.json({
+      ...user,
+      currentWeeklyRoutine: weeklyRoutine
+    });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error creating/getting user:', error);
-    res.status(500).json({ error: 'Error creating user' });
+    res.status(500).json({ error: 'Error creating user', details: error instanceof Error ? error.message : 'Unknown error' });
   } finally {
     client.release();
   }
 });
 
-// Obtener usuario por username
-app.get('/api/users/:username', async (req, res) => {
-  const { username } = req.params;
+// Obtener usuario por ID
+app.get('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
   const client = await pool.connect();
   try {
     const result = await client.query(
-      'SELECT * FROM users WHERE username = $1',
-      [username]
+      'SELECT * FROM users WHERE id = $1',
+      [id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -201,6 +309,103 @@ app.get('/api/users/:username', async (req, res) => {
   } catch (error) {
     console.error('Error getting user:', error);
     res.status(500).json({ error: 'Error getting user' });
+  } finally {
+    client.release();
+  }
+});
+
+// Generar ID único para workout (número secuencial simple)
+app.get('/api/generate-id/workout', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Buscar el último ID numérico de workouts
+    const result = await client.query(
+      `SELECT id FROM workouts 
+       WHERE id ~ '^[0-9]+$'
+       ORDER BY CAST(id AS INTEGER) DESC 
+       LIMIT 1
+       FOR UPDATE`
+    );
+    
+    let maxId = 0;
+    if (result.rows.length > 0) {
+      const lastId = parseInt(result.rows[0].id, 10);
+      if (!isNaN(lastId)) {
+        maxId = lastId;
+      }
+    }
+    
+    // Si no hay IDs numéricos, buscar cualquier ID y extraer el número más alto
+    if (maxId === 0) {
+      const allResult = await client.query('SELECT id FROM workouts FOR UPDATE');
+      for (const row of allResult.rows) {
+        const idStr = row.id.toString();
+        const match = idStr.match(/(\d+)$/);
+        if (match) {
+          const numId = parseInt(match[1], 10);
+          if (!isNaN(numId) && numId > maxId) {
+            maxId = numId;
+          }
+        }
+      }
+    }
+    
+    const workoutId = (maxId + 1).toString();
+    
+    await client.query('COMMIT');
+    
+    res.json({ id: workoutId });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    // Si falla, usar timestamp como fallback
+    console.error('Error generating workout ID, using timestamp:', error);
+    res.json({ id: Date.now().toString() });
+  } finally {
+    client.release();
+  }
+});
+
+// Generar ID único para exercise (numérico, único globalmente)
+app.get('/api/generate-id/exercise', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Obtener todos los IDs de exercises y extraer el número más alto
+    const result = await client.query('SELECT id FROM exercises FOR UPDATE');
+    
+    let maxId = 0;
+    for (const row of result.rows) {
+      const idStr = row.id.toString();
+      // Si el ID es numérico, usarlo directamente
+      if (/^\d+$/.test(idStr)) {
+        const numId = parseInt(idStr, 10);
+        if (numId > maxId) {
+          maxId = numId;
+        }
+      } else {
+        // Si tiene prefijo, extraer el número al final
+        const match = idStr.match(/(\d+)$/);
+        if (match) {
+          const numId = parseInt(match[1], 10);
+          if (numId > maxId) {
+            maxId = numId;
+          }
+        }
+      }
+    }
+    
+    const nextId = maxId + 1;
+    await client.query('COMMIT');
+    
+    res.json({ id: nextId.toString() });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    // Si falla, usar timestamp como fallback
+    console.error('Error generating exercise ID, using timestamp:', error);
+    res.json({ id: Date.now().toString() });
   } finally {
     client.release();
   }
@@ -249,52 +454,222 @@ app.get('/api/users/:userId/weekly-routines', async (req, res) => {
   }
 });
 
-// Guardar workout completo
-app.post('/api/workouts', async (req, res) => {
+// Función auxiliar: Consultar o crear weekly_routine_id basándose en la fecha del workout
+async function getOrCreateWeeklyRoutineId(
+  client: any,
+  userId: number,
+  workoutDate: string | Date,
+  providedWeeklyRoutineId?: number
+): Promise<number> {
+  // Si se proporciona un weeklyRoutineId, verificar que existe y pertenece al usuario
+  if (providedWeeklyRoutineId) {
+    console.log(`🔍 Verificando weeklyRoutineId proporcionado: ${providedWeeklyRoutineId}`);
+    const verifyResult = await client.query(
+      `SELECT id FROM weekly_routines WHERE id = $1 AND user_id = $2`,
+      [providedWeeklyRoutineId, userId]
+    );
+    
+    if (verifyResult.rows.length > 0) {
+      const verifiedId = verifyResult.rows[0].id;
+      console.log(`✅ Weekly routine ID válido y verificado: ${verifiedId}`);
+      return verifiedId;
+    } else {
+      console.log(`⚠️ Weekly routine ${providedWeeklyRoutineId} no existe o no pertenece al usuario, consultando por fecha...`);
+    }
+  }
+  
+  // Si no se proporcionó o no es válido, consultar por fecha del workout
+  if (!workoutDate) {
+    throw new Error('No se puede determinar weekly_routine_id: falta fecha del workout y weeklyRoutineId no es válido');
+  }
+  
+  const date = new Date(workoutDate);
+  const { weekNumber, year, weekStart, weekEnd } = getWeekNumber(date);
+  
+  console.log(`🔍 CONSULTANDO weekly routine por fecha del workout:`);
+  console.log(`   - Fecha workout: ${workoutDate}`);
+  console.log(`   - Semana ISO: ${weekNumber}, Año: ${year}`);
+  
+  // CONSULTAR la weekly routine de esa semana
+  const routineResult = await client.query(
+    `SELECT id FROM weekly_routines 
+     WHERE user_id = $1 AND week_number = $2 AND year = $3`,
+    [userId, weekNumber, year]
+  );
+  
+  if (routineResult.rows.length > 0) {
+    const foundId = routineResult.rows[0].id;
+    console.log(`✅ Weekly routine ENCONTRADA en BD con ID: ${foundId}`);
+    return foundId;
+  }
+  
+  // Si no existe, CREAR una nueva
+  console.log(`⚠️ No existe weekly routine para semana ${weekNumber} del ${year}, CREANDO una nueva...`);
+  
+  const createResult = await client.query(
+    `INSERT INTO weekly_routines (user_id, week_number, year, week_start, week_end, name, description, is_active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id`,
+    [
+      userId,
+      weekNumber,
+      year,
+      weekStart.toISOString().split('T')[0],
+      weekEnd.toISOString().split('T')[0],
+      `Semana ${weekNumber} - ${year}`,
+      `Rutina semanal automática para la semana ${weekNumber} del año ${year}`,
+      true
+    ]
+  );
+  
+  const newId = createResult.rows[0].id;
+  console.log(`✅ Weekly routine CREADA con ID: ${newId}`);
+  return newId;
+}
+
+// Lógica compartida para Guardar/Actualizar Workouts
+async function saveOrUpdateWorkout(req: express.Request, res: express.Response) {
   const { userId, workout, weeklyRoutineId } = req.body;
+  console.log('💾 POST/PUT /api/workouts - Recibiendo datos:');
+  console.log('  - userId:', userId);
+  console.log('  - workout.id:', workout?.id);
+  console.log('  - workout.name:', workout?.name);
+  console.log('  - weeklyRoutineId recibido:', weeklyRoutineId);
+  console.log('  - workout.date:', workout?.date);
+  console.log('  - exerciseTypes count:', workout?.exerciseTypes?.length || 0);
+  
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Insertar workout
+    const parseWeight = (w: any) => {
+      if (w === 'bodyweight' || typeof w !== 'number') return 0;
+      return w;
+    };
+
+    // ============================================
+    // PASO 1: CONSULTAR el weekly_routine_id de esa semana
+    // ============================================
+    const finalWeeklyRoutineId = await getOrCreateWeeklyRoutineId(
+      client,
+      userId,
+      workout.date,
+      weeklyRoutineId
+    );
+    
+    console.log(`📌 Weekly routine ID determinado: ${finalWeeklyRoutineId}`);
+    
+    // ============================================
+    // PASO 2: Generar ID del workout (si no existe)
+    // ============================================
+
+    // Generar ID del workout automáticamente si no se proporciona (número secuencial simple)
+    let workoutId = workout.id;
+    if (!workoutId) {
+      // Buscar el último ID numérico de workouts
+      const result = await client.query(
+        `SELECT id FROM workouts 
+         WHERE id ~ '^[0-9]+$'
+         ORDER BY CAST(id AS INTEGER) DESC 
+         LIMIT 1
+         FOR UPDATE`
+      );
+      
+      let maxId = 0;
+      if (result.rows.length > 0) {
+        const lastId = parseInt(result.rows[0].id, 10);
+        if (!isNaN(lastId)) {
+          maxId = lastId;
+        }
+      }
+      
+      // Si no hay IDs numéricos, buscar cualquier ID y extraer el número más alto
+      if (maxId === 0) {
+        const allResult = await client.query('SELECT id FROM workouts FOR UPDATE');
+        for (const row of allResult.rows) {
+          const idStr = row.id.toString();
+          // Extraer número del ID (puede tener formato antiguo)
+          const match = idStr.match(/(\d+)$/);
+          if (match) {
+            const numId = parseInt(match[1], 10);
+            if (!isNaN(numId) && numId > maxId) {
+              maxId = numId;
+            }
+          }
+        }
+      }
+      
+      workoutId = (maxId + 1).toString();
+      console.log('🆔 ID generado automáticamente para workout (código numérico):', workoutId);
+    }
+    
+    console.log(`📝 CREANDO workout con:`);
+    console.log(`   - workoutId: ${workoutId}`);
+    console.log(`   - weekly_routine_id: ${finalWeeklyRoutineId} (consultado de BD)`);
+
+    // ============================================
+    // PASO 3: CREAR el workout con el weekly_routine_id consultado
+    // ============================================
     await client.query(
       `INSERT INTO workouts (id, user_id, weekly_routine_id, name, date, day_id, estimated_duration, completed)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          date = EXCLUDED.date,
+         weekly_routine_id = COALESCE(EXCLUDED.weekly_routine_id, workouts.weekly_routine_id),
          completed = EXCLUDED.completed,
-         updated_at = CURRENT_TIMESTAMP`,
-      [workout.id, userId, weeklyRoutineId, workout.name, workout.date, workout.dayId, workout.estimatedDuration || 45, workout.completed]
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING id`,
+      [workoutId, userId, finalWeeklyRoutineId, workout.name, workout.date, workout.dayId, workout.estimatedDuration || 45, workout.completed]
     );
+    
+    console.log(`✅ Workout creado/actualizado con weekly_routine_id: ${finalWeeklyRoutineId}`);
 
-    // Procesar exercise types y ejercicios
+    await client.query('DELETE FROM exercise_types WHERE workout_id = $1', [workoutId]);
+
     if (workout.exerciseTypes && Array.isArray(workout.exerciseTypes)) {
       for (let i = 0; i < workout.exerciseTypes.length; i++) {
         const exType = workout.exerciseTypes[i];
-        
-        // Insertar exercise type
         const typeResult = await client.query(
           `INSERT INTO exercise_types (workout_id, type_code, name, name_spanish, duration, sort_order)
            VALUES ($1, $2, $3, $4, $5, $6)
            RETURNING id`,
-          [workout.id, exType.id, exType.name, exType.nameSpanish, exType.duration, i]
+          [workoutId, exType.id, exType.name, exType.nameSpanish, exType.duration, i]
         );
         const exerciseTypeId = typeResult.rows[0].id;
 
-        // Insertar ejercicios
         if (exType.exercises && Array.isArray(exType.exercises)) {
           for (const exercise of exType.exercises) {
+            // Generar ID automáticamente si no se proporciona
+            let exerciseId = exercise.id;
+            if (!exerciseId) {
+              const exerciseResult = await client.query(
+                `SELECT id FROM exercises 
+                 WHERE id ~ '^[0-9]+$' 
+                 ORDER BY CAST(id AS INTEGER) DESC 
+                 LIMIT 1
+                 FOR UPDATE`
+              );
+              
+              let maxId = 0;
+              if (exerciseResult.rows.length > 0) {
+                const lastId = parseInt(exerciseResult.rows[0].id, 10);
+                maxId = lastId;
+              }
+              
+              exerciseId = (maxId + 1).toString();
+              console.log('🆔 ID generado automáticamente para exercise:', exerciseId);
+            }
+
             await client.query(
               `INSERT INTO exercises (id, user_id, exercise_type_id, name, exercise_code, sets, reps, duration, duration_unit, exercise_sub_type, weight, weight_unit, rest_time, completed)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                ON CONFLICT (id) DO UPDATE SET
                  completed = EXCLUDED.completed,
                  updated_at = CURRENT_TIMESTAMP`,
-              [exercise.id, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, exercise.exerciseSubType, exercise.weight, exercise.weightUnit, exercise.restTime, exercise.completed]
+              [exerciseId, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, exercise.exerciseSubType, parseWeight(exercise.weight), exercise.weightUnit, exercise.restTime, exercise.completed]
             );
 
-            // Insertar sets
             if (exercise.setDetails && Array.isArray(exercise.setDetails)) {
               for (let j = 0; j < exercise.setDetails.length; j++) {
                 const set = exercise.setDetails[j];
@@ -307,7 +682,7 @@ app.post('/api/workouts', async (req, res) => {
                      actual_weight = EXCLUDED.actual_weight,
                      completed = EXCLUDED.completed,
                      updated_at = CURRENT_TIMESTAMP`,
-                  [exercise.id, j + 1, set.reps, set.duration, set.weight, set.actualReps, set.actualDuration, set.actualWeight, set.weightUnit || 'kg', set.completed]
+                  [exerciseId, j + 1, set.reps, set.duration, parseWeight(set.weight), set.actualReps, set.actualDuration, parseWeight(set.actualWeight), set.weightUnit || 'kg', set.completed]
                 );
               }
             }
@@ -317,24 +692,89 @@ app.post('/api/workouts', async (req, res) => {
     }
 
     await client.query('COMMIT');
-    res.json({ success: true, message: 'Workout saved successfully' });
-  } catch (error) {
+    console.log('✅ Workout guardado exitosamente en BD:', workoutId);
+    res.json({ success: true, message: 'Workout saved successfully', workoutId: workoutId });
+  } catch (error: any) {
     await client.query('ROLLBACK');
-    console.error('Error saving workout:', error);
-    res.status(500).json({ error: 'Error saving workout' });
+    console.error('❌ Error saving workout:', error);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ error: 'Error saving workout', details: error instanceof Error ? error.message : 'Unknown error' });
+  } finally {
+    client.release();
+  }
+}
+
+app.post('/api/workouts', saveOrUpdateWorkout);
+app.put('/api/workouts/:id', saveOrUpdateWorkout);
+
+// Obtener weekly routine de la semana actual
+app.get('/api/users/:userId/current-weekly-routine', async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+  try {
+    const today = new Date();
+    const { weekNumber, year } = getWeekNumber(today);
+    
+    console.log(`🔍 Buscando weekly routine para usuario ${userId}, semana ${weekNumber} del año ${year}`);
+    
+    const routineResult = await client.query(
+      `SELECT * FROM weekly_routines 
+       WHERE user_id = $1 AND week_number = $2 AND year = $3`,
+      [userId, weekNumber, year]
+    );
+    
+    if (routineResult.rows.length > 0) {
+      const weeklyRoutine = routineResult.rows[0];
+      console.log(`✅ Weekly routine encontrada con ID: ${weeklyRoutine.id}`);
+      res.json(weeklyRoutine);
+    } else {
+      console.log(`⚠️ No existe weekly routine para semana ${weekNumber} del ${year}, creando una...`);
+      
+      // Crear weekly routine automáticamente
+      const { weekStart, weekEnd } = getWeekNumber(today);
+      const createResult = await client.query(
+        `INSERT INTO weekly_routines (user_id, week_number, year, week_start, week_end, name, description, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING *`,
+        [
+          userId,
+          weekNumber,
+          year,
+          weekStart.toISOString().split('T')[0],
+          weekEnd.toISOString().split('T')[0],
+          `Semana ${weekNumber} - ${year}`,
+          `Rutina semanal automática para la semana ${weekNumber} del año ${year}`,
+          true
+        ]
+      );
+      
+      const newWeeklyRoutine = createResult.rows[0];
+      console.log(`✅ Weekly routine creada con ID: ${newWeeklyRoutine.id}`);
+      res.json(newWeeklyRoutine);
+    }
+  } catch (error: any) {
+    console.error('❌ Error obteniendo weekly routine:', error);
+    res.status(500).json({ error: 'Error obteniendo weekly routine', details: error.message });
   } finally {
     client.release();
   }
 });
 
-// Obtener workouts del usuario
-app.get('/api/users/:userId/workouts', async (req, res) => {
-  const { userId } = req.params;
+// Obtener workouts por weekly_routine_id
+app.get('/api/weekly-routines/:weeklyRoutineId/workouts', async (req, res) => {
+  const { weeklyRoutineId } = req.params;
   const client = await pool.connect();
   try {
+    console.log(`🔍 Obteniendo workouts para weekly_routine_id: ${weeklyRoutineId}`);
+    
     const workoutsResult = await client.query(
-      'SELECT * FROM workouts WHERE user_id = $1 ORDER BY date DESC, created_at DESC',
-      [userId]
+      `SELECT w.*, wr.id as weekly_routine_id, wr.week_number, wr.year, wr.name as weekly_routine_name, wr.week_start, wr.week_end
+       FROM workouts w
+       LEFT JOIN weekly_routines wr ON w.weekly_routine_id = wr.id
+       WHERE w.weekly_routine_id = $1 AND (w.status IS NULL OR w.status != 'ARCHIVED')
+       ORDER BY w.date ASC, w.created_at ASC`,
+      [weeklyRoutineId]
     );
 
     const workouts = [];
@@ -360,7 +800,7 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
 
           exercises.push({
             ...exercise,
-            setDetails: setsResult.rows.map(set => ({
+            setDetails: setsResult.rows.map((set: any) => ({
               id: `${exercise.id}-set-${set.set_number}`,
               reps: set.target_reps,
               duration: set.target_duration,
@@ -390,6 +830,15 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
         dayId: workout.day_id,
         estimatedDuration: workout.estimated_duration,
         completed: workout.completed,
+        weeklyRoutineId: workout.weekly_routine_id,
+        weeklyRoutine: workout.weekly_routine_id ? {
+          id: workout.weekly_routine_id,
+          weekNumber: workout.week_number,
+          year: workout.year,
+          name: workout.weekly_routine_name,
+          weekStart: workout.week_start,
+          weekEnd: workout.week_end
+        } : null,
         exerciseTypes
       });
     }
@@ -422,6 +871,170 @@ app.patch('/api/workouts/:workoutId/complete', async (req, res) => {
   }
 });
 
+// Archivar workout (soft delete - cambia status a ARCHIVED)
+app.delete('/api/workouts/:workoutId', async (req, res) => {
+  const { workoutId } = req.params;
+  const { userId } = req.body;
+  const client = await pool.connect();
+  try {
+    // Verificar que el workout pertenece al usuario
+    const workoutCheck = await client.query(
+      'SELECT id FROM workouts WHERE id = $1 AND user_id = $2',
+      [workoutId, userId]
+    );
+    
+    if (workoutCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Workout not found or access denied' });
+    }
+
+    // Archivar el workout (cambiar status a ARCHIVED)
+    await client.query(
+      'UPDATE workouts SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      ['ARCHIVED', workoutId]
+    );
+    
+    res.json({ success: true, message: 'Workout archived successfully' });
+  } catch (error) {
+    console.error('Error archiving workout:', error);
+    res.status(500).json({ error: 'Error archiving workout', details: error instanceof Error ? error.message : 'Unknown error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Crear ejercicio individual
+app.post('/api/exercises', async (req, res) => {
+  const { userId, exerciseTypeId, exercise, setDetails } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const exerciseResult = await client.query(
+      `INSERT INTO exercises (id, user_id, exercise_type_id, name, exercise_code, sets, reps, duration, duration_unit, exercise_sub_type, weight, weight_unit, rest_time, completed)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING *`,
+      [
+        exercise.id,
+        userId,
+        exerciseTypeId,
+        exercise.name,
+        exercise.exerciseCode || null,
+        exercise.sets,
+        exercise.reps || null,
+        exercise.duration || null,
+        exercise.durationUnit || null,
+        exercise.exerciseSubType || 'reps',
+        exercise.weight || 0,
+        exercise.weightUnit || 'kg',
+        exercise.restTime || 60,
+        exercise.completed || false
+      ]
+    );
+
+    const createdExercise = exerciseResult.rows[0];
+
+    if (setDetails && Array.isArray(setDetails)) {
+      for (let i = 0; i < setDetails.length; i++) {
+        const set = setDetails[i];
+        await client.query(
+          `INSERT INTO exercise_sets (exercise_id, set_number, target_reps, target_duration, target_weight, actual_reps, actual_duration, actual_weight, weight_unit, completed)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           ON CONFLICT (exercise_id, set_number) DO UPDATE SET
+             target_reps = EXCLUDED.target_reps,
+             target_duration = EXCLUDED.target_duration,
+             target_weight = EXCLUDED.target_weight,
+             actual_reps = EXCLUDED.actual_reps,
+             actual_duration = EXCLUDED.actual_duration,
+             actual_weight = EXCLUDED.actual_weight,
+             weight_unit = EXCLUDED.weight_unit,
+             completed = EXCLUDED.completed,
+             updated_at = CURRENT_TIMESTAMP`,
+          [
+            exercise.id,
+            i + 1,
+            set.reps || null,
+            set.duration || null,
+            set.weight || 0,
+            set.actualReps || null,
+            set.actualDuration || null,
+            set.actualWeight || null,
+            set.weightUnit || 'kg',
+            set.completed || false
+          ]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    const setsResult = await client.query(
+      'SELECT * FROM exercise_sets WHERE exercise_id = $1 ORDER BY set_number',
+      [exercise.id]
+    );
+
+    const exerciseWithSets = {
+      ...createdExercise,
+      setDetails: setsResult.rows.map((set: any) => ({
+        id: `${createdExercise.id}-set-${set.set_number}`,
+        reps: set.target_reps,
+        duration: set.target_duration,
+        weight: set.target_weight,
+        actualReps: set.actual_reps,
+        actualDuration: set.actual_duration,
+        actualWeight: set.actual_weight,
+        weightUnit: set.weight_unit,
+        completed: set.completed
+      }))
+    };
+
+    res.json(exerciseWithSets);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error creating exercise:', error);
+    res.status(500).json({ error: 'Error creating exercise' });
+  } finally {
+    client.release();
+  }
+});
+
+// Guardar chat asociado a un workout
+app.post('/api/chats', async (req, res) => {
+  const { userId, workoutId, messages } = req.body;
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `INSERT INTO chats (user_id, workout_id, messages, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [userId, workoutId, JSON.stringify(messages)]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error saving chat:', error);
+    res.status(500).json({ error: 'Error saving chat', details: error instanceof Error ? error.message : 'Unknown error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Obtener chats de un usuario
+app.get('/api/users/:userId/chats', async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT * FROM chats WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error getting chats:', error);
+    res.status(500).json({ error: 'Error getting chats' });
+  } finally {
+    client.release();
+  }
+});
+
 // Marcar ejercicio como completado
 app.patch('/api/exercises/:exerciseId/complete', async (req, res) => {
   const { exerciseId } = req.params;
@@ -439,6 +1052,36 @@ app.patch('/api/exercises/:exerciseId/complete', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'DGym Backend API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      users: {
+        create: 'POST /api/users',
+        get: 'GET /api/users/:id'
+      },
+      weeklyRoutines: {
+        create: 'POST /api/weekly-routines',
+        get: 'GET /api/users/:userId/weekly-routines'
+      },
+      workouts: {
+        save: 'POST /api/workouts',
+        get: 'GET /api/users/:userId/workouts',
+        update: 'PUT /api/workouts/:id',
+        complete: 'PATCH /api/workouts/:workoutId/complete'
+      },
+      exercises: {
+        create: 'POST /api/exercises',
+        complete: 'PATCH /api/exercises/:exerciseId/complete'
+      }
+    }
+  });
 });
 
 // Health check
@@ -471,7 +1114,6 @@ async function startServer() {
   } catch (error: any) {
     console.error('❌ Error fatal al iniciar el servidor:', error.message);
     console.log('⚠️ El servidor continuará ejecutándose pero la base de datos no está disponible');
-    // Iniciar el servidor de todas formas para que la API responda
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Backend server running on port ${PORT} (sin base de datos)`);
     });
@@ -479,3 +1121,4 @@ async function startServer() {
 }
 
 startServer().catch(console.error);
+
