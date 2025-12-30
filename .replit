@@ -6,8 +6,8 @@ channel = "stable-24_05"
 packages = ["xsel"]
 
 [deployment]
-run = ["sh", "-c", "npm install && npm run build:all && npm start"]
-build = ["sh", "-c", "npm install && npm run build:all"]
+run = ["sh", "-c", "npm start"]
+build = ["sh", "-c", "npm run build:frontend"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
