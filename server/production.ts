@@ -489,23 +489,70 @@ app.post('/api/workouts', async (req, res) => {
     };
 
     // ============================================
-    // PASO 1: CONSULTAR el weekly_routine_id de esa semana
+    // PASO 1: Verificar si el workout ya existe (UPDATE) o es nuevo (INSERT)
     // ============================================
-    const finalWeeklyRoutineId = await getOrCreateWeeklyRoutineId(
-      client,
-      userId,
-      workout.date,
-      weeklyRoutineId
-    );
+    let workoutId = workout.id;
+    let existingWorkout = null;
     
-    console.log(`📌 Weekly routine ID determinado: ${finalWeeklyRoutineId}`);
+    if (workoutId) {
+      // Verificar si el workout ya existe en la BD
+      const existingResult = await client.query(
+        'SELECT weekly_routine_id FROM workouts WHERE id = $1',
+        [workoutId]
+      );
+      
+      if (existingResult.rows.length > 0) {
+        existingWorkout = existingResult.rows[0];
+        console.log(`📋 Workout existente encontrado con weekly_routine_id: ${existingWorkout.weekly_routine_id}`);
+      }
+    }
     
     // ============================================
-    // PASO 2: Generar ID del workout (si no existe)
+    // PASO 2: Determinar el weekly_routine_id
+    // ============================================
+    let finalWeeklyRoutineId: number | null = null;
+    
+    if (existingWorkout && existingWorkout.weekly_routine_id) {
+      // Si el workout ya existe, MANTENER su weekly_routine_id original
+      finalWeeklyRoutineId = existingWorkout.weekly_routine_id;
+      console.log(`🔒 Manteniendo weekly_routine_id original del workout: ${finalWeeklyRoutineId}`);
+    } else if (weeklyRoutineId) {
+      // Si se proporciona weeklyRoutineId y el workout no existe, verificar y usarlo
+      const verifyResult = await client.query(
+        `SELECT id FROM weekly_routines WHERE id = $1 AND user_id = $2`,
+        [weeklyRoutineId, userId]
+      );
+      
+      if (verifyResult.rows.length > 0) {
+        finalWeeklyRoutineId = weeklyRoutineId;
+        console.log(`✅ Usando weeklyRoutineId proporcionado: ${finalWeeklyRoutineId}`);
+      } else {
+        console.log(`⚠️ weeklyRoutineId ${weeklyRoutineId} no válido, consultando por fecha...`);
+        // Si no es válido, consultar por fecha
+        finalWeeklyRoutineId = await getOrCreateWeeklyRoutineId(
+          client,
+          userId,
+          workout.date,
+          undefined
+        );
+      }
+    } else {
+      // Si no se proporciona y el workout no existe, consultar por fecha
+      finalWeeklyRoutineId = await getOrCreateWeeklyRoutineId(
+        client,
+        userId,
+        workout.date,
+        undefined
+      );
+    }
+    
+    console.log(`📌 Weekly routine ID final determinado: ${finalWeeklyRoutineId}`);
+    
+    // ============================================
+    // PASO 3: Generar ID del workout (si no existe)
     // ============================================
 
     // Generar ID automáticamente si no se proporciona (número secuencial simple)
-    let workoutId = workout.id;
     if (!workoutId) {
       // Buscar el último ID numérico de workouts
       const result = await client.query(
@@ -549,28 +596,36 @@ app.post('/api/workouts', async (req, res) => {
     console.log(`   - weekly_routine_id: ${finalWeeklyRoutineId} (consultado de BD)`);
 
     // ============================================
-    // PASO 3: CREAR el workout con el weekly_routine_id consultado
+    // PASO 4: CREAR/ACTUALIZAR el workout
     // ============================================
-    await client.query(
-      `INSERT INTO workouts (id, user_id, weekly_routine_id, name, date, day_id, estimated_duration, completed)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         date = EXCLUDED.date,
-         weekly_routine_id = COALESCE(EXCLUDED.weekly_routine_id, workouts.weekly_routine_id),
-         completed = EXCLUDED.completed,
+    if (existingWorkout) {
+      // UPDATE: Solo actualizar campos permitidos, NO cambiar weekly_routine_id
+      await client.query(
+        `UPDATE workouts SET
+         name = $1,
+         date = $2,
+         completed = $3,
          updated_at = CURRENT_TIMESTAMP
-       RETURNING id`,
-      [workoutId, userId, finalWeeklyRoutineId, workout.name, workout.date, workout.dayId, workout.estimatedDuration || 45, workout.completed]
-    );
-    
-    console.log(`✅ Workout creado/actualizado con weekly_routine_id: ${finalWeeklyRoutineId}`);
+         WHERE id = $4`,
+        [workout.name, workout.date, workout.completed, workoutId]
+      );
+      console.log(`✅ Workout actualizado (weekly_routine_id preservado: ${existingWorkout.weekly_routine_id})`);
+    } else {
+      // INSERT: Crear nuevo workout con el weekly_routine_id determinado
+      await client.query(
+        `INSERT INTO workouts (id, user_id, weekly_routine_id, name, date, day_id, estimated_duration, completed)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [workoutId, userId, finalWeeklyRoutineId, workout.name, workout.date, workout.dayId, workout.estimatedDuration || 45, workout.completed]
+      );
+      console.log(`✅ Workout creado con weekly_routine_id: ${finalWeeklyRoutineId}`);
+    }
 
-    // Clean up existing exercise types and exercises for this workout to avoid duplicates on update
-    await client.query('DELETE FROM exercise_types WHERE workout_id = $1', [workoutId]);
+    // Solo eliminar y recrear exercise_types si se proporcionan nuevos
+    if (workout.exerciseTypes && Array.isArray(workout.exerciseTypes) && workout.exerciseTypes.length > 0) {
+      await client.query('DELETE FROM exercise_types WHERE workout_id = $1', [workoutId]);
 
-    // Procesar exercise types y ejercicios
-    if (workout.exerciseTypes && Array.isArray(workout.exerciseTypes)) {
+      // Procesar exercise types y ejercicios
       for (let i = 0; i < workout.exerciseTypes.length; i++) {
         const exType = workout.exerciseTypes[i];
         
@@ -948,6 +1003,7 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
         dayId: workout.day_id,
         estimatedDuration: workout.estimated_duration,
         completed: workout.completed,
+        createdAt: workout.created_at,
         weeklyRoutineId: workout.weekly_routine_id,
         weeklyRoutine: workout.weekly_routine_id ? {
           id: workout.weekly_routine_id,
@@ -1076,6 +1132,98 @@ app.delete('/api/workouts/:workoutId', async (req, res) => {
   } catch (error) {
     console.error('Error archiving workout:', error);
     res.status(500).json({ error: 'Error archiving workout', details: error instanceof Error ? error.message : 'Unknown error' });
+  } finally {
+    client.release();
+  }
+});
+
+// Obtener estadísticas del usuario para Plan History
+app.get('/api/users/:userId/statistics', async (req, res) => {
+  const { userId } = req.params;
+  const client = await pool.connect();
+  try {
+    // 1. Total de workouts sin importar el estado
+    const totalWorkoutsResult = await client.query(
+      'SELECT COUNT(*) as total FROM workouts WHERE user_id = $1',
+      [userId]
+    );
+    const totalWorkouts = parseInt(totalWorkoutsResult.rows[0].total, 10);
+
+    // 2. Total de workouts completados (excluyendo eliminados)
+    const completedWorkoutsResult = await client.query(
+      `SELECT COUNT(*) as total FROM workouts 
+       WHERE user_id = $1 AND completed = true AND (status IS NULL OR status != 'ARCHIVED')`,
+      [userId]
+    );
+    const completedWorkouts = parseInt(completedWorkoutsResult.rows[0].total, 10);
+
+    // 3. Total de workouts (excluyendo eliminados)
+    const activeWorkoutsResult = await client.query(
+      `SELECT COUNT(*) as total FROM workouts 
+       WHERE user_id = $1 AND (status IS NULL OR status != 'ARCHIVED')`,
+      [userId]
+    );
+    const activeWorkouts = parseInt(activeWorkoutsResult.rows[0].total, 10);
+
+    // 4. Primera weekly_routine (fecha más antigua)
+    const firstWeeklyRoutineResult = await client.query(
+      `SELECT week_start, created_at FROM weekly_routines 
+       WHERE user_id = $1 
+       ORDER BY week_start ASC, created_at ASC 
+       LIMIT 1`,
+      [userId]
+    );
+
+    let weeksSinceFirstRoutine = 0;
+    let weeksWithCompletedWorkouts = 0;
+
+    if (firstWeeklyRoutineResult.rows.length > 0) {
+      const firstWeekStart = new Date(firstWeeklyRoutineResult.rows[0].week_start);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Calcular semanas desde la primera weekly_routine hasta hoy
+      const diffTime = today.getTime() - firstWeekStart.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      weeksSinceFirstRoutine = Math.ceil(diffDays / 7);
+      if (weeksSinceFirstRoutine < 1) weeksSinceFirstRoutine = 1; // Mínimo 1 semana
+
+      // 5. Número de semanas que tienen workouts asociados Y con workouts completados
+      const weeksWithCompletedResult = await client.query(
+        `SELECT DISTINCT wr.id, wr.week_number, wr.year
+         FROM weekly_routines wr
+         INNER JOIN workouts w ON w.weekly_routine_id = wr.id
+         WHERE wr.user_id = $1 
+           AND w.completed = true 
+           AND (w.status IS NULL OR w.status != 'ARCHIVED')
+         GROUP BY wr.id, wr.week_number, wr.year
+         HAVING COUNT(DISTINCT w.id) > 0`,
+        [userId]
+      );
+      weeksWithCompletedWorkouts = weeksWithCompletedResult.rows.length;
+    }
+
+    // Calcular porcentajes
+    const completionPercentage = activeWorkouts > 0 
+      ? Math.round((completedWorkouts / activeWorkouts) * 100) 
+      : 0;
+    
+    const weeksPercentage = weeksSinceFirstRoutine > 0
+      ? Math.round((weeksWithCompletedWorkouts / weeksSinceFirstRoutine) * 100)
+      : 0;
+
+    res.json({
+      totalWorkouts,
+      completedWorkouts,
+      activeWorkouts,
+      completionPercentage,
+      weeksSinceFirstRoutine,
+      weeksWithCompletedWorkouts,
+      weeksPercentage
+    });
+  } catch (error) {
+    console.error('Error getting statistics:', error);
+    res.status(500).json({ error: 'Error getting statistics' });
   } finally {
     client.release();
   }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 // CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
 import { Dumbbell, Plus, Calendar, MessageSquare, CheckCircle } from 'lucide-react';
+import { DGymLogo } from './components/DGymLogo';
 import { WorkoutCard } from './components/WorkoutCard';
 import { WorkoutDetail } from './components/WorkoutDetail';
 import { ExerciseScreen } from './components/ExerciseScreen';
@@ -33,12 +34,12 @@ function WeekDetailView({ week, onBack }: { week: any, onBack: () => void }) {
   // Por ahora, solo un placeholder
   return (
     <div className="p-8">
-      <button onClick={onBack} className="text-blue-600 mb-4">← Volver a Semanas</button>
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Detalles de la Semana</h2>
-      <p className="text-gray-600">Semana: {week.name}</p>
+      <button onClick={onBack} className="text-blue-600 mb-4">← Back to Weeks</button>
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Week Details</h2>
+      <p className="text-gray-600">Week: {week.name}</p>
       {/* Ejemplo: Renderizarías DayCard aquí */}
       <div className="text-center py-12">
-        <p className="text-gray-500">Detalles de Semana. ¡Aún en desarrollo!</p>
+        <p className="text-gray-500">Week Details. Still in development!</p>
       </div>
     </div>
   );
@@ -277,7 +278,7 @@ function App() {
     } catch (error) {
       console.error('❌ Error during login:', error);
       // Mostrar error al usuario sin hacer fallback a localStorage
-      alert('Error al iniciar sesión. Por favor, verifica tu conexión e intenta nuevamente.');
+      alert('Error logging in. Please check your connection and try again.');
       throw error;
     } finally {
       setIsLoadingData(false);
@@ -437,7 +438,7 @@ function App() {
   };
 
 
-  const handleEndWorkout = async () => {
+  const handleEndWorkout = () => {
     if (!selectedWorkout) return;
 
     // Marcar todos los ejercicios como completados al finalizar la rutina
@@ -464,21 +465,24 @@ function App() {
       }))
     };
 
-    // Actualizar los workouts con el workout completado
+    // 1. ACTUALIZAR ESTADO LOCAL INMEDIATAMENTE (optimistic update)
     const updatedWorkoutsList = workouts.map(w =>
       w.id === selectedWorkout.id ? updatedWorkout : w
     );
     setWorkouts(updatedWorkoutsList);
 
-    // Guardar el workout actualizado en la base de datos
+    // 2. Guardar el workout actualizado en la base de datos de forma asíncrona (sin bloquear UI)
     if (user?.id) {
-      try {
-        console.log(`Updating completed workout ${updatedWorkout.id} in DB...`);
-        await api.updateWorkout(user.id, updatedWorkout); // Assuming updateWorkout handles the full object
-        console.log('Workout updated successfully in DB after completion.');
-      } catch (error) {
-        console.error('Error updating workout in DB after completion:', error);
-      }
+      // No usar await - ejecutar en segundo plano
+      api.updateWorkout(user.id, updatedWorkout)
+        .then(() => {
+          console.log('✅ Workout actualizado exitosamente en BD después de completarse.');
+        })
+        .catch((error) => {
+          console.error('❌ Error actualizando workout en BD después de completarse:', error);
+          // Opcional: Revertir el cambio optimista si falla
+          // setWorkouts(workouts); // Revertir al estado anterior
+        });
     } else {
       console.warn('User not logged in, cannot save workout completion status to DB.');
     }
@@ -701,7 +705,7 @@ function App() {
 
     } catch (error) {
       console.error('❌ Error general en handleAddWorkout:', error);
-      alert('Hubo un error al guardar la rutina. Por favor, intenta de nuevo.');
+      alert('There was an error saving the routine. Please try again.');
     }
   };
 
@@ -710,20 +714,20 @@ function App() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center p-4">
         <div className="bg-white p-10 rounded-3xl shadow-xl flex flex-col items-center max-w-sm w-full space-y-8">
-          {/* Contenedor del Icono con Animación de Pesas */}
+          {/* Logo container with animation */}
           <div className="relative">
             <div className="absolute inset-0 bg-blue-200 rounded-full blur-xl animate-pulse"></div>
-            <div className="relative bg-blue-600 p-6 rounded-full shadow-lg transform transition-transform animate-bounce">
-              <Dumbbell className="w-12 h-12 text-white" />
+            <div className="relative transform transition-transform animate-bounce">
+              <DGymLogo size="lg" showText={false} />
             </div>
           </div>
 
           <div className="text-center space-y-3">
-            <h2 className="text-2xl font-bold text-gray-800">Preparando tu entrenamiento</h2>
-            <p className="text-gray-500 font-medium italic">"La disciplina es el puente entre las metas y los logros"</p>
+            <h2 className="text-2xl font-bold text-gray-800">Preparing your workout</h2>
+            <p className="text-gray-500 font-medium italic">"Discipline is the bridge between goals and achievements"</p>
           </div>
 
-          {/* Indicador de carga estilo barra */}
+          {/* Loading indicator bar style */}
           <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
             <div className="bg-blue-600 h-full w-1/3 rounded-full animate-[loading_1.5s_infinite_ease-in-out]"></div>
           </div>
@@ -732,7 +736,7 @@ function App() {
             <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
             <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
             <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <span>Sincronizando con DGym Cloud</span>
+            <span>Syncing with DGym Cloud</span>
           </div>
         </div>
 
@@ -816,13 +820,13 @@ function App() {
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-10 h-10 text-green-600" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Rutina Completada!</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Workout Completed!</h2>
             <p className="text-gray-600 mb-6">
-              Has completado todos los ejercicios de "{selectedWorkout.name}"
+              You have completed all exercises from "{selectedWorkout.name}"
             </p>
 
             <div className="bg-blue-50 rounded-lg p-4 mb-6">
-              <div className="text-sm text-blue-600 mb-1">Tiempo total de rutina</div>
+              <div className="text-sm text-blue-600 mb-1">Total workout time</div>
               <div className="text-3xl font-bold text-blue-800">
                 {Math.floor(totalWorkoutTime / 60)}:{String(totalWorkoutTime % 60).padStart(2, '0')}
               </div>
@@ -833,16 +837,16 @@ function App() {
                 onClick={handleEndWorkout}
                 className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
-                Finalizar Rutina
+                Finish Workout
               </button>
               <button
                 onClick={() => {
-                  handleStartExercise(selectedWorkout); // Reinicia el cronómetro y el estado del ejercicio
-                  setCurrentView('exercise'); // Asegura que se muestre la vista de ejercicio
+                  handleStartExercise(selectedWorkout); // Reset timer and exercise state
+                  setCurrentView('exercise'); // Ensure exercise view is shown
                 }}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium"
               >
-                Repetir Rutina
+                Repeat Workout
               </button>
             </div>
           </div>
@@ -874,26 +878,18 @@ function App() {
       return (
         <div className="min-h-screen bg-gray-50">
           <header className="bg-white shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <Dumbbell className="h-8 w-8 text-blue-600" />
-                  <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4">
+              <div className="flex justify-between items-center gap-2 sm:gap-4 flex-wrap">
+                <div className="flex items-center flex-shrink-0">
+                  <DGymLogo size="sm" showText={true} />
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">Hola, {currentUser}</span>
+                <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                  <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Hello, {currentUser}</span>
                   <button
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                    onClick={() => setShowChatBot(true)}
-                  >
-                    <MessageSquare className="h-5 w-5 mr-2" />
-                    ChatBot
-                  </button>
-                  <button
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap"
                     onClick={handleLogout}
                   >
-                    Cerrar Sesión
+                    Sign Out
                   </button>
                 </div>
               </div>
@@ -913,19 +909,21 @@ function App() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {workouts.map((workout) => (
-                <WorkoutCard
-                  key={workout.id}
-                  workout={workout}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onToggleExercise={handleToggleExercise}
-                  onStartExercise={() => handleStartExercise(workout)}
-                />
-              ))}
+              {workouts
+                .filter(workout => !workout.completed) // Excluir workouts completados en "Your Workouts"
+                .map((workout) => (
+                  <WorkoutCard
+                    key={workout.id}
+                    workout={workout}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onToggleExercise={handleToggleExercise}
+                    onStartExercise={() => handleStartExercise(workout)}
+                  />
+                ))}
             </div>
 
-            {workouts.length === 0 && (
+            {workouts.filter(w => !w.completed).length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500">No workouts yet. Start by adding a new workout!</p>
               </div>
@@ -954,26 +952,18 @@ function App() {
       return (
         <div className="min-h-screen bg-gray-50">
           <header className="bg-white shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <Dumbbell className="h-8 w-8 text-blue-600" />
-                  <h1 className="ml-2 text-2xl font-bold text-gray-900">GymTracker</h1>
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4">
+              <div className="flex justify-between items-center gap-2 sm:gap-4 flex-wrap">
+                <div className="flex items-center flex-shrink-0">
+                  <DGymLogo size="sm" showText={true} />
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">Hola, {currentUser}</span>
+                <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                  <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Hello, {currentUser}</span>
                   <button
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                    onClick={() => setShowChatBot(true)}
-                  >
-                    <MessageSquare className="h-5 w-5 mr-2" />
-                    ChatBot
-                  </button>
-                  <button
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap"
                     onClick={handleLogout}
                   >
-                    Cerrar Sesión
+                    Sign Out
                   </button>
                 </div>
               </div>
@@ -983,6 +973,8 @@ function App() {
             <WeeklyPlanManager
               workouts={workouts}
               onAddWorkout={handleAddWorkout}
+              userId={user?.id}
+              isVisible={currentView === 'workoutList'}
             />
 
             <div className="flex items-center justify-between mb-6">
@@ -994,19 +986,21 @@ function App() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {workouts.map((workout) => (
-                <WorkoutCard
-                  key={workout.id}
-                  workout={workout}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onToggleExercise={handleToggleExercise}
-                  onStartExercise={() => handleStartExercise(workout)}
-                />
-              ))}
+              {workouts
+                .filter(workout => !workout.completed) // Excluir workouts completados en "Your Workouts"
+                .map((workout) => (
+                  <WorkoutCard
+                    key={workout.id}
+                    workout={workout}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onToggleExercise={handleToggleExercise}
+                    onStartExercise={() => handleStartExercise(workout)}
+                  />
+                ))}
             </div>
 
-            {workouts.length === 0 && (
+            {workouts.filter(w => !w.completed).length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-500">No workouts yet. Start by adding a new workout!</p>
               </div>

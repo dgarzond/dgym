@@ -166,5 +166,12 @@ export const api = {
     if (!response.ok) throw new Error('Error generating exercise ID');
     const data = await response.json();
     return data.id; // Retornar solo el número, sin prefijo
+  },
+
+  // Estadísticas para Plan History
+  async getStatistics(userId: number) {
+    const response = await fetch(`${API_URL}/api/users/${userId}/statistics`);
+    if (!response.ok) throw new Error('Error getting statistics');
+    return response.json();
   }
 };

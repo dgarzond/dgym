@@ -44,6 +44,7 @@ export interface Workout {
   exerciseTypes: ExerciseType[]; // Changed from exercises to exerciseTypes
   completed: boolean;
   estimatedDuration?: number; // Duración estimada en minutos
+  createdAt?: string; // Fecha de creación del workout (desde el backend)
 }
 
 export interface WeeklyPlan {

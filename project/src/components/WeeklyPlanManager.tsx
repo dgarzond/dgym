@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, MessageSquare, RefreshCw, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Calendar, MessageSquare, RefreshCw, CheckCircle, ChevronDown, ChevronUp, Circle } from 'lucide-react';
 import type { Workout, ExerciseType } from '../types';
 import { ChatBot } from './ChatBot';
+import { api } from '../utils/api';
 
 interface WeeklyPlan {
   id: string;
@@ -14,13 +15,27 @@ interface WeeklyPlan {
 interface WeeklyPlanManagerProps {
   workouts: Workout[];
   onAddWorkout: (workout: Workout | Workout[]) => void;
+  userId?: number;
+  isVisible?: boolean; // Indica si el componente está visible (en la pantalla principal)
 }
 
-export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerProps) {
+interface Statistics {
+  totalWorkouts: number;
+  completedWorkouts: number;
+  activeWorkouts: number;
+  completionPercentage: number;
+  weeksSinceFirstRoutine: number;
+  weeksWithCompletedWorkouts: number;
+  weeksPercentage: number;
+}
+
+export function WeeklyPlanManager({ workouts, onAddWorkout, userId, isVisible = true }: WeeklyPlanManagerProps) {
   const [weeklyPlans, setWeeklyPlans] = useState<WeeklyPlan[]>([]);
   const [showChatBot, setShowChatBot] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<Date>(getStartOfWeek(new Date()));
   const [expandedWorkouts, setExpandedWorkouts] = useState<Set<string>>(new Set());
+  const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [loadingStatistics, setLoadingStatistics] = useState(false);
 
   useEffect(() => {
     // Load weekly plans from localStorage with comprehensive data migration and error handling
@@ -64,7 +79,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                   exerciseTypes,
                   date: workout.date,
                   id: workout.id || `workout-${Date.now()}-${Math.random()}`,
-                  name: workout.name || 'Entrenamiento',
+                  name: workout.name || 'Workout',
                   completed: workout.completed || false
                 };
               }
@@ -83,7 +98,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                 exerciseTypes: validExerciseTypes,
                 date: workout.date,
                 id: workout.id || `workout-${Date.now()}-${Math.random()}`,
-                name: workout.name || 'Entrenamiento',
+                name: workout.name || 'Workout',
                 completed: workout.completed || false
               };
             }).filter(Boolean)
@@ -100,6 +115,22 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     }
   }, []);
 
+  // Cargar estadísticas desde el backend cuando el componente está visible
+  useEffect(() => {
+    if (userId && isVisible) {
+      setLoadingStatistics(true);
+      api.getStatistics(userId)
+        .then((stats: Statistics) => {
+          setStatistics(stats);
+          setLoadingStatistics(false);
+        })
+        .catch((error: any) => {
+          console.error('Error loading statistics:', error);
+          setLoadingStatistics(false);
+        });
+    }
+  }, [userId, isVisible]);
+
   useEffect(() => {
     // Save weekly plans to localStorage
     localStorage.setItem('weeklyPlans', JSON.stringify(weeklyPlans));
@@ -107,15 +138,18 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
   function getStartOfWeek(date: Date): Date {
     const d = new Date(date);
+    d.setHours(0, 0, 0, 0); // Normalizar a medianoche
     const day = d.getDay();
-    const diff = d.getDate() - day;
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Lunes como inicio de semana
     return new Date(d.setDate(diff));
   }
 
   function getEndOfWeek(date: Date): Date {
-    const d = new Date(date);
-    d.setDate(d.getDate() + 6);
-    return d;
+    const weekStart = getStartOfWeek(date);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999); // Fin del día domingo
+    return weekEnd;
   }
 
   const getCurrentWeekPlan = (): WeeklyPlan | undefined => {
@@ -152,12 +186,45 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
 
   // Calcular estadísticas de la semana actual basadas en los workouts de la BD
   const calculateWeekSummary = () => {
+    // Obtener inicio de la semana actual (hoy)
+    const today = new Date();
+    const normalizedWeekStart = getStartOfWeek(today);
+    
+    console.log('🔍 Calculando resumen de semana:');
+    console.log('  - Total workouts recibidos:', workouts.length);
+    console.log('  - Semana actual (normalizada):', normalizedWeekStart.toISOString());
+    console.log('  - Workouts recibidos:', workouts.map(w => ({ 
+      name: w.name, 
+      date: w.date, 
+      createdAt: w.createdAt 
+    })));
+    
     const currentWeekWorkouts = workouts.filter(workout => {
-      if (!workout.date) return false;
-      const workoutDate = new Date(workout.date);
+      // Usar createdAt en lugar de date para determinar la semana
+      const workoutCreatedDate = workout.createdAt || workout.date;
+      
+      if (!workoutCreatedDate) {
+        console.log('  ⚠️ Workout sin createdAt ni date:', workout.name);
+        return false;
+      }
+      
+      const workoutDate = new Date(workoutCreatedDate);
+      workoutDate.setHours(0, 0, 0, 0); // Normalizar fecha del workout
       const workoutWeekStart = getStartOfWeek(workoutDate);
-      return workoutWeekStart.getTime() === currentWeek.getTime();
+      
+      // Comparar semanas normalizadas (usar la semana actual de hoy)
+      const matches = workoutWeekStart.getTime() === normalizedWeekStart.getTime();
+      
+      if (matches) {
+        console.log('  ✅ Workout incluido:', workout.name, 'createdAt:', workoutCreatedDate, 'WeekStart:', workoutWeekStart.toISOString());
+      } else {
+        console.log('  ❌ Workout excluido:', workout.name, 'createdAt:', workoutCreatedDate, 'WeekStart:', workoutWeekStart.toISOString());
+      }
+      
+      return matches;
     });
+    
+    console.log('  - Workouts de la semana actual:', currentWeekWorkouts.length);
 
     const totalWorkouts = currentWeekWorkouts.length;
     const completedWorkouts = currentWeekWorkouts.filter(w => w.completed).length;
@@ -307,39 +374,34 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
     setCurrentWeek(nextWeek);
   };
 
-  const clearCorruptedData = () => {
-    localStorage.removeItem('weeklyPlans');
-    setWeeklyPlans([]);
-    window.location.reload();
-  };
-
   const currentPlan = getCurrentWeekPlan();
   const weekExpired = currentPlan ? isWeekExpired(currentPlan.weekStart) : false;
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          <Calendar className="w-6 h-6 text-blue-600 mr-2" />
-          <h2 className="text-xl font-semibold text-gray-800">Weekly Plan Manager</h2>
+    <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 mb-4 flex-wrap">
+        <div className="flex items-center min-w-0 flex-shrink">
+          <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mr-1 sm:mr-2 flex-shrink-0" />
+          <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-semibold text-gray-800 whitespace-nowrap">Weekly Plan Manager</h2>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
           {weekExpired && (
             <button
               onClick={handleNewWeek}
-              className="flex items-center px-3 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+              className="flex items-center px-2 sm:px-3 py-1.5 sm:py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              New Week
+              <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+              <span className="hidden xs:inline sm:inline">New Week</span>
             </button>
           )}
           <button
             onClick={() => setShowChatBot(true)}
             disabled={!canCreateNewPlan() && !weekExpired}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs sm:text-sm whitespace-nowrap"
           >
-            <MessageSquare className="w-4 h-4 mr-2" />
-            Chat with AI Coach
+            <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Chat with AI Coach</span>
+            <span className="sm:hidden">Chat</span>
           </button>
         </div>
       </div>
@@ -348,49 +410,67 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
         <div className="bg-gray-50 rounded-lg p-4">
           <h3 className="font-medium text-gray-800 mb-2">Current Week</h3>
           <p className="text-sm text-gray-600 mb-3">
-            {currentWeek.toLocaleDateString()} - {getEndOfWeek(currentWeek).toLocaleDateString()}
+            {getStartOfWeek(new Date()).toLocaleDateString()} - {getEndOfWeek(new Date()).toLocaleDateString()}
           </p>
 
           {(() => {
             const weekSummary = calculateWeekSummary();
+            const completionPercentage = weekSummary.totalWorkouts > 0 
+              ? Math.round((weekSummary.completedWorkouts / weekSummary.totalWorkouts) * 100) 
+              : 0;
             
             return weekSummary.totalWorkouts > 0 ? (
               <div className="space-y-3">
                 {/* Resumen de estadísticas */}
-                <div className="bg-white rounded-lg p-3 border border-gray-200">
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{weekSummary.totalWorkouts}</div>
-                      <div className="text-xs text-gray-600">Total Workouts</div>
+                <div className="bg-white rounded-lg p-4 border-2 border-gray-200 shadow-sm mb-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Week Summary</h4>
+                  
+                  {/* Main statistics */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="text-center p-3 bg-blue-50 rounded-lg">
+                      <div className="text-3xl font-bold text-blue-600">{weekSummary.totalWorkouts}</div>
+                      <div className="text-xs text-gray-600 font-medium mt-1">Total Workouts</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">{weekSummary.completedWorkouts}</div>
-                      <div className="text-xs text-gray-600">Completados</div>
+                    <div className="text-center p-3 bg-green-50 rounded-lg">
+                      <div className="text-3xl font-bold text-green-600">{weekSummary.completedWorkouts}</div>
+                      <div className="text-xs text-gray-600 font-medium mt-1">✅ Completed</div>
                     </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-orange-600">{weekSummary.pendingWorkouts}</div>
-                      <div className="text-xs text-gray-600">Pendientes</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600">{weekSummary.totalExercises}</div>
-                      <div className="text-xs text-gray-600">Total Ejercicios</div>
+                    <div className="text-center p-3 bg-orange-50 rounded-lg">
+                      <div className="text-3xl font-bold text-orange-600">{weekSummary.pendingWorkouts}</div>
+                      <div className="text-xs text-gray-600 font-medium mt-1">⏳ Pending</div>
                     </div>
                   </div>
-                  <div className="border-t border-gray-200 pt-3">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Tiempo estimado total:</span>
-                      <span className="font-semibold text-gray-800">{weekSummary.totalEstimatedDuration} min</span>
+                  
+                  {/* Completion percentage highlight */}
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 mb-3">
+                    <div className="text-center">
+                      <div className="text-4xl font-bold text-gray-800 mb-1">{completionPercentage}%</div>
+                      <div className="text-sm text-gray-600 font-medium">Completed this week</div>
                     </div>
-                    <div className="flex justify-between items-center text-sm mt-1">
-                      <span className="text-gray-600">Tipos de ejercicio:</span>
-                      <span className="font-semibold text-gray-800">{weekSummary.exerciseTypesCount}</span>
+                    <div className="w-full bg-gray-200 rounded-full h-3 mt-3">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300 shadow-sm"
+                        style={{ width: `${completionPercentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  {/* Additional information */}
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Total Exercises:</span>
+                      <span className="font-semibold text-gray-800">{weekSummary.totalExercises}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Estimated time:</span>
+                      <span className="font-semibold text-gray-800">{weekSummary.totalEstimatedDuration} min</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Lista de workouts */}
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium text-gray-700">Workouts de la semana:</h4>
+                {/* Workouts list */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">This week's workouts:</h4>
                   {weekSummary.workouts.map((workout, index) => {
                     const duration = calculateWorkoutDuration(workout.exerciseTypes || []);
                     const workoutId = workout.id || `workout-${index}-${workout.name || 'unnamed'}`;
@@ -399,36 +479,88 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                     const exerciseCount = (workout.exerciseTypes || []).reduce((total, type) => {
                       return total + (type.exercises || []).length;
                     }, 0);
+                    const isCompleted = workout.completed;
 
                     return (
-                      <div key={workoutKey} className="bg-white rounded border border-gray-200">
+                      <div 
+                        key={workoutKey} 
+                        className={`bg-white rounded-lg border-2 transition-all ${
+                          isCompleted 
+                            ? 'border-green-500 bg-green-50' 
+                            : 'border-gray-300 hover:border-blue-400'
+                        }`}
+                      >
                         <div 
-                          className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-50"
+                          className="flex items-center justify-between p-3 cursor-pointer hover:bg-opacity-50"
                           onClick={() => toggleWorkoutExpansion(workoutId)}
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm font-medium text-gray-800">
-                                {workout.name || `Workout ${index + 1}`}
-                              </div>
-                              {workout.completed && (
-                                <CheckCircle className="w-4 h-4 text-green-500" />
+                          <div className="flex items-center gap-3 flex-1">
+                            {/* Indicador de estado */}
+                            <div className="flex-shrink-0">
+                              {isCompleted ? (
+                                <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+                                  <CheckCircle className="w-5 h-5 text-white" />
+                                </div>
+                              ) : (
+                                <div className="w-8 h-8 rounded-full border-2 border-gray-400 flex items-center justify-center">
+                                  <Circle className="w-4 h-4 text-gray-400" />
+                                </div>
                               )}
                             </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {exerciseCount} ejercicios • {duration} • {workout.estimatedDuration || 0} min
-                            </div>
-                            {workout.date && (
-                              <div className="text-xs text-gray-400 mt-1">
-                                {new Date(workout.date).toLocaleDateString()}
+                            
+                            {/* Información del workout */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className={`text-sm font-semibold ${
+                                  isCompleted ? 'text-green-800' : 'text-gray-800'
+                                }`}>
+                                  {workout.name || `Workout ${index + 1}`}
+                                </div>
+                                {isCompleted && (
+                                  <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded-full font-medium">
+                                    Completed
+                                  </span>
+                                )}
+                                {!isCompleted && (
+                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full font-medium">
+                                    Pending
+                                  </span>
+                                )}
                               </div>
+                              <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                                <span className="flex items-center gap-1">
+                                  <span className="font-medium">{exerciseCount}</span> exercises
+                                </span>
+                                <span>•</span>
+                                <span>{duration}</span>
+                                {workout.estimatedDuration && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{workout.estimatedDuration} min</span>
+                                  </>
+                                )}
+                              </div>
+                              {workout.date && (
+                                <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(workout.date).toLocaleDateString('en-US', { 
+                                    weekday: 'short', 
+                                    day: 'numeric', 
+                                    month: 'short' 
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Botón expandir */}
+                          <div className="flex-shrink-0 ml-2">
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-gray-400" />
                             )}
                           </div>
-                          {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-gray-400" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                          )}
                         </div>
 
                         {isExpanded && (
@@ -447,7 +579,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                                 </div>
                                 <div className="space-y-1 pl-2">
                                   {(exerciseType.exercises || []).map((exercise, exerciseIndex) => {
-                                    const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Peso corporal)';
+                                    const weightInfo = exercise.weight > 0 ? ` (${exercise.weight}${exercise.weightUnit})` : ' (Bodyweight)';
                                     const exerciseInfo = exercise.exerciseSubType === 'duration' 
                                       ? `${exercise.sets} sets x ${exercise.duration}s`
                                       : `${exercise.sets} sets x ${exercise.reps} reps`;
@@ -475,10 +607,10 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
                   <Calendar className="w-8 h-8 mx-auto" />
                 </div>
                 <p className="text-sm text-gray-600 mb-2">
-                  No hay workouts para esta semana
+                  No workouts for this week
                 </p>
                 <p className="text-xs text-gray-500">
-                  Chatea con el AI Coach para crear tu rutina semanal
+                  Chat with the AI Coach to create your weekly routine
                 </p>
               </div>
             );
@@ -486,43 +618,41 @@ export function WeeklyPlanManager({ workouts, onAddWorkout }: WeeklyPlanManagerP
         </div>
 
         <div className="bg-gray-50 rounded-lg p-4">
-          <h3 className="font-medium text-gray-800 mb-2">Plan History</h3>
-          <div className="space-y-2 max-h-32 overflow-y-auto">
-            {(weeklyPlans || [])
-              .filter(plan => plan.weekStart.getTime() !== currentWeek.getTime())
-              .sort((a, b) => b.weekStart.getTime() - a.weekStart.getTime())
-              .slice(0, 3)
-              .map((plan) => (
-                <div key={plan.id} className="text-xs text-gray-600 bg-white rounded px-2 py-1">
-                  <div className="font-medium">
-                    {plan.weekStart.toLocaleDateString()} - {getEndOfWeek(plan.weekStart).toLocaleDateString()}
-                  </div>
-                  <div>{plan.workouts.length} workout(s)</div>
+          <h3 className="font-medium text-gray-800 mb-3">Plan History</h3>
+          {loadingStatistics ? (
+            <div className="text-sm text-gray-500">Loading statistics...</div>
+          ) : statistics ? (
+            <div className="space-y-3">
+              {/* # Workouts */}
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs text-gray-600 mb-1"># Workouts</div>
+                <div className="text-2xl font-bold text-gray-800">{statistics.totalWorkouts}</div>
+              </div>
+
+              {/* % Number of Workouts Completed */}
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs text-gray-600 mb-1">% Workouts Completed</div>
+                <div className="text-2xl font-bold text-green-600">{statistics.completionPercentage}%</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {statistics.completedWorkouts} of {statistics.activeWorkouts} workouts
                 </div>
-              ))}
-            {weeklyPlans.length === 0 && (
-              <div className="text-sm text-gray-500">No previous plans</div>
-            )}
-          </div>
+              </div>
+
+              {/* % Workout Weeks */}
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs text-gray-600 mb-1">% Weeks with Completed Workouts</div>
+                <div className="text-2xl font-bold text-blue-600">{statistics.weeksPercentage}%</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {statistics.weeksWithCompletedWorkouts} of {statistics.weeksSinceFirstRoutine} weeks
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">No statistics available</div>
+          )}
         </div>
       </div>
 
-      <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-blue-800">
-            <strong>Estructura jerárquica:</strong> Cada entrenamiento está organizado en <strong>tipos de ejercicio</strong> (Calentamiento, Fuerza, Cardio, Estiramiento) que contienen <strong>ejercicios específicos</strong>. 
-            Esta estructura permite una mejor organización y visualización del plan de entrenamiento.
-            {weekExpired && " ¡Tu semana actual ha terminado - es hora de planificar la próxima semana!"}
-          </p>
-          <button
-            onClick={clearCorruptedData}
-            className="text-xs px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
-            title="Limpiar datos corruptos si hay errores"
-          >
-            Reset Data
-          </button>
-        </div>
-      </div>
 
       {showChatBot && (
         <ChatBot

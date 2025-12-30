@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Dumbbell, User } from 'lucide-react';
+import { User } from 'lucide-react';
+import { DGymLogo } from './DGymLogo';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 
@@ -30,12 +31,12 @@ export function Login({ onLogin }: LoginProps) {
     e.preventDefault();
 
     if (!userName.trim()) {
-      setError('Por favor, ingresa tu nombre');
+      setError('Please enter your name');
       return;
     }
 
     if (userName.trim().length < 2) {
-      setError('El nombre debe tener al menos 2 caracteres');
+      setError('Name must be at least 2 characters');
       return;
     }
 
@@ -57,12 +58,12 @@ export function Login({ onLogin }: LoginProps) {
       }
     } catch (error) {
       console.error('Error decoding Google credential:', error);
-      setError('Error al procesar la autenticación de Google');
+      setError('Error processing Google authentication');
     }
   };
 
   const handleGoogleError = () => {
-    setError('Error al iniciar sesión con Google. Por favor, intenta nuevamente.');
+    setError('Error signing in with Google. Please try again.');
   };
 
   return (
@@ -70,11 +71,11 @@ export function Login({ onLogin }: LoginProps) {
       <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900 flex items-center justify-center px-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-              <Dumbbell className="w-10 h-10 text-blue-600" />
+            <div className="flex justify-center mb-4">
+              <DGymLogo size="lg" showText={false} />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">GymTracker</h1>
-            <p className="text-gray-600">Bienvenido a tu entrenador personal</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">DGym</h1>
+            <p className="text-gray-600">Welcome to your personal trainer</p>
           </div>
 
           {/* Google Sign-In Button */}
@@ -88,7 +89,7 @@ export function Login({ onLogin }: LoginProps) {
                   size="large"
                   text="signin_with"
                   shape="rectangular"
-                  locale="es"
+                  locale="en"
                 />
               </div>
             </div>
@@ -100,7 +101,7 @@ export function Login({ onLogin }: LoginProps) {
               <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">o continúa con tu nombre</span>
+              <span className="px-4 bg-white text-gray-500">or continue with your name</span>
             </div>
           </div>
 
@@ -108,7 +109,7 @@ export function Login({ onLogin }: LoginProps) {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="userName" className="block text-sm font-medium text-gray-700 mb-2">
-                ¿Cuál es tu nombre?
+                What's your name?
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -125,7 +126,7 @@ export function Login({ onLogin }: LoginProps) {
                   className={`block w-full pl-10 pr-3 py-3 border ${
                     error ? 'border-red-300' : 'border-gray-300'
                   } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
-                  placeholder="Ingresa tu nombre"
+                  placeholder="Enter your name"
                 />
               </div>
               {error && (
@@ -137,15 +138,15 @@ export function Login({ onLogin }: LoginProps) {
               type="submit"
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium text-lg"
             >
-              Comenzar Entrenamiento
+              Start Training
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <p className="text-xs text-gray-500">
               {GOOGLE_CLIENT_ID
-                ? 'Tu información se guarda de forma segura'
-                : 'Configura VITE_GOOGLE_CLIENT_ID para habilitar Google Sign-In'
+                ? 'Your information is stored securely'
+                : 'Configure VITE_GOOGLE_CLIENT_ID to enable Google Sign-In'
               }
             </p>
           </div>
