@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "tsx server/index.ts",
+    "server:prod": "tsx server/production.ts",
+    "start": "tsx server/production.ts"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",
