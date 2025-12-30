@@ -601,6 +601,15 @@ NEVER omit restTime. RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS
     }
   };
 
+  // Helper function to get start of week (Monday)
+  const getStartOfWeek = (date: Date): Date => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start of week
+    return new Date(d.setDate(diff));
+  };
+
   const processWorkoutData = async (data: any, dayIndex: number): Promise<Workout | null> => {
     try {
       console.log(`🔄 Procesando datos del workout día ${dayIndex + 1}:`, data);
@@ -610,9 +619,61 @@ NEVER omit restTime. RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS
         return null;
       }
 
-      // Obtener la fecha del workout
-      const workoutDate = data.date || new Date().toISOString().split('T')[0];
+      // Calcular la fecha del workout basándose en el inicio de la semana actual
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const weekStart = getStartOfWeek(today);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+      
+      let workoutDate: string;
+      
+      // Si el AI proporcionó una fecha, validarla contra el rango de la semana
+      if (data.date) {
+        const providedDate = new Date(data.date);
+        providedDate.setHours(0, 0, 0, 0);
+        
+        // Si la fecha proporcionada está dentro del rango de la semana, usarla
+        if (providedDate >= weekStart && providedDate <= weekEnd) {
+          workoutDate = providedDate.toISOString().split('T')[0];
+        } else {
+          // Si está fuera del rango, calcular basándose en dayIndex
+          const calculatedDate = new Date(weekStart);
+          calculatedDate.setDate(weekStart.getDate() + Math.min(dayIndex, 6));
+          workoutDate = calculatedDate.toISOString().split('T')[0];
+        }
+      } else {
+        // Si no hay fecha proporcionada, calcular basándose en dayIndex
+        // dayIndex 0 = lunes, 1 = martes, etc.
+        const calculatedDate = new Date(weekStart);
+        calculatedDate.setDate(weekStart.getDate() + Math.min(dayIndex, 6));
+        
+        // Asegurar que la fecha no sea anterior a hoy (si estamos en la semana actual)
+        const todayDate = new Date(today);
+        if (calculatedDate < todayDate && todayDate >= weekStart && todayDate <= weekEnd) {
+          // Si la fecha calculada es anterior a hoy, usar hoy o el próximo día disponible
+          workoutDate = todayDate.toISOString().split('T')[0];
+        } else {
+          workoutDate = calculatedDate.toISOString().split('T')[0];
+        }
+      }
+      
+      // Validación final: asegurar que la fecha esté dentro del rango de la semana
+      const finalDateObj = new Date(workoutDate);
+      if (finalDateObj < weekStart) {
+        workoutDate = weekStart.toISOString().split('T')[0];
+      } else if (finalDateObj > weekEnd) {
+        workoutDate = weekEnd.toISOString().split('T')[0];
+      }
       const dayId = `day-${workoutDate.replace(/-/g, '')}-${String(dayIndex + 1).padStart(3, '0')}`;
+      
+      console.log(`📅 Fecha asignada al workout día ${dayIndex + 1}:`, {
+        weekStart: weekStart.toISOString().split('T')[0],
+        weekEnd: weekEnd.toISOString().split('T')[0],
+        workoutDate: workoutDate,
+        dayIndex: dayIndex
+      });
 
       console.log(`🔄 Preparando workout - DayId: ${dayId}, Date: ${workoutDate}`);
       console.log('ℹ️ El ID será generado automáticamente por el backend (código numérico secuencial)');
