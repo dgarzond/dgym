@@ -1,22 +1,18 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 run = "cd project && npm run build && npm run preview"
 
 [nix]
 channel = "stable-24_05"
+packages = ["xsel"]
 
 [deployment]
-<<<<<<< HEAD
-run = ["sh", "-c", "npm start"]
-build = ["sh", "-c", "npm run build:frontend"]
+run = ["sh", "-c", "cd project && npx vite preview --host 0.0.0.0 --port 5000"]
+build = ["sh", "-c", "cd project && npm run build"]
 deploymentTarget = "cloudrun"
 
 [[ports]]
 localPort = 3001
 externalPort = 3001
-=======
-run = ["sh", "-c", "cd project && npx vite preview --host 0.0.0.0 --port 5000"]
-build = ["sh", "-c", "cd project && npm run build"]
->>>>>>> 180dde5eba210ea1adaf52c3431717bbb8b830b9
 
 [[ports]]
 localPort = 5000
@@ -24,10 +20,18 @@ externalPort = 80
 
 [[ports]]
 localPort = 5173
-externalPort = 5173
+externalPort = 5000
+
+[[ports]]
+localPort = 5174
+externalPort = 3002
+
+[[ports]]
+localPort = 41005
+externalPort = 3000
 
 [workflows]
-runButton = "Build and Serve"
+runButton = "Full Stack Dev"
 
 [[workflows.workflow]]
 name = "Build and Preview"
@@ -63,3 +67,19 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd project && npm run dev"
+
+[[workflows.workflow]]
+name = "Full Stack Dev"
+author = 42167165
+mode = "parallel"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd server && npx tsx index.ts"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd project && npm run dev"
+
+[agent]
+expertMode = true
