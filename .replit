@@ -31,7 +31,7 @@ localPort = 41005
 externalPort = 3000
 
 [workflows]
-runButton = "Project"
+runButton = "Full Stack Dev"
 
 [[workflows.workflow]]
 name = "Build and Preview"
@@ -80,6 +80,10 @@ args = "cd server && npx tsx index.ts"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd project && npm run dev"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm list dotenv"
 
 [[workflows.workflow]]
 name = "Project"
