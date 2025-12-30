@@ -163,11 +163,6 @@ export function WeeklyPlanManager({ workouts, onAddWorkout, userId, isVisible = 
     return new Date() > weekEnd;
   };
 
-  const canCreateNewPlan = (): boolean => {
-    const currentPlan = getCurrentWeekPlan();
-    if (!currentPlan) return true;
-    return isWeekExpired(currentPlan.weekStart);
-  };
 
   const calculateWorkoutDuration = (exerciseTypes: ExerciseType[]): string => {
     let minDuration = 0;
@@ -396,8 +391,7 @@ export function WeeklyPlanManager({ workouts, onAddWorkout, userId, isVisible = 
           )}
           <button
             onClick={() => setShowChatBot(true)}
-            disabled={!canCreateNewPlan() && !weekExpired}
-            className="flex items-center px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs sm:text-sm whitespace-nowrap"
+            className="flex items-center px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-xs sm:text-sm whitespace-nowrap"
           >
             <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1 md:mr-2" />
             <span className="hidden sm:inline">Chat with AI Coach</span>
