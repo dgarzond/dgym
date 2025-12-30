@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 
 // === MIDDLEWARE SETUP ===
 app.use(cors({
@@ -162,29 +162,6 @@ async function initializeTables(retries = 3) {
   } finally {
     client.release();
   }
-}
-
-// Función helper para calcular el número de semana ISO
-function getWeekNumber(date: Date): { weekNumber: number; year: number; weekStart: Date; weekEnd: Date } {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  const year = d.getUTCFullYear();
-  
-  // Calcular inicio y fin de semana (lunes a domingo)
-  const weekStart = new Date(date);
-  const day = weekStart.getDay();
-  const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1); // Ajustar a lunes
-  weekStart.setDate(diff);
-  weekStart.setHours(0, 0, 0, 0);
-  
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
-  
-  return { weekNumber, year, weekStart, weekEnd };
 }
 
 // Función helper para calcular el número de semana ISO
@@ -780,7 +757,7 @@ app.post('/api/exercises', async (req, res) => {
 
     const exerciseWithSets = {
       ...createdExercise,
-      setDetails: setsResult.rows.map(set => ({
+      setDetails: setsResult.rows.map((set: any) => ({
         id: `${createdExercise.id}-set-${set.set_number}`,
         reps: set.target_reps,
         duration: set.target_duration,
@@ -975,7 +952,7 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
           const setsResult = await client.query('SELECT * FROM exercise_sets WHERE exercise_id = $1 ORDER BY set_number', [exercise.id]);
           exercises.push({
             ...exercise,
-            setDetails: setsResult.rows.map(set => ({
+            setDetails: setsResult.rows.map((set: any) => ({
               id: `${exercise.id}-set-${set.set_number}`,
               reps: set.target_reps,
               duration: set.target_duration,
@@ -1246,8 +1223,9 @@ app.get('/health', async (req, res) => {
 const distPath = path.join(__dirname, '../project/dist');
 
 if (!fs.existsSync(distPath)) {
-  console.error(`❌ Error: El directorio ${distPath} no existe`);
-  console.error('Por favor ejecuta "cd project && npm run build" primero');
+  console.warn(`⚠️ Advertencia: El directorio ${distPath} no existe`);
+  console.warn('⚠️ El frontend no estará disponible hasta que se compile');
+  console.warn('⚠️ Ejecuta "cd project && npm run build" para compilar el frontend');
 }
 
 // Serve static files from dist
@@ -1267,21 +1245,39 @@ app.get(/.*/, (req, res) => {
 async function startServer() {
   try {
     await initializeTables();
-    
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-      console.log(`📊 Base de datos conectada exitosamente`);
-      console.log(`📂 Serving files from: ${distPath}`);
-      console.log(`🌐 API routes available at /api/*`);
-    });
+    console.log(`📊 Base de datos conectada exitosamente`);
   } catch (error: any) {
-    console.error('❌ Error fatal al iniciar el servidor:', error.message);
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on http://0.0.0.0:${PORT} (sin base de datos)`);
-      console.log(`📂 Serving files from: ${distPath}`);
-    });
+    console.error('❌ Error al conectar a la base de datos:', error.message);
+    console.warn('⚠️ El servidor continuará ejecutándose pero la base de datos no está disponible');
   }
+  
+  // Iniciar el servidor siempre, incluso si la base de datos falla
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+    console.log(`📂 Serving files from: ${distPath}`);
+    console.log(`🌐 API routes available at /api/*`);
+    console.log(`✅ Server started successfully`);
+  }).on('error', (error: any) => {
+    console.error('❌ Error al iniciar el servidor:', error.message);
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Puerto ${PORT} ya está en uso`);
+    }
+    process.exit(1);
+  });
 }
 
-startServer().catch(console.error);
+// Manejar errores no capturados
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  // No salir del proceso, permitir que el servidor continúe
+});
+
+startServer().catch((error) => {
+  console.error('❌ Error fatal al iniciar el servidor:', error);
+  process.exit(1);
+});
 

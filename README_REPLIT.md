@@ -22,7 +22,9 @@ Una vez que el código esté en Replit, ejecuta en la terminal:
 npm install
 ```
 
-Esto instalará todas las dependencias necesarias, incluyendo `dotenv`, `express`, `pg`, etc.
+Esto instalará todas las dependencias necesarias, incluyendo `dotenv`, `express`, `pg`, `@types/pg`, etc.
+
+**Nota:** El proceso de build automáticamente ejecutará `npm install` antes de compilar, pero es recomendable ejecutarlo manualmente la primera vez.
 
 ### 3. Configurar variables de entorno
 
