@@ -1,11 +1,11 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
-run = "npm install && npm run build:all && npm start"
+modules = ["nodejs-20", "web"]
+run = "cd project && npm run build && npm run preview"
 
 [nix]
 channel = "stable-24_05"
-packages = ["xsel"]
 
 [deployment]
+<<<<<<< HEAD
 run = ["sh", "-c", "npm start"]
 build = ["sh", "-c", "npm run build:frontend"]
 deploymentTarget = "cloudrun"
@@ -13,6 +13,10 @@ deploymentTarget = "cloudrun"
 [[ports]]
 localPort = 3001
 externalPort = 3001
+=======
+run = ["sh", "-c", "cd project && npx vite preview --host 0.0.0.0 --port 5000"]
+build = ["sh", "-c", "cd project && npm run build"]
+>>>>>>> 180dde5eba210ea1adaf52c3431717bbb8b830b9
 
 [[ports]]
 localPort = 5000
@@ -22,16 +26,8 @@ externalPort = 80
 localPort = 5173
 externalPort = 5173
 
-[[ports]]
-localPort = 5174
-externalPort = 3002
-
-[[ports]]
-localPort = 41005
-externalPort = 3000
-
 [workflows]
-runButton = "Project"
+runButton = "Build and Serve"
 
 [[workflows.workflow]]
 name = "Build and Preview"
@@ -66,50 +62,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd project && npm run build && npx serve dist -s -l 5173"
-
-[[workflows.workflow]]
-name = "Full Stack Dev"
-author = 42167165
-mode = "parallel"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd server && npx tsx index.ts"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd project && npm run build && npx serve dist -s -l 5173"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "production-server"
-
-[[workflows.workflow]]
-name = "production-server"
-author = "agent"
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm install"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run build:all"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm start"
-waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[agent]
-expertMode = true
+args = "cd project && npm run dev"
