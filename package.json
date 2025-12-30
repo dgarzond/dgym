@@ -10,8 +10,8 @@
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"blue,green\"",
     "build": "npm run build:all",
     "build:frontend": "cd project && npm install && npm run build",
-    "build:backend": "cd server && tsc --noEmit",
-    "build:all": "npm run build:frontend && npm run build:backend",
+    "build:backend": "npm install && cd server && tsc --noEmit",
+    "build:all": "npm install && npm run build:frontend && npm run build:backend",
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "tsx server/index.ts",
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@types/pg": "^8.11.6",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
