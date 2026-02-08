@@ -196,13 +196,13 @@ export function WeeklyPlanManager({ workouts, onAddWorkout, userId, isVisible = 
     
     const currentWeekWorkouts = workouts.filter(workout => {
       // Priorizar createdAt para determinar la semana (fecha de creación)
-      // Si no existe createdAt, usar date como fallback
-      // Estas fechas vienen del backend y pueden estar en formato ISO o YYYY-MM-DD
-      const workoutDateString = workout.createdAt || workout.date;
+      // Si no existe createdAt, usar date. Si faltan ambos (ej. Replit sin enviar createdAt), incluir en semana actual
+      const workoutDateString = workout.createdAt || workout.date ||
+        new Date().toISOString().split('T')[0];
       
       if (!workoutDateString) {
         console.log('  ⚠️ Workout sin date ni createdAt:', workout.name);
-        return false;
+        return true; // incluir en semana actual si no hay fecha (no ocultar por fallo de API)
       }
       
       // Extraer solo la parte de fecha (YYYY-MM-DD) sin importar el formato

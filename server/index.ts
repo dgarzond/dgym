@@ -878,6 +878,17 @@ app.get('/api/users/:userId/current-weekly-routine', async (req, res) => {
   }
 });
 
+// Helper: normalizar fecha a ISO para que Replit y local envíen lo mismo (evita diferencias por driver pg)
+function toISO(val: unknown): string | null {
+  if (val == null) return null;
+  if (val instanceof Date) return val.toISOString();
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return null;
+}
+
 // Obtener workouts por weekly_routine_id
 app.get('/api/weekly-routines/:weeklyRoutineId/workouts', async (req, res) => {
   const { weeklyRoutineId } = req.params;
@@ -886,16 +897,19 @@ app.get('/api/weekly-routines/:weeklyRoutineId/workouts', async (req, res) => {
     console.log(`🔍 Obteniendo workouts para weekly_routine_id: ${weeklyRoutineId}`);
     
     const workoutsResult = await client.query(
-      `SELECT w.*, wr.id as weekly_routine_id, wr.week_number, wr.year, wr.name as weekly_routine_name, wr.week_start, wr.week_end
+      `SELECT w.id, w.user_id, w.weekly_routine_id, w.name, w.date, w.day_id, w.estimated_duration, w.completed, w.status, w.created_at, w.updated_at,
+       wr.id as weekly_routine_id, wr.week_number, wr.year, wr.name as weekly_routine_name, wr.week_start, wr.week_end
        FROM workouts w
        LEFT JOIN weekly_routines wr ON w.weekly_routine_id = wr.id
        WHERE w.weekly_routine_id = $1 AND (w.status IS NULL OR w.status != 'ARCHIVED')
-       ORDER BY w.created_at ASC, w.date ASC`,
+       ORDER BY COALESCE(w.created_at, w.date) ASC, w.date ASC`,
       [weeklyRoutineId]
     );
 
     const workouts = [];
     for (const workout of workoutsResult.rows) {
+      const row = workout as Record<string, unknown>;
+      const createdAt = toISO(row.created_at ?? row.createdAt) ?? toISO(row.date) ?? new Date().toISOString();
       const exerciseTypesResult = await client.query(
         'SELECT * FROM exercise_types WHERE workout_id = $1 ORDER BY sort_order',
         [workout.id]
@@ -947,7 +961,7 @@ app.get('/api/weekly-routines/:weeklyRoutineId/workouts', async (req, res) => {
         dayId: workout.day_id,
         estimatedDuration: workout.estimated_duration,
         completed: workout.completed,
-        createdAt: workout.created_at,
+        createdAt,
         weeklyRoutineId: workout.weekly_routine_id,
         weeklyRoutine: workout.weekly_routine_id ? {
           id: workout.weekly_routine_id,
