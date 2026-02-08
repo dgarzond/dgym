@@ -672,9 +672,34 @@ function App() {
           console.log(`📦 Datos del workout:`, {
             id: workout.id,
             name: workout.name,
+            date: workout.date,
             exerciseTypes: workout.exerciseTypes?.length || 0,
             weeklyRoutineId: weeklyRoutineId
           });
+          
+          // Log detallado de la estructura del workout antes de enviarlo
+          if (workout.exerciseTypes && workout.exerciseTypes.length > 0) {
+            console.log(`📋 Estructura completa del workout antes de enviar:`, JSON.stringify({
+              name: workout.name,
+              date: workout.date,
+              exerciseTypes: workout.exerciseTypes.map((et: any) => ({
+                name: et.name,
+                nameSpanish: et.nameSpanish,
+                duration: et.duration,
+                exercisesCount: et.exercises?.length || 0,
+                exercises: et.exercises?.map((ex: any) => ({
+                  name: ex.name,
+                  sets: ex.sets,
+                  reps: ex.reps,
+                  duration: ex.duration,
+                  weight: ex.weight,
+                  restTime: ex.restTime,
+                  exerciseSubType: ex.exerciseSubType,
+                  setDetailsCount: ex.setDetails?.length || 0
+                })) || []
+              }))
+            }, null, 2));
+          }
           
           const result = await api.saveWorkout(user.id, workout, weeklyRoutineId);
           console.log(`✅ Workout "${workout.name}" guardado exitosamente:`, result);
@@ -692,13 +717,41 @@ function App() {
         }
       }
 
-      // 3. Actualizar el estado local con los entrenamientos guardados exitosamente
-      if (savedWorkouts.length > 0) {
+      // 3. Recargar workouts desde el backend para obtener todos los campos actualizados (incluyendo createdAt)
+      if (savedWorkouts.length > 0 && currentWeeklyRoutineId !== null) {
+        try {
+          console.log('🔄 Recargando workouts desde BD para obtener campos actualizados...');
+          const updatedWorkouts = await api.getWorkoutsByWeeklyRoutineId(currentWeeklyRoutineId);
+          console.log('✅ Workouts recargados desde BD:', updatedWorkouts.length);
+          setWorkouts(updatedWorkouts.length > 0 ? updatedWorkouts : []);
+        } catch (error) {
+          console.error('❌ Error recargando workouts desde BD:', error);
+          // Si falla la recarga, usar los workouts guardados localmente como fallback
+          setWorkouts(currentWorkouts => {
+            // Filtrar duplicados locales - solo comparar si ambos IDs están definidos
+            const uniqueNewWorkouts = savedWorkouts.filter(newW => {
+              // Si el workout no tiene ID, no puede ser duplicado (aún no guardado o ID pendiente)
+              if (!newW.id) {
+                return true; // Incluir workouts sin ID (se agregarán con su nuevo ID)
+              }
+              // Solo filtrar como duplicado si existe otro workout con el mismo ID
+              return !currentWorkouts.some(existing => existing.id && existing.id === newW.id);
+            });
+            return [...currentWorkouts, ...uniqueNewWorkouts];
+          });
+        }
+      } else if (savedWorkouts.length > 0) {
+        // Si no hay weeklyRoutineId, usar los workouts guardados localmente
         setWorkouts(currentWorkouts => {
-          // Filtrar duplicados locales
-          const uniqueNewWorkouts = savedWorkouts.filter(newW => 
-            !currentWorkouts.some(existing => existing.id === newW.id)
-          );
+          // Filtrar duplicados locales - solo comparar si ambos IDs están definidos
+          const uniqueNewWorkouts = savedWorkouts.filter(newW => {
+            // Si el workout no tiene ID, no puede ser duplicado (aún no guardado o ID pendiente)
+            if (!newW.id) {
+              return true; // Incluir workouts sin ID (se agregarán con su nuevo ID)
+            }
+            // Solo filtrar como duplicado si existe otro workout con el mismo ID
+            return !currentWorkouts.some(existing => existing.id && existing.id === newW.id);
+          });
           return [...currentWorkouts, ...uniqueNewWorkouts];
         });
       }

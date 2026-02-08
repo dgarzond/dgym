@@ -195,15 +195,47 @@ export function WeeklyPlanManager({ workouts, onAddWorkout, userId, isVisible = 
     })));
     
     const currentWeekWorkouts = workouts.filter(workout => {
-      // Usar createdAt en lugar de date para determinar la semana
-      const workoutCreatedDate = workout.createdAt || workout.date;
+      // Priorizar createdAt para determinar la semana (fecha de creación)
+      // Si no existe createdAt, usar date como fallback
+      // Estas fechas vienen del backend y pueden estar en formato ISO o YYYY-MM-DD
+      const workoutDateString = workout.createdAt || workout.date;
       
-      if (!workoutCreatedDate) {
-        console.log('  ⚠️ Workout sin createdAt ni date:', workout.name);
+      if (!workoutDateString) {
+        console.log('  ⚠️ Workout sin date ni createdAt:', workout.name);
         return false;
       }
       
-      const workoutDate = new Date(workoutCreatedDate);
+      // Extraer solo la parte de fecha (YYYY-MM-DD) sin importar el formato
+      // Esto evita problemas de zona horaria
+      let dateOnly: string;
+      if (typeof workoutDateString === 'string') {
+        // Si viene en formato ISO (2026-01-17T23:00:00.000Z), extraer solo YYYY-MM-DD
+        // Si ya viene en formato YYYY-MM-DD, usarlo directamente
+        if (workoutDateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          dateOnly = workoutDateString;
+        } else if (workoutDateString.match(/^\d{4}-\d{2}-\d{2}T/)) {
+          // Formato ISO: extraer solo la parte de fecha
+          dateOnly = workoutDateString.split('T')[0];
+        } else {
+          // Intentar parsear y extraer la fecha
+          const tempDate = new Date(workoutDateString);
+          const year = tempDate.getFullYear();
+          const month = String(tempDate.getMonth() + 1).padStart(2, '0');
+          const day = String(tempDate.getDate()).padStart(2, '0');
+          dateOnly = `${year}-${month}-${day}`;
+        }
+      } else {
+        // Si es un Date object, extraer YYYY-MM-DD
+        const tempDate = new Date(workoutDateString);
+        const year = tempDate.getFullYear();
+        const month = String(tempDate.getMonth() + 1).padStart(2, '0');
+        const day = String(tempDate.getDate()).padStart(2, '0');
+        dateOnly = `${year}-${month}-${day}`;
+      }
+      
+      // Crear la fecha en hora local para evitar problemas de zona horaria
+      const [year, month, day] = dateOnly.split('-').map(Number);
+      const workoutDate = new Date(year, month - 1, day);
       workoutDate.setHours(0, 0, 0, 0); // Normalizar fecha del workout
       const workoutWeekStart = getStartOfWeek(workoutDate);
       
@@ -211,9 +243,9 @@ export function WeeklyPlanManager({ workouts, onAddWorkout, userId, isVisible = 
       const matches = workoutWeekStart.getTime() === normalizedWeekStart.getTime();
       
       if (matches) {
-        console.log('  ✅ Workout incluido:', workout.name, 'createdAt:', workoutCreatedDate, 'WeekStart:', workoutWeekStart.toISOString());
+        console.log('  ✅ Workout incluido:', workout.name, 'date original:', workoutDateString, 'date procesado:', dateOnly, 'WeekStart:', workoutWeekStart.toISOString());
       } else {
-        console.log('  ❌ Workout excluido:', workout.name, 'createdAt:', workoutCreatedDate, 'WeekStart:', workoutWeekStart.toISOString());
+        console.log('  ❌ Workout excluido:', workout.name, 'date original:', workoutDateString, 'date procesado:', dateOnly, 'WeekStart calculado:', workoutWeekStart.toISOString(), 'Semana actual:', normalizedWeekStart.toISOString());
       }
       
       return matches;

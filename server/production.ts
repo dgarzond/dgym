@@ -639,13 +639,52 @@ app.post('/api/workouts', async (req, res) => {
               console.log('🆔 ID generado automáticamente para exercise:', exerciseId);
             }
 
+            // Validar y normalizar restTime antes de guardar
+            let restTimeValue = exercise.restTime;
+            if (restTimeValue == null || restTimeValue === '' || isNaN(Number(restTimeValue)) || Number(restTimeValue) <= 0) {
+              // Si restTime no es válido, usar valor por defecto basado en el tipo de ejercicio
+              const exerciseTypeName = exType.nameSpanish || exType.name || '';
+              const typeName = exerciseTypeName.toLowerCase();
+              if (typeName.includes('calentamiento')) {
+                restTimeValue = 20;
+              } else if (typeName.includes('fuerza')) {
+                restTimeValue = 90;
+              } else if (typeName.includes('cardio')) {
+                restTimeValue = 45;
+              } else if (typeName.includes('estiramiento')) {
+                restTimeValue = 15;
+              } else {
+                restTimeValue = 60; // Default
+              }
+              console.log(`⚠️ restTime inválido o faltante para "${exercise.name}" (valor recibido: ${exercise.restTime}), usando default: ${restTimeValue}`);
+            } else {
+              restTimeValue = Number(restTimeValue);
+            }
+            
+            console.log(`💾 Guardando ejercicio "${exercise.name}":`, {
+              sets: exercise.sets,
+              reps: exercise.reps,
+              restTime: restTimeValue,
+              weight: exercise.weight
+            });
+
             await client.query(
               `INSERT INTO exercises (id, user_id, exercise_type_id, name, exercise_code, sets, reps, duration, duration_unit, exercise_sub_type, weight, weight_unit, rest_time, completed)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                ON CONFLICT (id) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 exercise_code = EXCLUDED.exercise_code,
+                 sets = EXCLUDED.sets,
+                 reps = EXCLUDED.reps,
+                 duration = EXCLUDED.duration,
+                 duration_unit = EXCLUDED.duration_unit,
+                 exercise_sub_type = EXCLUDED.exercise_sub_type,
+                 weight = EXCLUDED.weight,
+                 weight_unit = EXCLUDED.weight_unit,
+                 rest_time = EXCLUDED.rest_time,
                  completed = EXCLUDED.completed,
                  updated_at = CURRENT_TIMESTAMP`,
-              [exerciseId, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, exercise.exerciseSubType, parseWeight(exercise.weight), exercise.weightUnit, exercise.restTime, exercise.completed]
+              [exerciseId, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, exercise.exerciseSubType, parseWeight(exercise.weight), exercise.weightUnit, restTimeValue, exercise.completed]
             );
 
             // Insertar sets
@@ -1046,6 +1085,16 @@ app.put('/api/workouts/:id', async (req, res) => {
               `INSERT INTO exercises (id, user_id, exercise_type_id, name, exercise_code, sets, reps, duration, duration_unit, exercise_sub_type, weight, weight_unit, rest_time, completed)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                ON CONFLICT (id) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 exercise_code = EXCLUDED.exercise_code,
+                 sets = EXCLUDED.sets,
+                 reps = EXCLUDED.reps,
+                 duration = EXCLUDED.duration,
+                 duration_unit = EXCLUDED.duration_unit,
+                 exercise_sub_type = EXCLUDED.exercise_sub_type,
+                 weight = EXCLUDED.weight,
+                 weight_unit = EXCLUDED.weight_unit,
+                 rest_time = EXCLUDED.rest_time,
                  completed = EXCLUDED.completed,
                  updated_at = CURRENT_TIMESTAMP`,
               [exercise.id, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, exercise.exerciseSubType, parseWeight(exercise.weight), exercise.weightUnit, exercise.restTime, exercise.completed]

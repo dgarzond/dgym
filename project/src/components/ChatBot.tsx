@@ -450,10 +450,57 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
 2. Structure: { "isWeeklyPlan": true, "weekNumber": number, "year": number, "name": "Weekly Plan Name", "workouts": [ ... ] }
 3. Each workout in the array must follow the SINGLE DAY format (id, dayId, name, date, estimatedDuration, exerciseTypes).
 4. For each workout, create proper exercise hierarchy: exerciseTypes -> exercises -> setDetails.
-5. MANDATORY: Use ONLY these 4 exercise categories in SPANISH: "Calentamiento", "Fuerza", "Cardio", "Estiramientos".
-6. EVERY exercise MUST include restTime field with appropriate values in seconds.
 
-NEVER omit restTime. RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
+MANDATORY EXERCISE CATEGORIES (USE EXACTLY THESE IN SPANISH):
+- "Calentamiento" (for warm-up exercises)
+- "Fuerza" (for strength/power exercises) 
+- "Cardio" (for cardiovascular exercises)
+- "Estiramientos" (for stretching/cooldown exercises)
+
+EXACT JSON STRUCTURE REQUIRED FOR EACH WORKOUT:
+{
+  "id": "workout-UNIQUETIMESTAMP",
+  "dayId": "day-20240101-001", 
+  "name": "Workout Name",
+  "date": "2024-01-01",
+  "estimatedDuration": 45,
+  "exerciseTypes": [
+    {
+      "id": "warmup-TIMESTAMP",
+      "name": "Calentamiento",
+      "nameSpanish": "Calentamiento",
+      "duration": "5-10 min",
+      "exercises": [
+        {
+          "id": "exercise-TIMESTAMP",
+          "name": "Exercise Name",
+          "exerciseCode": "EX001",
+          "sets": 3,
+          "reps": 12,
+          "weight": 0,
+          "weightUnit": "kg",
+          "exerciseSubType": "reps",
+          "restTime": 60,
+          "completed": false,
+          "setDetails": [
+            {"set": 1, "reps": 12, "weight": "bodyweight", "completed": false},
+            {"set": 2, "reps": 12, "weight": "bodyweight", "completed": false},
+            {"set": 3, "reps": 12, "weight": "bodyweight", "completed": false}
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+CRITICAL RULES:
+- EVERY exercise MUST have: sets, reps (or duration), weight, weightUnit, exerciseSubType, restTime at the EXERCISE level
+- setDetails should ONLY have: set, reps (or duration), weight, completed - NOT "sets" or "restTime"
+- restTime belongs at EXERCISE level, NOT in setDetails
+- NEVER put "sets" field inside setDetails array
+- restTime values: Calentamiento 15-30s, Fuerza 60-120s, Cardio 30-60s, Estiramientos 10-15s
+
+RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
             },
             {
               role: 'user',
@@ -555,27 +602,15 @@ NEVER omit restTime. RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS
         const workoutData = await convertTextToWorkoutJSON(workoutText);
         const processedWorkout = await processWorkoutData(workoutData, 0);
 
-        if (processedWorkout && processedWorkout.id && processedWorkout.name) {
+        // No verificar el ID aquí porque el backend lo generará automáticamente
+        // Solo verificar que el workout tenga un nombre válido
+        if (processedWorkout && processedWorkout.name) {
           onWorkoutGenerated(processedWorkout);
           
-          // Guardar el chat asociado al workout
-          if (userId) {
-            try {
-              // Convertir mensajes a formato serializable
-              const serializableMessages = messages.map(msg => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                timestamp: msg.timestamp.toISOString()
-              }));
-              
-              await api.saveChat(userId, processedWorkout.id, serializableMessages);
-              console.log('✅ Chat guardado en BD para workout:', processedWorkout.id);
-            } catch (error) {
-              console.error('❌ Error guardando chat:', error);
-              // No bloquear la importación si falla el guardado del chat
-            }
-          }
+          // Nota: El chat se guardará después de que el workout tenga un ID asignado por el backend
+          // No intentar guardar el chat aquí porque processedWorkout.id es undefined
+          // El chat se puede guardar más tarde cuando el workout ya tenga ID
+          console.log('📝 Workout enviado a App.tsx. El chat se guardará después de que el workout tenga ID.');
           
           const successMessage: Message = {
             id: (Date.now() + 2).toString(),
@@ -718,37 +753,138 @@ NEVER omit restTime. RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS
 
                   const defaultRestTime = getDefaultRestTime(type.nameSpanish || type.name || '');
 
+                  // NORMALIZACIÓN: Extraer información de setDetails si no está en el ejercicio
+                  let setsFromDetails = 0;
+                  let repsFromDetails: number | null = null;
+                  let durationFromDetails: number | null = null;
+                  let restTimeFromDetails: number | null = null;
+                  let weightFromDetails: number = 0;
+
+                  if (Array.isArray(exercise.setDetails) && exercise.setDetails.length > 0) {
+                    setsFromDetails = exercise.setDetails.length;
+                    // Extraer reps del primer set si existe
+                    if (exercise.setDetails[0]?.reps != null) {
+                      repsFromDetails = Number(exercise.setDetails[0].reps);
+                    }
+                    // Extraer duration del primer set si existe
+                    if (exercise.setDetails[0]?.duration != null) {
+                      durationFromDetails = Number(exercise.setDetails[0].duration);
+                    }
+                    // Extraer restTime del primer set si existe (aunque debería estar en el ejercicio)
+                    // Buscar en diferentes formatos: restTime, rest, rest_time
+                    if (exercise.setDetails[0]?.restTime != null) {
+                      restTimeFromDetails = Number(exercise.setDetails[0].restTime);
+                    } else if (exercise.setDetails[0]?.rest != null) {
+                      restTimeFromDetails = Number(exercise.setDetails[0].rest);
+                    } else if (exercise.setDetails[0]?.rest_time != null) {
+                      restTimeFromDetails = Number(exercise.setDetails[0].rest_time);
+                    } else {
+                      // Buscar restTime en cualquier set con diferentes nombres de campo
+                      for (const set of exercise.setDetails) {
+                        if (set.restTime != null && set.restTime !== '') {
+                          restTimeFromDetails = Number(set.restTime);
+                          break;
+                        } else if (set.rest != null && set.rest !== '') {
+                          restTimeFromDetails = Number(set.rest);
+                          break;
+                        } else if (set.rest_time != null && set.rest_time !== '') {
+                          restTimeFromDetails = Number(set.rest_time);
+                          break;
+                        }
+                      }
+                    }
+                    
+                    // También buscar restTime directamente en el objeto exercise si viene en diferentes formatos
+                    if (restTimeFromDetails == null && exercise.rest != null && exercise.rest !== '') {
+                      restTimeFromDetails = Number(exercise.rest);
+                    }
+                    if (restTimeFromDetails == null && exercise.rest_time != null && exercise.rest_time !== '') {
+                      restTimeFromDetails = Number(exercise.rest_time);
+                    }
+                    
+                    // Extraer weight del primer set si existe
+                    if (exercise.setDetails[0]?.weight != null) {
+                      const weight = exercise.setDetails[0].weight;
+                      weightFromDetails = weight === 'bodyweight' ? 0 : Number(weight) || 0;
+                    }
+                  }
+                  
+                  // Log para debugging del restTime
+                  console.log(`🔍 Debug restTime para ejercicio "${exercise.name}":`, {
+                    'exercise.restTime': exercise.restTime,
+                    'exercise.rest': exercise.rest,
+                    'exercise.rest_time': exercise.rest_time,
+                    'restTimeFromDetails': restTimeFromDetails,
+                    'defaultRestTime': defaultRestTime,
+                    'final restTime calculado': exercise.restTime != null && exercise.restTime !== '' ? Number(exercise.restTime) : (restTimeFromDetails != null ? restTimeFromDetails : defaultRestTime)
+                  });
+
                   // El backend generará el ID automáticamente
+                  // Usar nullish coalescing (??) en lugar de || para evitar que 0 se convierta en valor por defecto
                   const processedExercise = {
                     id: undefined, // El backend generará el ID automáticamente
                     name: exercise.name || `Ejercicio ${exerciseIndex + 1}`,
                     exerciseCode: exercise.exerciseCode || `EX${String(exerciseIndex + 1).padStart(3, '0')}`,
-                    sets: Number(exercise.sets) || 3,
-                    reps: Number(exercise.reps) || 10,
-                    weight: Number(exercise.weight) || 0,
+                    // Extraer sets del ejercicio, o de setDetails, o usar default
+                    sets: exercise.sets != null ? Number(exercise.sets) : (setsFromDetails > 0 ? setsFromDetails : 3),
+                    // Extraer reps del ejercicio, o de setDetails, o null si es ejercicio de duración
+                    reps: exercise.reps != null ? Number(exercise.reps) : repsFromDetails,
+                    // Extraer duration del ejercicio, o de setDetails
+                    duration: exercise.duration != null ? Number(exercise.duration) : durationFromDetails,
+                    durationUnit: exercise.durationUnit || 'seconds',
+                    // Extraer weight del ejercicio, o de setDetails, o 0
+                    weight: exercise.weight != null ? Number(exercise.weight) : weightFromDetails,
                     weightUnit: exercise.weightUnit || 'kg',
-                    exerciseSubType: exercise.exerciseSubType || 'reps',
-                    restTime: Number(exercise.restTime) || defaultRestTime,
+                    // Determinar si es reps o duration basado en los datos disponibles
+                    exerciseSubType: exercise.exerciseSubType || (durationFromDetails != null || exercise.duration != null ? 'duration' : 'reps'),
+                    // Extraer restTime del ejercicio, o de setDetails, o usar default
+                    // Convertir a número y asegurar que no sea NaN o 0
+                    restTime: (() => {
+                      let restTimeValue: number;
+                      if (exercise.restTime != null && exercise.restTime !== '') {
+                        restTimeValue = Number(exercise.restTime);
+                        if (!isNaN(restTimeValue) && restTimeValue > 0) {
+                          return restTimeValue;
+                        }
+                      }
+                      if (restTimeFromDetails != null) {
+                        restTimeValue = Number(restTimeFromDetails);
+                        if (!isNaN(restTimeValue) && restTimeValue > 0) {
+                          return restTimeValue;
+                        }
+                      }
+                      return defaultRestTime;
+                    })(),
                     completed: false,
                     setDetails: []
                   };
 
                   // Procesar setDetails si existen
                   if (Array.isArray(exercise.setDetails) && exercise.setDetails.length > 0) {
-                    processedExercise.setDetails = exercise.setDetails.map((set: any, setIndex: number) => ({
-                      id: set.id || `set-${setIndex + 1}`, // ID temporal, se actualizará con el exerciseId del backend
-                      set: Number(set.set) || setIndex + 1,
-                      reps: Number(set.reps) || processedExercise.reps,
-                      weight: set.weight === 'bodyweight' ? 'bodyweight' : Number(set.weight) || processedExercise.weight,
-                      completed: Boolean(set.completed),
-                      weightUnit: set.weightUnit || processedExercise.weightUnit
-                    }));
+                    processedExercise.setDetails = exercise.setDetails.map((set: any, setIndex: number) => {
+                      // Normalizar: si setDetails tiene "sets", ignorarlo y usar el índice
+                      const setNumber = set.set != null ? Number(set.set) : (setIndex + 1);
+                      
+                      return {
+                        id: set.id || `set-${setIndex + 1}`, // ID temporal, se actualizará con el exerciseId del backend
+                        set: setNumber,
+                        // Extraer reps del set, o del ejercicio
+                        reps: set.reps != null ? Number(set.reps) : processedExercise.reps,
+                        // Extraer duration del set, o del ejercicio
+                        duration: set.duration != null ? Number(set.duration) : processedExercise.duration,
+                        // Extraer weight del set, o del ejercicio
+                        weight: set.weight === 'bodyweight' ? 'bodyweight' : (set.weight != null ? Number(set.weight) : processedExercise.weight),
+                        completed: Boolean(set.completed),
+                        weightUnit: set.weightUnit || processedExercise.weightUnit
+                      };
+                    });
                   } else {
-                    // Crear setDetails por defecto
+                    // Crear setDetails por defecto basado en los valores del ejercicio
                     processedExercise.setDetails = Array.from({ length: processedExercise.sets }, (_, setIndex) => ({
                       id: `set-${setIndex + 1}`, // ID temporal, se actualizará con el exerciseId del backend
                       set: setIndex + 1,
                       reps: processedExercise.reps,
+                      duration: processedExercise.duration,
                       weight: processedExercise.weight,
                       completed: false,
                       weightUnit: processedExercise.weightUnit
