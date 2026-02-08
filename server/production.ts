@@ -156,6 +156,12 @@ async function initializeTables(retries = 3) {
       CREATE INDEX IF NOT EXISTS idx_exercise_sets_exercise_id ON exercise_sets(exercise_id);
       CREATE INDEX IF NOT EXISTS idx_weekly_routines_user_id ON weekly_routines(user_id);
     `);
+
+    await client.query(`
+      ALTER TABLE workouts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE workouts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `).catch(() => {});
+
     console.log('✅ Tablas de base de datos inicializadas correctamente');
   } catch (error) {
     console.error('❌ Error inicializando tablas:', error);
