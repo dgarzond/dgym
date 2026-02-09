@@ -931,6 +931,7 @@ app.get('/api/weekly-routines/:weeklyRoutineId/workouts', async (req, res) => {
 
           exercises.push({
             ...exercise,
+            restTime: exercise.rest_time ?? 60,
             setDetails: setsResult.rows.map((set: any) => ({
               id: `${exercise.id}-set-${set.set_number}`,
               reps: set.target_reps,

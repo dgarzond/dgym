@@ -930,6 +930,7 @@ app.get('/api/weekly-routines/:weeklyRoutineId/workouts', async (req, res) => {
 
           exercises.push({
             ...exercise,
+            restTime: exercise.rest_time ?? 60,
             setDetails: setsResult.rows.map((set: any) => ({
               id: `${exercise.id}-set-${set.set_number}`,
               reps: set.target_reps,
@@ -1011,6 +1012,7 @@ app.get('/api/users/:userId/workouts', async (req, res) => {
           const setsResult = await client.query('SELECT * FROM exercise_sets WHERE exercise_id = $1 ORDER BY set_number', [exercise.id]);
           exercises.push({
             ...exercise,
+            restTime: exercise.rest_time ?? 60,
             setDetails: setsResult.rows.map((set: any) => ({
               id: `${exercise.id}-set-${set.set_number}`,
               reps: set.target_reps,
