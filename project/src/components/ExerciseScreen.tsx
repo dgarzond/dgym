@@ -47,6 +47,12 @@ export function ExerciseScreen({
   const [exerciseStartTime, setExerciseStartTime] = useState<number>(Date.now());
   const [restStartTime, setRestStartTime] = useState<number | null>(null);
 
+  // Timer de trabajo para ejercicios por tiempo (subtype time/seconds/minutes/duration)
+  const [isWorkTimerActive, setIsWorkTimerActive] = useState(false);
+  const [workTimerRemaining, setWorkTimerRemaining] = useState(0);
+  const [workStartTime, setWorkStartTime] = useState<number | null>(null);
+  const [workDurationTotalSeconds, setWorkDurationTotalSeconds] = useState(0);
+
   // Guardar progreso en localStorage
   useEffect(() => {
     try {
@@ -104,6 +110,10 @@ export function ExerciseScreen({
     setIsResting(false);
     setRestTimer(exercise.restTime || 60);
     setRestStartTime(null);
+    setIsWorkTimerActive(false);
+    setWorkTimerRemaining(0);
+    setWorkStartTime(null);
+    setWorkDurationTotalSeconds(0);
   }, [exercise?.id]);
 
   // Timer de ejercicio basado en tiempo del sistema
@@ -162,6 +172,33 @@ export function ExerciseScreen({
     };
   }, [isResting, restStartTime, exercise.restTime]);
 
+  // Timer de trabajo (cuenta atrás) para ejercicios por tiempo: al llegar a 0 → completar set y pasar a descanso
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    if (isWorkTimerActive && workStartTime !== null && workDurationTotalSeconds > 0) {
+      const updateWorkTimer = () => {
+        const elapsed = Math.floor((Date.now() - workStartTime!) / 1000);
+        const remaining = Math.max(0, workDurationTotalSeconds - elapsed);
+        setWorkTimerRemaining(remaining);
+
+        if (remaining <= 0) {
+          setIsWorkTimerActive(false);
+          setWorkStartTime(null);
+          setWorkTimerRemaining(0);
+          handleSetComplete(undefined, currentWeight, workDurationTotalSeconds);
+        }
+      };
+
+      updateWorkTimer();
+      interval = setInterval(updateWorkTimer, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isWorkTimerActive, workStartTime, workDurationTotalSeconds]);
+
   // Función para manejar el final del descanso
   const handleRestComplete = () => {
     setIsResting(false);
@@ -188,6 +225,18 @@ export function ExerciseScreen({
     return unit === 'minutes' ? duration * 60 : duration;
   };
 
+  // Ejercicios por tiempo: subtype en { time, seconds, minutes, duration } muestran contador antes del descanso
+  const isTimeBasedSubType = (): boolean => {
+    const sub = exercise.exerciseSubType?.toLowerCase?.();
+    return sub === 'duration' || sub === 'time' || sub === 'seconds' || sub === 'minutes';
+  };
+
+  const getCurrentSetDurationSeconds = (): number => {
+    const duration = setDetails[currentSet]?.duration ?? exercise.duration ?? 30;
+    const unit = (setDetails[currentSet] as Set & { durationUnit?: string })?.durationUnit ?? exercise.durationUnit ?? 'seconds';
+    return getDurationInSeconds(Number(duration), unit === 'minutes' ? 'minutes' : 'seconds');
+  };
+
   const formatDuration = (duration: number, unit: 'seconds' | 'minutes' = 'seconds') => {
     if (unit === 'minutes') {
       return `${duration} min`;
@@ -200,6 +249,14 @@ export function ExerciseScreen({
     const newWeight = weightUnit === 'kg' ? kgToLbs(currentWeight) : lbsToKg(currentWeight);
     setWeightUnit(newUnit);
     setCurrentWeight(newWeight);
+  };
+
+  const handleStartWorkTimer = () => {
+    const totalSeconds = getCurrentSetDurationSeconds();
+    setWorkDurationTotalSeconds(totalSeconds);
+    setWorkTimerRemaining(totalSeconds);
+    setWorkStartTime(Date.now());
+    setIsWorkTimerActive(true);
   };
 
   const handleSetComplete = (actualReps?: number, actualWeight?: number, actualDuration?: number) => {
@@ -317,6 +374,61 @@ export function ExerciseScreen({
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Saltar Descanso
               </button>
+            </div>
+          ) : isTimeBasedSubType() && isWorkTimerActive ? (
+            <div className="text-center p-8 bg-amber-50 rounded-lg border-2 border-amber-200">
+              <h2 className="text-xl font-semibold mb-4 text-amber-800">Tiempo del ejercicio</h2>
+              <div className="text-4xl font-bold text-amber-600 mb-4">
+                {formatTime(workTimerRemaining)}
+              </div>
+              <p className="text-sm text-amber-700 mb-4">
+                Mantén el ejercicio hasta que termine el contador. Luego pasarás al descanso.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsWorkTimerActive(false);
+                  setWorkStartTime(null);
+                  setWorkTimerRemaining(0);
+                  handleSetComplete(undefined, currentWeight, workDurationTotalSeconds);
+                }}
+                className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 flex items-center mx-auto"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Completar y pasar a descanso
+              </button>
+            </div>
+          ) : isTimeBasedSubType() ? (
+            <div className="space-y-6">
+              <div className="bg-amber-50 p-4 rounded-lg border-l-4 border-amber-500">
+                <div className="flex items-center">
+                  <Timer className="w-5 h-5 text-amber-600 mr-2" />
+                  <span className="font-medium text-amber-800">Ejercicio por tiempo</span>
+                </div>
+                <p className="text-sm text-amber-700 mt-1">
+                  Pulsa &quot;Empezar con el tiempo&quot; y mantén el ejercicio durante el tiempo indicado. Al terminar el contador irás al descanso.
+                </p>
+              </div>
+              <div className="bg-gray-50 p-6 rounded-lg text-center">
+                <h3 className="text-lg font-medium mb-2">Duración del set</h3>
+                <p className="text-3xl font-bold text-amber-600 mb-6">
+                  {getCurrentSetDurationSeconds() >= 60
+                    ? `${Math.floor(getCurrentSetDurationSeconds() / 60)}:${String(getCurrentSetDurationSeconds() % 60).padStart(2, '0')} min`
+                    : `${getCurrentSetDurationSeconds()} segundos`}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleStartWorkTimer}
+                  className="w-full py-4 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-lg font-medium"
+                >
+                  ⏱️ Empezar con el tiempo
+                </button>
+                <div className="mt-4 p-3 bg-yellow-50 rounded-md">
+                  <p className="text-sm text-yellow-800">
+                    ⏳ Después del tiempo: descanso de <span className="font-medium">{exercise.restTime || 60} segundos</span>
+                  </p>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-6">

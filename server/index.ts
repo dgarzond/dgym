@@ -570,6 +570,12 @@ async function saveOrUpdateWorkout(req: express.Request, res: express.Response) 
       return w;
     };
 
+    const getExerciseSubType = (ex: any): string => {
+      const value = ex?.exerciseSubType ?? ex?.exercise_sub_type;
+      if (value != null && String(value).trim() !== '') return String(value).trim();
+      return 'reps';
+    };
+
     // ============================================
     // PASO 1: Verificar si el workout ya existe (UPDATE) o es nuevo (INSERT)
     // ============================================
@@ -681,7 +687,7 @@ async function saveOrUpdateWorkout(req: express.Request, res: express.Response) 
     // PASO 4: CREAR/ACTUALIZAR el workout
     // ============================================
     if (existingWorkout) {
-      // UPDATE: Solo actualizar campos permitidos, NO cambiar weekly_routine_id
+      // UPDATE: Solo actualizar campos permitidos, NO cambiar weekly_routine_id ni exercise_types
       await client.query(
         `UPDATE workouts SET
          name = $1,
@@ -691,7 +697,47 @@ async function saveOrUpdateWorkout(req: express.Request, res: express.Response) 
          WHERE id = $4`,
         [workout.name, workout.date, workout.completed, workoutId]
       );
-      console.log(`✅ Workout actualizado (weekly_routine_id preservado: ${existingWorkout.weekly_routine_id})`);
+      console.log(`✅ Workout existente actualizado (weekly_routine_id y exercise_types preservados)`);
+      // Para workout existente: solo actualizar ejercicios y sets (igual que production PUT), NUNCA tocar exercise_types
+      if (workout.exerciseTypes && Array.isArray(workout.exerciseTypes)) {
+        for (const exType of workout.exerciseTypes) {
+          if (!exType.exercises || !Array.isArray(exType.exercises)) continue;
+          for (const exercise of exType.exercises) {
+            const exerciseId = (exercise.id != null && String(exercise.id).trim() !== '') ? String(exercise.id).trim() : null;
+            if (!exerciseId) continue;
+            let restTimeValue = exercise.restTime;
+            if (restTimeValue == null || restTimeValue === '' || isNaN(Number(restTimeValue)) || Number(restTimeValue) <= 0) {
+              restTimeValue = 60;
+            } else {
+              restTimeValue = Number(restTimeValue);
+            }
+            await client.query(
+              `UPDATE exercises SET
+                 name = $1, exercise_code = $2, sets = $3, reps = $4, duration = $5, duration_unit = $6,
+                 exercise_sub_type = $7, weight = $8, weight_unit = $9, rest_time = $10, completed = $11,
+                 updated_at = CURRENT_TIMESTAMP
+               WHERE id = $12 AND user_id = $13`,
+              [exercise.name, exercise.exerciseCode ?? null, exercise.sets, exercise.reps ?? null, exercise.duration ?? null, exercise.durationUnit ?? null, getExerciseSubType(exercise), parseWeight(exercise.weight), exercise.weightUnit ?? 'kg', restTimeValue, exercise.completed ?? false, exerciseId, userId]
+            );
+            if (exercise.setDetails && Array.isArray(exercise.setDetails)) {
+              for (let k = 0; k < exercise.setDetails.length; k++) {
+                const set = exercise.setDetails[k];
+                await client.query(
+                  `INSERT INTO exercise_sets (exercise_id, set_number, target_reps, target_duration, target_weight, actual_reps, actual_duration, actual_weight, weight_unit, completed)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                   ON CONFLICT (exercise_id, set_number) DO UPDATE SET
+                     actual_reps = EXCLUDED.actual_reps,
+                     actual_duration = EXCLUDED.actual_duration,
+                     actual_weight = EXCLUDED.actual_weight,
+                     completed = EXCLUDED.completed,
+                     updated_at = CURRENT_TIMESTAMP`,
+                  [exerciseId, k + 1, set.reps ?? null, set.duration ?? null, parseWeight(set.weight), set.actualReps ?? null, set.actualDuration ?? null, parseWeight(set.actualWeight), set.weightUnit || 'kg', set.completed ?? false]
+                );
+              }
+            }
+          }
+        }
+      }
     } else {
       // INSERT: Crear nuevo workout con el weekly_routine_id determinado
       await client.query(
@@ -702,9 +748,9 @@ async function saveOrUpdateWorkout(req: express.Request, res: express.Response) 
       );
       console.log(`✅ Workout creado con weekly_routine_id: ${finalWeeklyRoutineId}`);
     }
-    
-    // Solo eliminar y recrear exercise_types si se proporcionan nuevos
-    if (workout.exerciseTypes && Array.isArray(workout.exerciseTypes) && workout.exerciseTypes.length > 0) {
+
+    // Solo eliminar y recrear exercise_types cuando el workout es NUEVO (no existía en BD)
+    if (!existingWorkout && workout.exerciseTypes && Array.isArray(workout.exerciseTypes) && workout.exerciseTypes.length > 0) {
       await client.query('DELETE FROM exercise_types WHERE workout_id = $1', [workoutId]);
       for (let i = 0; i < workout.exerciseTypes.length; i++) {
         const exType = workout.exerciseTypes[i];
@@ -784,7 +830,7 @@ async function saveOrUpdateWorkout(req: express.Request, res: express.Response) 
                  rest_time = EXCLUDED.rest_time,
                  completed = EXCLUDED.completed,
                  updated_at = CURRENT_TIMESTAMP`,
-              [exerciseId, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, exercise.exerciseSubType, parseWeight(exercise.weight), exercise.weightUnit, restTimeValue, exercise.completed]
+              [exerciseId, userId, exerciseTypeId, exercise.name, exercise.exerciseCode, exercise.sets, exercise.reps, exercise.duration, exercise.durationUnit, getExerciseSubType(exercise), parseWeight(exercise.weight), exercise.weightUnit, restTimeValue, exercise.completed]
             );
 
             if (exercise.setDetails && Array.isArray(exercise.setDetails)) {

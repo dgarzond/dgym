@@ -381,12 +381,13 @@ function App() {
       console.error('Error clearing exercise progress:', error);
     }
 
-    // Resetear el estado de completitud de todos los ejercicios en el workout
+    // Resetear el estado de completitud de todos los ejercicios en el workout (preservar ids de tipos y ejercicios)
     const resetWorkout = {
       ...workout,
       completed: false,
-      exerciseTypes: (workout.exerciseTypes || []).map(exerciseType => ({
+      exerciseTypes: (workout.exerciseTypes || []).map((exerciseType, typeIndex) => ({
         ...exerciseType,
+        id: exerciseType.id != null && String(exerciseType.id).trim() !== '' ? String(exerciseType.id) : `type-${typeIndex}`,
         exercises: (exerciseType.exercises || []).map(exercise => ({
           ...exercise,
           completed: false,
@@ -445,10 +446,10 @@ function App() {
     const updatedWorkout = {
       ...selectedWorkout,
       completed: true,
-      exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
+      exerciseTypes: (selectedWorkout.exerciseTypes || []).map((exerciseType, typeIndex) => ({
         ...exerciseType,
+        id: exerciseType.id != null && String(exerciseType.id).trim() !== '' ? String(exerciseType.id) : `type-${typeIndex}`,
         exercises: (exerciseType.exercises || []).map(exercise => {
-          // Ensure setDetails exists and is an array before mapping
           const currentSetDetails = Array.isArray(exercise.setDetails) ? exercise.setDetails : [];
           return {
             ...exercise,
@@ -517,8 +518,9 @@ function App() {
 
     const updatedWorkout = {
       ...selectedWorkout,
-      exerciseTypes: (selectedWorkout.exerciseTypes || []).map(exerciseType => ({
+      exerciseTypes: (selectedWorkout.exerciseTypes || []).map((exerciseType, typeIndex) => ({
         ...exerciseType,
+        id: exerciseType.id != null && String(exerciseType.id).trim() !== '' ? String(exerciseType.id) : `type-${typeIndex}`,
         exercises: (exerciseType.exercises || []).map(exercise => {
           if (exercise.id === exerciseId) {
             return {
