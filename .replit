@@ -6,7 +6,7 @@ channel = "stable-24_05"
 packages = ["xsel"]
 
 [deployment]
-run = ["sh", "-c", "cd project && npx vite preview --host 0.0.0.0 --port 5000"]
+run = ["sh", "-c", "npm start "]
 build = ["sh", "-c", "cd project && npm run build"]
 deploymentTarget = "cloudrun"
 
