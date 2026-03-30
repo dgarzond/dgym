@@ -12,6 +12,8 @@
     "build:frontend": "cd project && npm install && npm run build",
     "build:backend": "npm install && cd server && tsc --noEmit",
     "build:all": "npm install && npm run build:frontend && npm run build:backend",
+    "test": "cd project && npm install && npm run test",
+    "test:watch": "cd project && npm run test:watch",
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "tsx server/index.ts",

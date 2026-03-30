@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Bot, User, Loader, Import, Download } from 'lucide-react';
-import type { Workout, ExerciseType, Exercise, Set } from '../types';
+import { X, Send, Bot, User, Loader, Import } from 'lucide-react';
+import type { Workout } from '../types';
 import { ConfigManager } from '../utils/config';
 import { api } from '../utils/api';
+import {
+  parseWorkoutImportJsonString,
+  ParseWorkoutImportJsonError,
+} from '../utils/workoutImportJsonParse';
 
 interface Message {
   id: string;
@@ -273,6 +277,7 @@ NEVER omit rest times - they are essential for workout structure and safety.`
         },
         body: JSON.stringify({
           model: 'gpt-3.5-turbo',
+          response_format: { type: 'json_object' },
           messages: [
             {
               role: 'system',
@@ -360,71 +365,13 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
       }
 
       console.log('🤖 IA generated JSON:', jsonContent);
-      const parsed = cleanAndParseJSON(jsonContent);
+      const parsed = parseWorkoutImportJsonString(jsonContent);
       console.log('✅ Cleaned and parsed JSON:', parsed);
       return parsed;
 
     } catch (error) {
       console.error('❌ Error in AI conversion:', error);
       throw error;
-    }
-  };
-
-  const cleanAndParseJSON = (jsonString: string) => {
-    let cleaned = jsonString.trim();
-
-    // Remove markdown code blocks
-    cleaned = cleaned.replace(/```json\s*/, '').replace(/\s*```$/, '');
-    cleaned = cleaned.replace(/```\s*/, '').replace(/\s*```$/, '');
-
-    // Find JSON start
-    const jsonStart = Math.min(
-      cleaned.indexOf('{') === -1 ? Infinity : cleaned.indexOf('{'),
-      cleaned.indexOf('[') === -1 ? Infinity : cleaned.indexOf('[')
-    );
-
-    if (jsonStart !== Infinity) {
-      cleaned = cleaned.substring(jsonStart);
-    }
-
-    // Find JSON end
-    let braceCount = 0;
-    let bracketCount = 0;
-    let jsonEnd = -1;
-
-    for (let i = 0; i < cleaned.length; i++) {
-      const char = cleaned[i];
-      if (char === '{') braceCount++;
-      if (char === '}') braceCount--;
-      if (char === '[') bracketCount++;
-      if (char === ']') bracketCount--;
-
-      if (braceCount === 0 && bracketCount === 0 && i > 0) {
-        jsonEnd = i + 1;
-        break;
-      }
-    }
-
-    if (jsonEnd !== -1) {
-      cleaned = cleaned.substring(0, jsonEnd);
-    }
-
-    // Fix common JSON issues
-    cleaned = cleaned.replace(/,\s*([}\]])/g, '$1').replace(/([}\]])\s*([{\[])/g, '$1,$2');
-
-    console.log('🧹 Final cleaned JSON:', cleaned);
-
-    try {
-      return JSON.parse(cleaned);
-    } catch (error) {
-      console.error('❌ JSON parse failed:', error);
-      console.log('🔧 Attempting advanced fixes...');
-
-      // Try to fix unquoted values
-      let fixed = cleaned.replace(/:\s*([a-zA-Z][^",}]*)\s*([,}])/g, ': "$1"$2');
-      fixed = fixed.replace(/"\s*:\s*"([^"]*)"([^",}])/g, '": "$1$2"');
-
-      return JSON.parse(fixed);
     }
   };
 
@@ -440,6 +387,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
         },
         body: JSON.stringify({
           model: 'gpt-3.5-turbo',
+          response_format: { type: 'json_object' },
           messages: [
             {
               role: 'system',
@@ -519,7 +467,10 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
       const data = await response.json();
       const jsonContent = data.choices[0]?.message?.content?.trim();
       console.log('🤖 IA generated Weekly JSON:', jsonContent);
-      return cleanAndParseJSON(jsonContent);
+      if (!jsonContent) {
+        throw new Error('No content received from AI');
+      }
+      return parseWorkoutImportJsonString(jsonContent);
     } catch (error) {
       console.error('❌ Error in AI weekly conversion:', error);
       throw error;
@@ -548,55 +499,68 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
       if (isMultipleDays) {
         console.log('📅 PROCESANDO COMO RUTINA SEMANAL...');
         const weeklyData = await convertTextToWeeklyRoutineJSON(workoutText);
-        
-        if (weeklyData && weeklyData.workouts && Array.isArray(weeklyData.workouts)) {
-          // Procesar workouts secuencialmente para evitar IDs duplicados
-          const processedWorkouts: Workout[] = [];
-          for (let i = 0; i < weeklyData.workouts.length; i++) {
-            const processed = await processWorkoutData(weeklyData.workouts[i], i);
-            if (processed) {
-              processedWorkouts.push(processed);
-            }
-          }
 
-          if (processedWorkouts.length > 0) {
-            const finalPlan = {
-              ...weeklyData,
-              isWeeklyPlan: true, // Marcar explícitamente como plan semanal
-              workouts: processedWorkouts
-            };
-            console.log('📦 Enviando plan semanal a App.tsx:', finalPlan);
-            onWorkoutGenerated(finalPlan);
-            
-            // Guardar el chat asociado al primer workout (o todos si es necesario)
-            if (userId && processedWorkouts.length > 0) {
-              const firstWorkoutId = processedWorkouts[0].id;
-              try {
-                // Convertir mensajes a formato serializable
-                const serializableMessages = messages.map(msg => ({
-                  id: msg.id,
-                  role: msg.role,
-                  content: msg.content,
-                  timestamp: msg.timestamp.toISOString()
-                }));
-                
-                await api.saveChat(userId, firstWorkoutId, serializableMessages);
-                console.log('✅ Chat guardado en BD para workout:', firstWorkoutId);
-              } catch (error) {
-                console.error('❌ Error guardando chat:', error);
-                // No bloquear la importación si falla el guardado del chat
-              }
-            }
-            
-            const successMessage: Message = {
-              id: (Date.now() + 2).toString(),
-              role: 'assistant',
-              content: `✅ ¡Importación semanal exitosa! Se han importado ${processedWorkouts.length} rutinas vinculadas a la semana ${weeklyData.weekNumber}.`,
-              timestamp: new Date()
-            };
-            setMessages(prev => [...prev, successMessage]);
+        if (!weeklyData || typeof weeklyData !== 'object') {
+          throw new Error(
+            'La rutina semanal no tiene un formato válido después de convertirla. Pide a la IA un plan con array "workouts".'
+          );
+        }
+        if (!Array.isArray((weeklyData as { workouts?: unknown }).workouts)) {
+          throw new Error(
+            'Falta el array "workouts" en el JSON del plan semanal. Vuelve a generar la rutina o importa día por día.'
+          );
+        }
+        const workoutsRaw = (weeklyData as { workouts: unknown[] }).workouts;
+        if (workoutsRaw.length === 0) {
+          throw new Error('El plan semanal no contiene ningún día en "workouts".');
+        }
+
+        const processedWorkouts: Workout[] = [];
+        for (let i = 0; i < workoutsRaw.length; i++) {
+          const processed = await processWorkoutData(workoutsRaw[i], i);
+          if (processed) {
+            processedWorkouts.push(processed);
           }
         }
+
+        if (processedWorkouts.length === 0) {
+          throw new Error(
+            'Ningún día se pudo importar: revisa que cada día tenga ejercicios válidos o pide a la IA una rutina más clara.'
+          );
+        }
+
+        const finalPlan = {
+          ...weeklyData,
+          isWeeklyPlan: true,
+          workouts: processedWorkouts,
+        };
+        console.log('📦 Enviando plan semanal a App.tsx:', finalPlan);
+        onWorkoutGenerated(finalPlan);
+
+        if (userId && processedWorkouts.length > 0) {
+          const firstWorkoutId = processedWorkouts[0].id;
+          try {
+            const serializableMessages = messages.map((msg) => ({
+              id: msg.id,
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.timestamp.toISOString(),
+            }));
+
+            await api.saveChat(userId, firstWorkoutId, serializableMessages);
+            console.log('✅ Chat guardado en BD para workout:', firstWorkoutId);
+          } catch (error) {
+            console.error('❌ Error guardando chat:', error);
+          }
+        }
+
+        const successMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          role: 'assistant',
+          content: `✅ ¡Importación semanal exitosa! Se han importado ${processedWorkouts.length} rutinas vinculadas a la semana ${(weeklyData as { weekNumber?: number }).weekNumber ?? 'actual'}.`,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, successMessage]);
       } else {
         console.log('🏋️‍♂️ PROCESANDO COMO DÍA ÚNICO...');
         const workoutData = await convertTextToWorkoutJSON(workoutText);
@@ -606,31 +570,40 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
         // Solo verificar que el workout tenga un nombre válido
         if (processedWorkout && processedWorkout.name) {
           onWorkoutGenerated(processedWorkout);
-          
-          // Nota: El chat se guardará después de que el workout tenga un ID asignado por el backend
-          // No intentar guardar el chat aquí porque processedWorkout.id es undefined
-          // El chat se puede guardar más tarde cuando el workout ya tenga ID
-          console.log('📝 Workout enviado a App.tsx. El chat se guardará después de que el workout tenga ID.');
-          
+
+          console.log(
+            '📝 Workout enviado a App.tsx. El chat se guardará después de que el workout tenga ID.'
+          );
+
           const successMessage: Message = {
             id: (Date.now() + 2).toString(),
             role: 'assistant',
             content: `✅ ¡Importación exitosa! La rutina "${processedWorkout.name}" ha sido importada.`,
-            timestamp: new Date()
+            timestamp: new Date(),
           };
-          setMessages(prev => [...prev, successMessage]);
+          setMessages((prev) => [...prev, successMessage]);
+        } else {
+          throw new Error(
+            'No se pudo construir la rutina del día (sin nombre o sin datos válidos). Pide a la IA la tabla de ejercicios de nuevo.'
+          );
         }
       }
 
     } catch (error) {
       console.error('❌ Error importing:', error);
+      const detail =
+        error instanceof ParseWorkoutImportJsonError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Error desconocido';
       const errorMessage: Message = {
         id: (Date.now() + 3).toString(),
         role: 'assistant',
-        content: `❌ Error al importar: ${error instanceof Error ? error.message : 'Error desconocido'}.`,
-        timestamp: new Date()
+        content: `❌ No se pudo importar la rutina.\n\n${detail}\n\nPuedes pedir otra vez el plan en formato JSON o usar **Import Workout** tras una respuesta más corta.`,
+        timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsImporting(false);
     }

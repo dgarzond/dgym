@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Timer, ArrowLeft, ArrowRight, RotateCcw, Scale } from 'lucide-react';
 import type { Exercise, Set } from '../types';
 import { kgToLbs, lbsToKg } from '../types';
@@ -30,44 +30,30 @@ export function ExerciseScreen({
   nextExerciseName,
   nextExerciseStage
 }: ExerciseScreenProps) {
-  // Crear clave única para el progreso del ejercicio
+  /** localStorage key for this exercise's in-session progress (survives app close). */
   const exerciseProgressKey = `gymTracker_exercise_${exercise.id}`;
 
-  // Inicializar estado con valores del ejercicio (sin cargar progreso previo)
   const [currentSet, setCurrentSet] = useState(0);
-
-  const [setDetails, setSetDetails] = useState<Set[]>(() => {
-    // Siempre usar los datos frescos del ejercicio, no cargar progreso previo
-    return exercise.setDetails || [];
-  });
-
+  const [setDetails, setSetDetails] = useState<Set[]>(() => exercise.setDetails || []);
   const [timer, setTimer] = useState(0);
   const [isResting, setIsResting] = useState(false);
   const [restTimer, setRestTimer] = useState(exercise.restTime || 60);
   const [exerciseStartTime, setExerciseStartTime] = useState<number>(Date.now());
   const [restStartTime, setRestStartTime] = useState<number | null>(null);
-
-  // Timer de trabajo para ejercicios por tiempo (subtype time/seconds/minutes/duration)
   const [isWorkTimerActive, setIsWorkTimerActive] = useState(false);
   const [workTimerRemaining, setWorkTimerRemaining] = useState(0);
   const [workStartTime, setWorkStartTime] = useState<number | null>(null);
   const [workDurationTotalSeconds, setWorkDurationTotalSeconds] = useState(0);
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
+  const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
 
-  // Guardar progreso en localStorage
-  useEffect(() => {
-    try {
-      const progress = {
-        currentSet,
-        setDetails,
-        lastUpdated: Date.now()
-      };
-      localStorage.setItem(exerciseProgressKey, JSON.stringify(progress));
-    } catch (error) {
-      console.error('Error saving exercise progress:', error);
-    }
-  }, [currentSet, setDetails, exerciseProgressKey]);
+  /** After cold resume: rest ended offline → fire onComplete once. */
+  const pendingExerciseCompleteRef = useRef<Set[] | null>(null);
+  /** After cold resume: work interval ended offline → complete set once. */
+  const pendingWorkSetCompleteRef = useRef<{ weight: number; duration: number } | null>(null);
+  /** Avoid writing default state over localStorage before hydrate runs. */
+  const allowPersistRef = useRef(false);
 
-  // Limpiar progreso cuando se completa el ejercicio
   const clearExerciseProgress = () => {
     try {
       localStorage.removeItem(exerciseProgressKey);
@@ -76,45 +62,168 @@ export function ExerciseScreen({
     }
   };
 
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(exercise.weightUnit || 'kg');
-  const [currentWeight, setCurrentWeight] = useState(exercise.weight || 0);
-
-  // Reset state when exercise changes
+  /**
+   * Fresh session vs resume: if localStorage has progress for this exercise with matching set count,
+   * restore sets, timers, and rest/work state so the user continues where they left off.
+   */
   useEffect(() => {
-    if (!exercise) return;
-    
-    // Initialize setDetails if empty or incomplete
-    const initialSetDetails = exercise.setDetails && exercise.setDetails.length > 0 
-      ? exercise.setDetails 
-      : Array.from({ length: exercise.sets || 1 }, (_, index) => ({
-          id: `set-${exercise.id}-${index}`,
-          set: index + 1,
-          reps: exercise.reps || 10,
-          duration: exercise.duration || 30,
-          durationUnit: exercise.durationUnit || 'seconds',
-          weight: exercise.weight || 0,
-          completed: false,
-          weightUnit: exercise.weightUnit || 'kg'
-        }));
+    if (!exercise?.id) return;
 
-    setSetDetails(initialSetDetails);
-    setWeightUnit(exercise.weightUnit || 'kg');
-    setCurrentWeight(exercise.weight || 0);
+    const template: Set[] =
+      exercise.setDetails && exercise.setDetails.length > 0
+        ? exercise.setDetails
+        : Array.from({ length: exercise.sets || 1 }, (_, index) => ({
+            id: `set-${exercise.id}-${index}`,
+            set: index + 1,
+            reps: exercise.reps || 10,
+            duration: exercise.duration || 30,
+            durationUnit: exercise.durationUnit || 'seconds',
+            weight: exercise.weight || 0,
+            completed: false,
+            weightUnit: exercise.weightUnit || 'kg',
+          }));
 
-    // Siempre empezar desde el primer set en una nueva sesión
-    setCurrentSet(0);
+    let saved: Record<string, unknown> | null = null;
+    try {
+      const raw = localStorage.getItem(exerciseProgressKey);
+      if (raw) saved = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      saved = null;
+    }
 
-    // Reset all timers and states with system time
-    setTimer(0);
-    setExerciseStartTime(Date.now());
-    setIsResting(false);
-    setRestTimer(exercise.restTime || 60);
-    setRestStartTime(null);
-    setIsWorkTimerActive(false);
-    setWorkTimerRemaining(0);
-    setWorkStartTime(null);
-    setWorkDurationTotalSeconds(0);
-  }, [exercise?.id]);
+    const savedSets = saved?.setDetails as Set[] | undefined;
+    const canResume =
+      saved &&
+      Array.isArray(savedSets) &&
+      savedSets.length === template.length &&
+      savedSets.length > 0 &&
+      typeof saved.currentSet === 'number';
+
+    pendingExerciseCompleteRef.current = null;
+    pendingWorkSetCompleteRef.current = null;
+
+    allowPersistRef.current = false;
+
+    if (canResume && savedSets) {
+      const cs = Math.min(Math.max(0, saved.currentSet as number), exercise.sets - 1);
+      setCurrentSet(cs);
+      setSetDetails(savedSets);
+      setWeightUnit((saved.weightUnit as 'kg' | 'lbs') || exercise.weightUnit || 'kg');
+      setCurrentWeight(
+        typeof saved.currentWeight === 'number' ? saved.currentWeight : exercise.weight || 0
+      );
+
+      const restTotal = (saved.restTotalSeconds as number) || exercise.restTime || 60;
+      if (saved.isResting && typeof saved.restStartTime === 'number') {
+        const elapsed = (Date.now() - saved.restStartTime) / 1000;
+        if (elapsed >= restTotal) {
+          setIsResting(false);
+          setRestTimer(exercise.restTime || 60);
+          setRestStartTime(null);
+          setExerciseStartTime(Date.now());
+          const lastIdx = exercise.sets - 1;
+          if (cs >= lastIdx && savedSets[lastIdx]?.completed) {
+            pendingExerciseCompleteRef.current = [...savedSets];
+          }
+        } else {
+          setIsResting(true);
+          setRestStartTime(saved.restStartTime);
+          setRestTimer(Math.max(0, Math.floor(restTotal - elapsed)));
+        }
+      } else {
+        setIsResting(false);
+        setRestTimer(exercise.restTime || 60);
+        setRestStartTime(null);
+      }
+
+      if (
+        saved.isWorkTimerActive &&
+        typeof saved.workStartTime === 'number' &&
+        typeof saved.workDurationTotalSeconds === 'number' &&
+        saved.workDurationTotalSeconds > 0
+      ) {
+        const elapsed = (Date.now() - saved.workStartTime) / 1000;
+        const rem = saved.workDurationTotalSeconds - elapsed;
+        if (rem <= 0) {
+          setIsWorkTimerActive(false);
+          setWorkStartTime(null);
+          setWorkTimerRemaining(0);
+          setWorkDurationTotalSeconds(saved.workDurationTotalSeconds);
+          pendingWorkSetCompleteRef.current = {
+            weight: typeof saved.currentWeight === 'number' ? saved.currentWeight : exercise.weight || 0,
+            duration: saved.workDurationTotalSeconds,
+          };
+        } else {
+          setIsWorkTimerActive(true);
+          setWorkStartTime(saved.workStartTime);
+          setWorkDurationTotalSeconds(saved.workDurationTotalSeconds);
+          setWorkTimerRemaining(Math.max(0, Math.floor(rem)));
+        }
+      } else {
+        setIsWorkTimerActive(false);
+        setWorkTimerRemaining(0);
+        setWorkStartTime(null);
+        setWorkDurationTotalSeconds(0);
+      }
+
+      setExerciseStartTime(
+        typeof saved.exerciseStartTime === 'number' ? saved.exerciseStartTime : Date.now()
+      );
+    } else {
+      setSetDetails(template);
+      setWeightUnit(exercise.weightUnit || 'kg');
+      setCurrentWeight(exercise.weight || 0);
+      setCurrentSet(0);
+      setTimer(0);
+      setExerciseStartTime(Date.now());
+      setIsResting(false);
+      setRestTimer(exercise.restTime || 60);
+      setRestStartTime(null);
+      setIsWorkTimerActive(false);
+      setWorkTimerRemaining(0);
+      setWorkStartTime(null);
+      setWorkDurationTotalSeconds(0);
+    }
+
+    allowPersistRef.current = true;
+  }, [exercise?.id, exercise.sets, exerciseProgressKey]);
+
+  // Persist rich progress so resume after app kill restores rest / work timers and sets.
+  useEffect(() => {
+    if (!allowPersistRef.current) return;
+    try {
+      const progress = {
+        currentSet,
+        setDetails,
+        lastUpdated: Date.now(),
+        isResting,
+        restStartTime,
+        restTotalSeconds: exercise.restTime || 60,
+        isWorkTimerActive,
+        workStartTime,
+        workDurationTotalSeconds,
+        exerciseStartTime,
+        currentWeight,
+        weightUnit,
+      };
+      localStorage.setItem(exerciseProgressKey, JSON.stringify(progress));
+    } catch (error) {
+      console.error('Error saving exercise progress:', error);
+    }
+  }, [
+    currentSet,
+    setDetails,
+    exerciseProgressKey,
+    isResting,
+    restStartTime,
+    exercise.restTime,
+    isWorkTimerActive,
+    workStartTime,
+    workDurationTotalSeconds,
+    exerciseStartTime,
+    currentWeight,
+    weightUnit,
+  ]);
 
   // Timer de ejercicio basado en tiempo del sistema
   useEffect(() => {
@@ -297,6 +406,25 @@ export function ExerciseScreen({
       }, 100);
     }
   };
+
+  // Cold resume: rest finished while app was closed → advance to next exercise.
+  useEffect(() => {
+    const details = pendingExerciseCompleteRef.current;
+    if (!details) return;
+    pendingExerciseCompleteRef.current = null;
+    clearExerciseProgress();
+    onComplete(exercise.id, details);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot after hydrate for this exercise
+  }, [exercise.id]);
+
+  // Cold resume: work timer hit zero while app was closed → record set and enter rest.
+  useEffect(() => {
+    const p = pendingWorkSetCompleteRef.current;
+    if (!p) return;
+    pendingWorkSetCompleteRef.current = null;
+    handleSetComplete(undefined, p.weight, p.duration);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise.id]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
 import './utils/setup-api-key';
-import { Dumbbell, Plus, Calendar, MessageSquare, CheckCircle } from 'lucide-react';
+import { Dumbbell, Plus, Calendar, MessageSquare, CheckCircle, Play } from 'lucide-react';
 import { DGymLogo } from './components/DGymLogo';
 import { WorkoutCard } from './components/WorkoutCard';
 import { WorkoutDetail } from './components/WorkoutDetail';
@@ -12,6 +12,16 @@ import { Login } from './components/Login';
 import type { Workout, Exercise, Set } from './types';
 import { defaultWorkouts } from './types';
 import { api } from './utils/api';
+import {
+  readWorkoutSession,
+  peekWorkoutSession,
+  writeWorkoutSession,
+  clearWorkoutSession,
+  isWorkoutSessionFresh,
+  parseWorkoutSession,
+  WORKOUT_SESSION_KEY,
+  type WorkoutSessionSnapshot,
+} from './utils/workoutSessionStorage';
 
 // --- Componentes de Vista ---
 // Estos componentes ahora gestionarán las diferentes secciones de la aplicación.
@@ -50,6 +60,40 @@ interface User {
   username: string;
   email?: string;
 }
+
+/** First non-completed exercise in routine order (for resume / continue). */
+function findFirstIncompleteExercise(workout: Workout): { id: string; stage: string } | null {
+  for (const exerciseType of workout.exerciseTypes || []) {
+    for (const ex of exerciseType.exercises || []) {
+      if (ex && !ex.completed) {
+        return {
+          id: ex.id,
+          stage: exerciseType.nameSpanish || exerciseType.name || '',
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Rutina aún no marcada como terminada, con al menos un ejercicio hecho y otro pendiente
+ * (p. ej. tras re-login cuando el cronómetro y el snapshot se borraron al cerrar sesión).
+ */
+function workoutHasMixedExerciseCompletion(workout: Workout): boolean {
+  if (workout.completed) return false;
+  const exercises =
+    workout.exerciseTypes?.flatMap((t) => (t.exercises || []).filter(Boolean)) || [];
+  if (exercises.length === 0) return false;
+  const anyCompleted = exercises.some((e) => e.completed);
+  const anyIncomplete = exercises.some((e) => !e.completed);
+  return anyCompleted && anyIncomplete;
+}
+
+/** Target for the fixed “Continue workout” bar: live session vs partial progress after logout/login. */
+type ContinueWorkoutBarTarget =
+  | { kind: 'session'; session: WorkoutSessionSnapshot; workout: Workout }
+  | { kind: 'partial'; workout: Workout };
 
 function App() {
   // Estado de autenticación del usuario
@@ -103,7 +147,8 @@ function App() {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
 
   const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
-  const [currentExerciseIndex, setCurrentExercise] = useState<number | null>(null);
+  /** Active exercise id (not array index); kept in sync with workout session snapshot. */
+  const [currentExerciseIndex, setCurrentExercise] = useState<string | null>(null);
   const [currentExerciseStage, setCurrentExerciseStage] = useState<string>('');
   const [showChatBot, setShowChatBot] = useState(false);
   const [totalWorkoutTime, setTotalWorkoutTime] = useState(0); // Total workout time
@@ -162,6 +207,7 @@ function App() {
       localStorage.removeItem('gymTracker_pausedTime');
       localStorage.removeItem('gymTracker_workoutStartTime');
       localStorage.removeItem('gymTracker_isWorkoutActive');
+      clearWorkoutSession();
     } catch (error) {
       console.error('Error clearing timer state:', error);
     }
@@ -234,6 +280,217 @@ function App() {
     };
   }, [isWorkoutActive, workoutStartTime, pausedTime]);
 
+  /**
+   * Persist workout id + screen (detail vs exercise) + current exercise for "Continue workout" after app close.
+   * Skipped when routine is finished (completion screen) or timer inactive.
+   */
+  useEffect(() => {
+    if (!isWorkoutActive || !selectedWorkout?.id || selectedWorkout.completed) return;
+    if (currentView !== 'exercise' && currentView !== 'workoutDetail') return;
+    writeWorkoutSession({
+      workoutId: selectedWorkout.id,
+      exerciseId: currentExerciseIndex,
+      view: currentView === 'exercise' ? 'exercise' : 'detail',
+      exerciseStage: currentExerciseStage,
+    });
+  }, [
+    isWorkoutActive,
+    selectedWorkout?.id,
+    selectedWorkout?.completed,
+    currentView,
+    currentExerciseIndex,
+    currentExerciseStage,
+  ]);
+
+  /** Drop stale session blob once (peek does not clear). */
+  useEffect(() => {
+    try {
+      const s = parseWorkoutSession(localStorage.getItem(WORKOUT_SESSION_KEY));
+      if (s && !isWorkoutSessionFresh(s)) clearWorkoutSession();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  /** Session points at deleted workout → clear session (timer left to user via Finish or 24h reset). */
+  useEffect(() => {
+    if (workouts.length === 0) return;
+    const s = peekWorkoutSession();
+    if (s && !workouts.some((w) => w.id === s.workoutId)) {
+      clearWorkoutSession();
+    }
+  }, [workouts]);
+
+  /**
+   * Bar visible si: (a) cronómetro activo + snapshot, o (b) rutina con ejercicios hechos y pendientes
+   * tras deslogueo (sin cronómetro / sin snapshot).
+   */
+  const continueWorkoutTarget = useMemo((): ContinueWorkoutBarTarget | null => {
+    if (isWorkoutActive) {
+      const session = peekWorkoutSession();
+      if (session) {
+        const w = workouts.find((x) => x.id === session.workoutId);
+        if (w && !w.completed) return { kind: 'session', session, workout: w };
+      }
+    }
+    const partial = workouts.find((w) => workoutHasMixedExerciseCompletion(w));
+    if (partial) return { kind: 'partial', workout: partial };
+    return null;
+  }, [isWorkoutActive, workouts]);
+
+  const handleContinueWorkoutFromList = useCallback(() => {
+    const session = readWorkoutSession();
+    if (!session || !isWorkoutSessionFresh(session)) {
+      clearWorkoutSession();
+      return;
+    }
+    const w = workouts.find((x) => x.id === session.workoutId);
+    if (!w) {
+      clearWorkoutSession();
+      return;
+    }
+    const [merged] = syncExerciseCompletion([{ ...w }]);
+    setWorkouts((prev) => prev.map((pw) => (pw.id === merged.id ? merged : pw)));
+    setSelectedWorkout(merged);
+
+    const stageForExercise = (exId: string): string => {
+      for (const et of merged.exerciseTypes || []) {
+        if (et.exercises?.some((e) => e?.id === exId)) {
+          return et.nameSpanish || et.name || '';
+        }
+      }
+      return '';
+    };
+
+    const allEx =
+      merged.exerciseTypes?.flatMap((t) => (t.exercises || []).filter(Boolean)) || [];
+
+    if (session.view === 'detail') {
+      setCurrentExercise(null);
+      setCurrentView('workoutDetail');
+      return;
+    }
+
+    if (session.view === 'exercise' && session.exerciseId) {
+      const ex = allEx.find((e) => e?.id === session.exerciseId);
+      if (ex && !ex.completed) {
+        setCurrentExercise(session.exerciseId);
+        setCurrentExerciseStage(session.exerciseStage || stageForExercise(session.exerciseId));
+        setCurrentView('exercise');
+        return;
+      }
+    }
+
+    const first = findFirstIncompleteExercise(merged);
+    if (first) {
+      setCurrentExercise(first.id);
+      setCurrentExerciseStage(first.stage);
+      setCurrentView('exercise');
+      writeWorkoutSession({
+        workoutId: merged.id,
+        exerciseId: first.id,
+        view: 'exercise',
+        exerciseStage: first.stage,
+      });
+      return;
+    }
+    setCurrentExercise(null);
+    setCurrentView('workoutDetail');
+  }, [workouts]);
+
+  /**
+   * Continuar tras re-login cuando solo queda progreso mezclado en la rutina (sin snapshot).
+   * Reinicia el cronómetro global; mantiene sets / LS de ejercicios.
+   */
+  const handleContinueFromPartialAfterRelogin = useCallback((w: Workout) => {
+    const [merged] = syncExerciseCompletion([{ ...w }]);
+    setWorkouts((prev) => prev.map((pw) => (pw.id === merged.id ? merged : pw)));
+    setSelectedWorkout(merged);
+
+    const first = findFirstIncompleteExercise(merged);
+    if (first) {
+      setCurrentExercise(first.id);
+      setCurrentExerciseStage(first.stage);
+      setCurrentView('exercise');
+      writeWorkoutSession({
+        workoutId: merged.id,
+        exerciseId: first.id,
+        view: 'exercise',
+        exerciseStage: first.stage,
+      });
+    } else {
+      setCurrentExercise(null);
+      setCurrentView('workoutDetail');
+      writeWorkoutSession({
+        workoutId: merged.id,
+        exerciseId: null,
+        view: 'detail',
+        exerciseStage: '',
+      });
+    }
+
+    setPausedTime(0);
+    setTotalWorkoutTime(0);
+    setWorkoutStartTime(Date.now());
+    setIsWorkoutActive(true);
+  }, []);
+
+  const handleContinueWorkoutBarClick = useCallback(() => {
+    if (!continueWorkoutTarget) return;
+    if (continueWorkoutTarget.kind === 'partial') {
+      handleContinueFromPartialAfterRelogin(continueWorkoutTarget.workout);
+      return;
+    }
+    handleContinueWorkoutFromList();
+  }, [continueWorkoutTarget, handleContinueFromPartialAfterRelogin, handleContinueWorkoutFromList]);
+
+  /**
+   * From Workout detail: full restart vs resume same in-progress routine (no LocalStorage wipe, timer unchanged).
+   */
+  const handlePrimaryRoutineAction = useCallback(() => {
+    if (!selectedWorkout) return;
+    const session = readWorkoutSession();
+    const sameActive =
+      isWorkoutActive &&
+      session &&
+      isWorkoutSessionFresh(session) &&
+      session.workoutId === selectedWorkout.id;
+
+    if (sameActive) {
+      const allEx =
+        selectedWorkout.exerciseTypes?.flatMap((t) => (t.exercises || []).filter(Boolean)) || [];
+      const stageForExercise = (exId: string): string => {
+        for (const et of selectedWorkout.exerciseTypes || []) {
+          if (et.exercises?.some((e) => e?.id === exId)) {
+            return et.nameSpanish || et.name || '';
+          }
+        }
+        return '';
+      };
+
+      const targetId =
+        session.exerciseId &&
+        allEx.some((e) => e?.id === session.exerciseId && !e.completed)
+          ? session.exerciseId
+          : null;
+      if (targetId) {
+        setCurrentExercise(targetId);
+        setCurrentExerciseStage(session.exerciseStage || stageForExercise(targetId));
+        setCurrentView('exercise');
+        return;
+      }
+      const first = findFirstIncompleteExercise(selectedWorkout);
+      if (first) {
+        setCurrentExercise(first.id);
+        setCurrentExerciseStage(first.stage);
+        setCurrentView('exercise');
+        return;
+      }
+      return;
+    }
+    handleStartExercise(selectedWorkout);
+  }, [selectedWorkout, isWorkoutActive]);
+
   // Sincronizar estado cuando el usuario vuelve a la aplicación
   useEffect(() => {
     const handleFocus = () => {
@@ -273,7 +530,7 @@ function App() {
       const dbWorkouts = await api.getWorkoutsByWeeklyRoutineId(currentWeeklyRoutine.id);
       console.log('✅ Workouts cargados desde BD:', dbWorkouts.length);
 
-      setWorkouts(dbWorkouts.length > 0 ? dbWorkouts : []);
+      setWorkouts(syncExerciseCompletion(dbWorkouts.length > 0 ? dbWorkouts : []));
       
     } catch (error) {
       console.error('❌ Error during login:', error);
@@ -725,7 +982,7 @@ function App() {
           console.log('🔄 Recargando workouts desde BD para obtener campos actualizados...');
           const updatedWorkouts = await api.getWorkoutsByWeeklyRoutineId(currentWeeklyRoutineId);
           console.log('✅ Workouts recargados desde BD:', updatedWorkouts.length);
-          setWorkouts(updatedWorkouts.length > 0 ? updatedWorkouts : []);
+          setWorkouts(syncExerciseCompletion(updatedWorkouts.length > 0 ? updatedWorkouts : []));
         } catch (error) {
           console.error('❌ Error recargando workouts desde BD:', error);
           // Si falla la recarga, usar los workouts guardados localmente como fallback
@@ -919,7 +1176,7 @@ function App() {
           setCurrentView('workoutList'); // Volver a la lista de workouts
         }}
         onUpdateWorkout={handleUpdateWorkout}
-        onStartExercise={() => handleStartExercise(selectedWorkout)}
+        onStartExercise={handlePrimaryRoutineAction}
         onEndWorkout={handleEndWorkout}
         isWorkoutActive={isWorkoutActive}
         totalWorkoutTime={totalWorkoutTime}
@@ -1024,7 +1281,11 @@ function App() {
               </div>
             </div>
           </header>
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <main
+            className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${
+              continueWorkoutTarget ? 'pb-28' : ''
+            }`}
+          >
             <WeeklyPlanManager
               workouts={workouts}
               onAddWorkout={handleAddWorkout}
@@ -1068,6 +1329,22 @@ function App() {
               onClose={() => setShowChatBot(false)}
               userId={user?.id}
             />
+          )}
+
+          {continueWorkoutTarget && (
+            <div
+              className="fixed bottom-0 left-0 right-0 z-[100] border-t border-gray-200 bg-white/95 shadow-[0_-4px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm px-4 pt-3"
+              style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+            >
+              <button
+                type="button"
+                onClick={handleContinueWorkoutBarClick}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 px-4 text-lg font-semibold text-white transition-colors hover:bg-blue-700 active:bg-blue-800"
+              >
+                <Play className="h-6 w-6 shrink-0" aria-hidden />
+                Continue workout — {continueWorkoutTarget.workout.name}
+              </button>
+            </div>
           )}
         </div>
       );
