@@ -19,10 +19,6 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5173
-externalPort = 5000
-
-[[ports]]
 localPort = 5174
 externalPort = 3002
 
@@ -31,42 +27,7 @@ localPort = 41005
 externalPort = 3000
 
 [workflows]
-runButton = "Full Stack Dev"
-
-[[workflows.workflow]]
-name = "Build and Preview"
-author = 42167165
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd project && npm run build"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd project && npm run preview"
-
-[[workflows.workflow]]
-name = "Build and Serve"
-author = 42167165
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd project && npm run build"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd project && npx serve dist -s -l 5000"
-
-[[workflows.workflow]]
-name = "Run"
-author = 42167165
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd project && npm run dev"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Full Stack Dev"
@@ -80,6 +41,27 @@ args = "cd server && npx tsx index.ts"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd project && npm run dev"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "production-server"
+
+[[workflows.workflow]]
+name = "production-server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm start"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 expertMode = true
