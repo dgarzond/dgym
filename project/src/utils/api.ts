@@ -1,18 +1,45 @@
 
 // Auto-detect API URL based on environment
 const getApiUrl = () => {
-  // Check if we have an explicit environment variable
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
-  }
-  
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
+
+    const isLocalHost =
+      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+
+    // If we have an explicit env var, use it — but guard against common
+    // misconfiguration where production bundles point to localhost/0.0.0.0.
+    const explicit = import.meta.env.VITE_API_URL?.trim();
+    if (explicit) {
+      try {
+        const url = new URL(explicit, window.location.origin);
+        const explicitHost = url.hostname;
+        const explicitIsLocal =
+          explicitHost === 'localhost' ||
+          explicitHost === '127.0.0.1' ||
+          explicitHost === '0.0.0.0';
+
+        if (!isLocalHost && explicitIsLocal) {
+          return '';
+        }
+        return explicit.replace(/\/+$/, '');
+      } catch {
+        // If it's not a valid URL, fall back to same-origin.
+        return '';
+      }
+    }
     
     // Production deployment - use same server (API is on same port as frontend)
     if (hostname.includes('.replit.app') || hostname.includes('.repl.co') || hostname.includes('.replit.dev')) {
       return '';  // Use relative URLs for same-server API
     }
+
+    if (isLocalHost) {
+      return 'http://localhost:3001';
+    }
+
+    // Default for hosted environments: same-origin API.
+    return '';
   }
   
   // Fallback for local development
@@ -150,6 +177,55 @@ export const api = {
   async getUserChats(userId: number) {
     const response = await fetch(`${API_URL}/api/users/${userId}/chats`);
     if (!response.ok) throw new Error('Error getting chats');
+    return response.json();
+  },
+
+  // Generated routines (AI routine history)
+  async createGeneratedRoutine(params: {
+    userId: number;
+    clientGeneratedId?: string;
+    routineText?: string;
+    routineJson?: unknown;
+    imported?: boolean;
+    workoutId?: string;
+    weeklyRoutineId?: number;
+    source?: string;
+  }) {
+    const response = await fetch(`${API_URL}/api/generated-routines`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) throw new Error('Error creating generated routine');
+    return response.json();
+  },
+
+  async getGeneratedRoutines(userId: number, options?: { limit?: number; offset?: number }) {
+    const qs = new URLSearchParams();
+    if (options?.limit != null) qs.set('limit', String(options.limit));
+    if (options?.offset != null) qs.set('offset', String(options.offset));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+
+    const response = await fetch(`${API_URL}/api/users/${userId}/generated-routines${suffix}`);
+    if (!response.ok) throw new Error('Error getting generated routines');
+    return response.json();
+  },
+
+  async updateGeneratedRoutine(params: {
+    id: number;
+    userId: number;
+    imported?: boolean;
+    routineJson?: unknown;
+    workoutId?: string;
+    weeklyRoutineId?: number;
+  }) {
+    const { id, ...body } = params;
+    const response = await fetch(`${API_URL}/api/generated-routines/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error('Error updating generated routine');
     return response.json();
   },
 

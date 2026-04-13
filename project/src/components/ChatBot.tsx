@@ -22,41 +22,25 @@ interface ChatBotProps {
 }
 
 export const ChatBot: React.FC<ChatBotProps> = ({ onWorkoutGenerated, onClose, userId }) => {
-  const [messages, setMessages] = useState<Message[]>(() => {
-    const saved = localStorage.getItem('chatBotMessages');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        }));
-      } catch {
-        return [{
-          id: '1',
-          role: 'assistant' as const,
-          content: `¡Hola! 👋 Soy tu entrenador personal con IA. Te ayudaré a crear rutinas de entrenamiento personalizadas basadas en tus objetivos, nivel de experiencia y equipo disponible. ¡Cuéntame sobre tus metas fitness y empecemos a entrenar! 💪
-
-Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout routines based on your goals, experience level, and available equipment. Tell me about your fitness goals and let's start training! 💪`,
-          timestamp: new Date()
-        }];
-      }
-    }
-    return [{
+  // Keep the chat ephemeral (memory-only). We persist only the final routine event
+  // to the backend as a "generated routine" record, not the full conversation.
+  const [messages, setMessages] = useState<Message[]>(() => [
+    {
       id: '1',
       role: 'assistant' as const,
       content: `¡Hola! 👋 Soy tu entrenador personal con IA. Te ayudaré a crear rutinas de entrenamiento personalizadas basadas en tus objetivos, nivel de experiencia y equipo disponible. ¡Cuéntame sobre tus metas fitness y empecemos a entrenar! 💪
 
 Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout routines based on your goals, experience level, and available equipment. Tell me about your fitness goals and let's start training! 💪`,
-      timestamp: new Date()
-    }];
-  });
+      timestamp: new Date(),
+    },
+  ]);
 
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const generatedRoutineIdByAssistantMessageId = useRef<Record<string, number>>({});
 
   useEffect(() => {
     // Usar el ConfigManager que ya está centralizado para leer de .env o LocalStorage
@@ -82,15 +66,6 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
     scrollToBottom();
   }, [messages]);
 
-  // Guardar mensajes en localStorage cuando cambien
-  useEffect(() => {
-    try {
-      localStorage.setItem('gymTracker_chatMessages', JSON.stringify(messages));
-    } catch (error) {
-      console.error('Error saving chat messages to localStorage:', error);
-    }
-  }, [messages]);
-
   const resetChat = () => {
     const initialMessage = {
       id: '1',
@@ -101,7 +76,6 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
       timestamp: new Date()
     };
     setMessages([initialMessage]);
-    localStorage.setItem('chatBotMessages', JSON.stringify([initialMessage]));
   };
 
   const formatMessage = (content: string) => {
@@ -249,6 +223,25 @@ NEVER omit rest times - they are essential for workout structure and safety.`
       };
 
       setMessages(prev => [...prev, aiMessage]);
+
+      // Persist only the final assistant result as a "generated routine" record.
+      // This avoids storing the full multi-turn conversation.
+      if (userId) {
+        try {
+          const created = await api.createGeneratedRoutine({
+            userId,
+            clientGeneratedId: aiMessage.id,
+            routineText: aiMessage.content,
+            imported: false,
+            source: 'ai',
+          });
+          if (created?.id) {
+            generatedRoutineIdByAssistantMessageId.current[aiMessage.id] = Number(created.id);
+          }
+        } catch (error) {
+          console.error('❌ Error guardando rutina generada:', error);
+        }
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage: Message = {
@@ -489,6 +482,9 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
       }
 
       const workoutText = lastMessage.content;
+      const generatedRoutineId = userId
+        ? generatedRoutineIdByAssistantMessageId.current[lastMessage.id]
+        : undefined;
       
       // Detectar si parece ser una semana completa
       const dayMatches = workoutText.match(/d[íi]a\s*\d+|day\s*\d+/gi) || [];
@@ -537,20 +533,18 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
         console.log('📦 Enviando plan semanal a App.tsx:', finalPlan);
         onWorkoutGenerated(finalPlan);
 
-        if (userId && processedWorkouts.length > 0) {
-          const firstWorkoutId = processedWorkouts[0].id;
+        // Mark generated routine as imported and attach structured JSON.
+        // (We intentionally do NOT persist the whole chat transcript.)
+        if (userId && generatedRoutineId) {
           try {
-            const serializableMessages = messages.map((msg) => ({
-              id: msg.id,
-              role: msg.role,
-              content: msg.content,
-              timestamp: msg.timestamp.toISOString(),
-            }));
-
-            await api.saveChat(userId, firstWorkoutId, serializableMessages);
-            console.log('✅ Chat guardado en BD para workout:', firstWorkoutId);
+            await api.updateGeneratedRoutine({
+              id: generatedRoutineId,
+              userId,
+              imported: true,
+              routineJson: finalPlan,
+            });
           } catch (error) {
-            console.error('❌ Error guardando chat:', error);
+            console.error('❌ Error actualizando rutina generada (weekly):', error);
           }
         }
 
@@ -582,6 +576,19 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
             timestamp: new Date(),
           };
           setMessages((prev) => [...prev, successMessage]);
+
+          if (userId && generatedRoutineId) {
+            try {
+              await api.updateGeneratedRoutine({
+                id: generatedRoutineId,
+                userId,
+                imported: true,
+                routineJson: processedWorkout,
+              });
+            } catch (error) {
+              console.error('❌ Error actualizando rutina generada (single):', error);
+            }
+          }
         } else {
           throw new Error(
             'No se pudo construir la rutina del día (sin nombre o sin datos válidos). Pide a la IA la tabla de ejercicios de nuevo.'

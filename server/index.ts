@@ -173,6 +173,23 @@ async function initializeTables(retries = 3) {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- Historial de rutinas generadas por IA (un registro por evento de generación)
+      -- Nota: guardamos solo el "resultado final" (texto/JSON), no el chat completo.
+      CREATE TABLE IF NOT EXISTS generated_routines (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        client_generated_id VARCHAR(64),
+        source VARCHAR(32) NOT NULL DEFAULT 'ai',
+        imported BOOLEAN NOT NULL DEFAULT FALSE,
+        workout_id VARCHAR(255) REFERENCES workouts(id) ON DELETE SET NULL,
+        weekly_routine_id INTEGER REFERENCES weekly_routines(id) ON DELETE SET NULL,
+        routine_text TEXT,
+        routine_json JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, client_generated_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_workouts_user_id ON workouts(user_id);
       CREATE INDEX IF NOT EXISTS idx_workouts_weekly_routine ON workouts(weekly_routine_id);
       CREATE INDEX IF NOT EXISTS idx_exercises_user_id ON exercises(user_id);
@@ -181,6 +198,9 @@ async function initializeTables(retries = 3) {
       CREATE INDEX IF NOT EXISTS idx_weekly_routines_user_id ON weekly_routines(user_id);
       CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
       CREATE INDEX IF NOT EXISTS idx_chats_workout_id ON chats(workout_id);
+      CREATE INDEX IF NOT EXISTS idx_generated_routines_user_id ON generated_routines(user_id);
+      CREATE INDEX IF NOT EXISTS idx_generated_routines_user_created_at ON generated_routines(user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_generated_routines_imported ON generated_routines(user_id, imported);
     `);
 
     // Migración: asegurar que workouts tenga created_at/updated_at (bases creadas con esquema antiguo, ej. Replit dev)
@@ -1209,6 +1229,135 @@ app.get('/api/users/:userId/chats', async (req, res) => {
   } catch (error) {
     console.error('Error getting chats:', error);
     res.status(500).json({ error: 'Error getting chats' });
+  } finally {
+    client.release();
+  }
+});
+
+// ==========================================================
+// Generated routines (AI routine history) - minimal persistence
+// ==========================================================
+
+// Crear registro de rutina generada (NO guarda conversación completa)
+app.post('/api/generated-routines', async (req, res) => {
+  const {
+    userId,
+    clientGeneratedId,
+    routineText,
+    routineJson,
+    source,
+    imported,
+    workoutId,
+    weeklyRoutineId,
+  } = req.body ?? {};
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `INSERT INTO generated_routines
+        (user_id, client_generated_id, source, imported, workout_id, weekly_routine_id, routine_text, routine_json, created_at, updated_at)
+       VALUES
+        ($1, $2, COALESCE($3, 'ai'), COALESCE($4, false), $5, $6, $7, $8::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id, client_generated_id) DO UPDATE SET
+         routine_text = COALESCE(EXCLUDED.routine_text, generated_routines.routine_text),
+         routine_json = COALESCE(EXCLUDED.routine_json, generated_routines.routine_json),
+         imported = COALESCE(EXCLUDED.imported, generated_routines.imported),
+         workout_id = COALESCE(EXCLUDED.workout_id, generated_routines.workout_id),
+         weekly_routine_id = COALESCE(EXCLUDED.weekly_routine_id, generated_routines.weekly_routine_id),
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [
+        userId,
+        clientGeneratedId ?? null,
+        source ?? null,
+        typeof imported === 'boolean' ? imported : null,
+        workoutId ?? null,
+        weeklyRoutineId ?? null,
+        routineText ?? null,
+        routineJson != null ? JSON.stringify(routineJson) : null,
+      ]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    console.error('Error creating generated routine:', error);
+    res.status(500).json({
+      error: 'Error creating generated routine',
+      details: error?.message ?? 'Unknown error',
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// Listar historial de rutinas generadas por usuario (más recientes primero)
+app.get('/api/users/:userId/generated-routines', async (req, res) => {
+  const { userId } = req.params;
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT *
+       FROM generated_routines
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error listing generated routines:', error);
+    res.status(500).json({ error: 'Error listing generated routines', details: error?.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Actualizar flags/payload (ej. marcar como importada o adjuntar JSON estructurado)
+app.patch('/api/generated-routines/:id', async (req, res) => {
+  const { id } = req.params;
+  const { userId, imported, routineJson, workoutId, weeklyRoutineId } = req.body ?? {};
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `UPDATE generated_routines
+       SET
+         imported = COALESCE($1, imported),
+         routine_json = COALESCE($2::jsonb, routine_json),
+         workout_id = COALESCE($3, workout_id),
+         weekly_routine_id = COALESCE($4, weekly_routine_id),
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5 AND user_id = $6
+       RETURNING *`,
+      [
+        typeof imported === 'boolean' ? imported : null,
+        routineJson != null ? JSON.stringify(routineJson) : null,
+        workoutId ?? null,
+        weeklyRoutineId ?? null,
+        id,
+        userId,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Generated routine not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error: any) {
+    console.error('Error updating generated routine:', error);
+    res.status(500).json({ error: 'Error updating generated routine', details: error?.message });
   } finally {
     client.release();
   }
