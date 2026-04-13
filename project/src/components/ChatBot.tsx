@@ -337,7 +337,9 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
             },
             {
               role: 'user',
-              content: `Parse this single day workout text to structured JSON:\n\n${workoutText}`
+              // Avoid template literals: assistant text may contain ` or ${...} and break interpolation.
+              content:
+                'Parse this single day workout text to structured JSON:\n\n' + workoutText
             }
           ],
           max_tokens: 4000,
@@ -445,7 +447,9 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
             },
             {
               role: 'user',
-              content: `Parse this weekly workout plan to a single structured JSON:\n\n${workoutText}`
+              // Avoid template literals: assistant text may contain ` or ${...} and break interpolation.
+              content:
+                'Parse this weekly workout plan to a single structured JSON:\n\n' + workoutText
             }
           ],
           max_tokens: 4000,
