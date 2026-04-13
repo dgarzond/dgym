@@ -21,6 +21,20 @@ interface ChatBotProps {
   userId?: number;
 }
 
+/** Browsers/devtools often truncate one long string in console.log; log length + chunks. */
+function debugLogLongJson(label: string, text: string | undefined): void {
+  if (text == null || text === '') {
+    console.log(label, '(vacío)');
+    return;
+  }
+  console.log(label, `(${text.length} caracteres)`);
+  const chunkSize = 8000;
+  for (let i = 0; i < text.length; i += chunkSize) {
+    const part = text.slice(i, i + chunkSize);
+    console.log(`${label} [${i}–${i + part.length}]`, part);
+  }
+}
+
 export const ChatBot: React.FC<ChatBotProps> = ({ onWorkoutGenerated, onClose, userId }) => {
   // Keep the chat ephemeral (memory-only). We persist only the final routine event
   // to the backend as a "generated routine" record, not the full conversation.
@@ -141,7 +155,7 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
@@ -269,7 +283,7 @@ NEVER omit rest times - they are essential for workout structure and safety.`
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           response_format: { type: 'json_object' },
           messages: [
             {
@@ -342,7 +356,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
                 'Parse this single day workout text to structured JSON:\n\n' + workoutText
             }
           ],
-          max_tokens: 4000,
+          max_tokens: 4096,
           temperature: 0.1
         })
       });
@@ -353,13 +367,24 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
       }
 
       const data = await response.json();
-      const jsonContent = data.choices[0]?.message?.content?.trim();
+      const choice = data.choices[0];
+      const jsonContent = choice?.message?.content?.trim();
+      const finishReason = choice?.finish_reason as string | undefined;
+      console.log('🤖 IA single-day JSON meta:', {
+        length: jsonContent?.length ?? 0,
+        finishReason,
+        completionTokens: data.usage?.completion_tokens,
+      });
+      debugLogLongJson('🤖 IA generated JSON', jsonContent);
 
       if (!jsonContent) {
         throw new Error('No content received from AI');
       }
-
-      console.log('🤖 IA generated JSON:', jsonContent);
+      if (finishReason === 'length') {
+        throw new Error(
+          'La respuesta del modelo se cortó por límite de tokens. Prueba de nuevo o pide una rutina más corta.'
+        );
+      }
       const parsed = parseWorkoutImportJsonString(jsonContent);
       console.log('✅ Cleaned and parsed JSON:', parsed);
       return parsed;
@@ -381,7 +406,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
+          model: 'gpt-4o-mini',
           response_format: { type: 'json_object' },
           messages: [
             {
@@ -452,7 +477,7 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
                 'Parse this weekly workout plan to a single structured JSON:\n\n' + workoutText
             }
           ],
-          max_tokens: 4000,
+          max_tokens: 12000,
           temperature: 0.1
         })
       });
@@ -462,10 +487,22 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
       }
 
       const data = await response.json();
-      const jsonContent = data.choices[0]?.message?.content?.trim();
-      console.log('🤖 IA generated Weekly JSON:', jsonContent);
+      const choice = data.choices[0];
+      const jsonContent = choice?.message?.content?.trim();
+      const finishReason = choice?.finish_reason as string | undefined;
+      console.log('🤖 IA weekly JSON meta:', {
+        length: jsonContent?.length ?? 0,
+        finishReason,
+        completionTokens: data.usage?.completion_tokens,
+      });
+      debugLogLongJson('🤖 IA generated Weekly JSON', jsonContent);
       if (!jsonContent) {
         throw new Error('No content received from AI');
+      }
+      if (finishReason === 'length') {
+        throw new Error(
+          'La respuesta del modelo se cortó por límite de tokens al generar la semana completa. Prueba importar día por día o reduce el detalle de la rutina.'
+        );
       }
       return parseWorkoutImportJsonString(jsonContent);
     } catch (error) {
