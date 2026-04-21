@@ -50,6 +50,26 @@ const API_URL = getApiUrl();
 console.log('🔗 API URL configured:', API_URL || 'Same server (relative URLs)');
 
 export const api = {
+  // AI (server-side proxy; never call OpenAI directly from the browser)
+  async aiChat(params: {
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+    model?: string;
+    max_tokens?: number;
+    temperature?: number;
+    response_format?: unknown;
+  }) {
+    const response = await fetch(`${API_URL}/api/ai/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(text || 'Error calling AI endpoint');
+    }
+    return response.json();
+  },
+
   // Usuarios
   async createOrGetUser(username: string, email?: string, googleId?: string) {
     const response = await fetch(`${API_URL}/api/users`, {

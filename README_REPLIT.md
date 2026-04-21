@@ -32,9 +32,9 @@ En Replit, ve a la sección "Secrets" (🔒) y agrega:
 
 - `DATABASE_URL`: Tu URL de conexión a PostgreSQL
 - `VITE_GOOGLE_CLIENT_ID`: Tu Google OAuth Client ID (opcional)
-- `VITE_OPENAI_API_KEY`: Tu OpenAI API Key (opcional)
+- `OPENAI_API_KEY`: Tu OpenAI API Key (opcional)
 
-**Nota:** En Replit, las variables de entorno se configuran en "Secrets", no en archivos `.env`.
+**Nota:** La OpenAI key debe vivir solo en el backend (server-side). Nunca uses variables `VITE_*` para secretos porque terminan en el bundle público del frontend.
 
 ### 4. Ejecutar el servidor
 

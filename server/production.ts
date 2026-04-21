@@ -5,6 +5,7 @@ import cors from 'cors';
 import { Pool } from 'pg';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { registerAiRoutes } from './aiRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,6 +26,9 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
+
+// AI routes (OpenAI key stays server-side)
+registerAiRoutes(app);
 
 // PostgreSQL Pool
 const pool = new Pool({

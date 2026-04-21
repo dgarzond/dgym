@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-// CONFIGURACIÓN: Parsea y configura la API key de forma segura - mantén esta línea
-import './utils/setup-api-key';
+// NOTE: Never load OpenAI API keys in the browser bundle.
 import { Dumbbell, Plus, Calendar, MessageSquare, CheckCircle, Play } from 'lucide-react';
 import { DGymLogo } from './components/DGymLogo';
 import { WorkoutCard } from './components/WorkoutCard';

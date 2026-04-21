@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, User, Loader, Import } from 'lucide-react';
 import type { Workout } from '../types';
-import { ConfigManager } from '../utils/config';
 import { api } from '../utils/api';
 import {
   parseWorkoutImportJsonString,
@@ -51,24 +50,8 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
 
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const generatedRoutineIdByAssistantMessageId = useRef<Record<string, number>>({});
-
-  useEffect(() => {
-    // Usar el ConfigManager que ya está centralizado para leer de .env o LocalStorage
-    const key = ConfigManager.getInstance().getApiKey();
-    
-    if (key && key.startsWith('sk-')) {
-      setApiKey(key);
-      setShowApiKeyInput(false);
-      console.log('✅ API key loaded successfully');
-    } else {
-      console.log('⚠️ No valid API key found');
-      setShowApiKeyInput(true);
-    }
-  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -100,24 +83,9 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
     return formatted;
   };
 
-  const handleApiKeySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (apiKey.trim() && apiKey.startsWith('sk-')) {
-      ConfigManager.getInstance().setApiKey(apiKey);
-      setShowApiKeyInput(false);
-    } else {
-      alert('Por favor, ingresa una API key válida que comience con "sk-"');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || isLoading) return;
-
-    if (!apiKey || !apiKey.startsWith('sk-')) {
-      setShowApiKeyInput(true);
-      return;
-    }
 
     const userMessage = message.trim();
 
@@ -126,12 +94,6 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
         userMessage.toLowerCase().includes('reset chat')) {
       resetChat();
       setMessage('');
-      return;
-    }
-
-    const currentKey = ConfigManager.getInstance().getApiKey();
-    if (!currentKey || !currentKey.startsWith('sk-')) {
-      setShowApiKeyInput(true);
       return;
     }
 
@@ -147,19 +109,7 @@ Hi! 👋 I'm your AI personal trainer. I'll help you create personalized workout
     setIsLoading(true);
 
     try {
-      const apiKey = ConfigManager.getInstance().getApiKey();
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a highly experienced and certified personal trainer with over 15 years of experience. You specialize in creating personalized workout routines for people of all fitness levels.
+      const systemPrompt = `You are a highly experienced and certified personal trainer with over 15 years of experience. You specialize in creating personalized workout routines for people of all fitness levels.
 
 Your expertise includes:
 - Strength training and muscle building
@@ -209,30 +159,22 @@ Examples:
 - Burpees: 4 sets x 8 reps, 60 seconds rest, bodyweight
 
 NEVER omit rest times - they are essential for workout structure and safety.`
-            },
-            ...messages.map(msg => ({
-              role: msg.role,
-              content: msg.content
-            })),
-            {
-              role: 'user',
-              content: userMessage
-            }
-          ],
-          max_tokens: 4000,
-          temperature: 0.7
-        })
+
+      const data = await api.aiChat({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages.map((msg) => ({ role: msg.role, content: msg.content })),
+          { role: 'user', content: userMessage },
+        ],
+        max_tokens: 4000,
+        temperature: 0.7,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.",
+        content: data?.content || "I'm sorry, I couldn't generate a response.",
         timestamp: new Date()
       };
 
@@ -275,20 +217,13 @@ NEVER omit rest times - they are essential for workout structure and safety.`
       console.log('🤖 INICIANDO CONVERSIÓN CON IA PARA DÍA INDIVIDUAL...');
       console.log('📝 Texto a procesar:', workoutText.substring(0, 200) + '...');
 
-      const apiKey = ConfigManager.getInstance().getApiKey();
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert workout parser. Convert workout text into structured JSON for a SINGLE DAY with ABSOLUTE PRECISION.
+      const data = await api.aiChat({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert workout parser. Convert workout text into structured JSON for a SINGLE DAY with ABSOLUTE PRECISION.
 
 🎯 CRITICAL REQUIREMENTS:
 1. Generate UNIQUE dayId (format: day-YYYYMMDD-UNIQUEID)
@@ -348,42 +283,26 @@ EXACT JSON STRUCTURE REQUIRED:
 NEVER omit restTime - it is MANDATORY for every exercise. Extract rest times from text like "60 seconds rest" or "90 segundos descanso".
 
 RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTER`
-            },
-            {
-              role: 'user',
-              // Avoid template literals: assistant text may contain ` or ${...} and break interpolation.
-              content:
-                'Parse this single day workout text to structured JSON:\n\n' + workoutText
-            }
-          ],
-          max_tokens: 4096,
-          temperature: 0.1
-        })
+          },
+          {
+            role: 'user',
+            // Avoid template literals: assistant text may contain ` or ${...} and break interpolation.
+            content: 'Parse this single day workout text to structured JSON:\n\n' + workoutText,
+          },
+        ],
+        max_tokens: 4096,
+        temperature: 0.1,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`AI conversion failed: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      const choice = data.choices[0];
-      const jsonContent = choice?.message?.content?.trim();
-      const finishReason = choice?.finish_reason as string | undefined;
+      const jsonContent = (data?.content as string | undefined)?.trim();
       console.log('🤖 IA single-day JSON meta:', {
         length: jsonContent?.length ?? 0,
-        finishReason,
-        completionTokens: data.usage?.completion_tokens,
+        completionTokens: data?.usage?.completion_tokens,
       });
       debugLogLongJson('🤖 IA generated JSON', jsonContent);
 
       if (!jsonContent) {
         throw new Error('No content received from AI');
-      }
-      if (finishReason === 'length') {
-        throw new Error(
-          'La respuesta del modelo se cortó por límite de tokens. Prueba de nuevo o pide una rutina más corta.'
-        );
       }
       const parsed = parseWorkoutImportJsonString(jsonContent);
       console.log('✅ Cleaned and parsed JSON:', parsed);
@@ -398,20 +317,14 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS, NO TEXT BEFORE/AFTE
   const convertTextToWeeklyRoutineJSON = async (workoutText: string) => {
     try {
       console.log('🤖 INICIANDO CONVERSIÓN CON IA PARA RUTINA SEMANAL COMPLETA...');
-      const apiKey = ConfigManager.getInstance().getApiKey();
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          response_format: { type: 'json_object' },
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert workout parser. Convert workout text into a single structured JSON for a WHOLE WEEK with ABSOLUTE PRECISION.
+
+      const data = await api.aiChat({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert workout parser. Convert workout text into a single structured JSON for a WHOLE WEEK with ABSOLUTE PRECISION.
 
 🎯 CRITICAL REQUIREMENTS:
 1. Return an object representing a WEEKLY PLAN.
@@ -469,40 +382,25 @@ CRITICAL RULES:
 - restTime values: Calentamiento 15-30s, Fuerza 60-120s, Cardio 30-60s, Estiramientos 10-15s
 
 RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
-            },
-            {
-              role: 'user',
-              // Avoid template literals: assistant text may contain ` or ${...} and break interpolation.
-              content:
-                'Parse this weekly workout plan to a single structured JSON:\n\n' + workoutText
-            }
-          ],
-          max_tokens: 12000,
-          temperature: 0.1
-        })
+          },
+          {
+            role: 'user',
+            // Avoid template literals: assistant text may contain ` or ${...} and break interpolation.
+            content: 'Parse this weekly workout plan to a single structured JSON:\n\n' + workoutText,
+          },
+        ],
+        max_tokens: 12000,
+        temperature: 0.1,
       });
 
-      if (!response.ok) {
-        throw new Error(`AI weekly conversion failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const choice = data.choices[0];
-      const jsonContent = choice?.message?.content?.trim();
-      const finishReason = choice?.finish_reason as string | undefined;
+      const jsonContent = (data?.content as string | undefined)?.trim();
       console.log('🤖 IA weekly JSON meta:', {
         length: jsonContent?.length ?? 0,
-        finishReason,
-        completionTokens: data.usage?.completion_tokens,
+        completionTokens: data?.usage?.completion_tokens,
       });
       debugLogLongJson('🤖 IA generated Weekly JSON', jsonContent);
       if (!jsonContent) {
         throw new Error('No content received from AI');
-      }
-      if (finishReason === 'length') {
-        throw new Error(
-          'La respuesta del modelo se cortó por límite de tokens al generar la semana completa. Prueba importar día por día o reduce el detalle de la rutina.'
-        );
       }
       return parseWorkoutImportJsonString(jsonContent);
     } catch (error) {
@@ -944,42 +842,6 @@ RESPOND WITH CLEAN JSON ONLY - NO MARKDOWN, NO EXPLANATIONS.`
       return null;
     }
   };
-
-  if (showApiKeyInput) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-96">
-          <h3 className="text-lg font-semibold mb-4">OpenAI API Key Required</h3>
-          <form onSubmit={handleApiKeySubmit}>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your OpenAI API key (sk-...)"
-              className="w-full p-2 border rounded mb-4"
-              required
-              autoComplete="new-password"
-            />
-            <div className="flex justify-end space-x-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Save
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

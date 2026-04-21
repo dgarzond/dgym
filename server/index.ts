@@ -5,6 +5,7 @@ import { readFileSync } from 'fs';
 import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
+import { registerAiRoutes } from './aiRoutes.js';
 const { Pool } = pg;
 
 // Load environment variables from .env or database_url.env
@@ -34,6 +35,9 @@ const PORT = Number(process.env.PORT) || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// AI routes (OpenAI key stays server-side)
+registerAiRoutes(app);
 
 // Configuración de PostgreSQL con manejo de errores
 const databaseUrl = process.env.DATABASE_URL;
